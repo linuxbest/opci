@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_perr_crit.v,v $
+// Revision 1.2  2003/02/13 18:26:33  mihad
+// Cleaned up the code. No functional changes.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -81,7 +84,7 @@ input   non_critical_par_in,
         pci_par_in,
         perr_generate_in ;
 
-assign perr_out     = (non_critical_par_in ^^ pci_par_in) && perr_generate_in ;
+assign perr_out     = (non_critical_par_in ^ pci_par_in) && perr_generate_in ;
 assign perr_n_out   = ~perr_out ;
 
 endmodule

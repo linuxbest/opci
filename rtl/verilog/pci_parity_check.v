@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_parity_check.v,v $
+// Revision 1.6  2003/02/13 18:26:33  mihad
+// Cleaned up the code. No functional changes.
+//
 // Revision 1.5  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -146,8 +149,8 @@ reg check_perr ;
 /*=======================================================================================================================
 CBE lines' parity is needed for overall parity calculation
 =======================================================================================================================*/
-wire par_cbe_out = pci_cbe_out_in[3] ^^ pci_cbe_out_in[2] ^^ pci_cbe_out_in[1] ^^ pci_cbe_out_in[0] ;
-wire par_cbe_in  = pci_cbe_reg_in[3] ^^ pci_cbe_reg_in[2] ^^ pci_cbe_reg_in[1] ^^ pci_cbe_reg_in[0] ;
+wire par_cbe_out = pci_cbe_out_in[3] ^ pci_cbe_out_in[2] ^ pci_cbe_out_in[1] ^ pci_cbe_out_in[0] ;
+wire par_cbe_in  = pci_cbe_reg_in[3] ^ pci_cbe_reg_in[2] ^ pci_cbe_reg_in[1] ^ pci_cbe_reg_in[0] ;
 
 /*=======================================================================================================================
 Parity generator - parity is generated and assigned to output on every clock edge. PAR output enable is active
@@ -156,16 +159,16 @@ apropriate cbe data is included in parity generation. Non - registered CBE is us
 =======================================================================================================================*/
 
 // generate appropriate par signal
-wire data_par = (pci_ad_out_in[31] ^^ pci_ad_out_in[30] ^^ pci_ad_out_in[29] ^^ pci_ad_out_in[28]) ^^
-                (pci_ad_out_in[27] ^^ pci_ad_out_in[26] ^^ pci_ad_out_in[25] ^^ pci_ad_out_in[24]) ^^
-                (pci_ad_out_in[23] ^^ pci_ad_out_in[22] ^^ pci_ad_out_in[21] ^^ pci_ad_out_in[20]) ^^
-                (pci_ad_out_in[19] ^^ pci_ad_out_in[18] ^^ pci_ad_out_in[17] ^^ pci_ad_out_in[16]) ^^
-                (pci_ad_out_in[15] ^^ pci_ad_out_in[14] ^^ pci_ad_out_in[13] ^^ pci_ad_out_in[12]) ^^
-                (pci_ad_out_in[11] ^^ pci_ad_out_in[10] ^^ pci_ad_out_in[9]  ^^ pci_ad_out_in[8])  ^^
-                (pci_ad_out_in[7]  ^^ pci_ad_out_in[6]  ^^ pci_ad_out_in[5]  ^^ pci_ad_out_in[4])  ^^
-                (pci_ad_out_in[3]  ^^ pci_ad_out_in[2]  ^^ pci_ad_out_in[1]  ^^ pci_ad_out_in[0]) ;
+wire data_par = (pci_ad_out_in[31] ^ pci_ad_out_in[30] ^ pci_ad_out_in[29] ^ pci_ad_out_in[28]) ^
+                (pci_ad_out_in[27] ^ pci_ad_out_in[26] ^ pci_ad_out_in[25] ^ pci_ad_out_in[24]) ^
+                (pci_ad_out_in[23] ^ pci_ad_out_in[22] ^ pci_ad_out_in[21] ^ pci_ad_out_in[20]) ^
+                (pci_ad_out_in[19] ^ pci_ad_out_in[18] ^ pci_ad_out_in[17] ^ pci_ad_out_in[16]) ^
+                (pci_ad_out_in[15] ^ pci_ad_out_in[14] ^ pci_ad_out_in[13] ^ pci_ad_out_in[12]) ^
+                (pci_ad_out_in[11] ^ pci_ad_out_in[10] ^ pci_ad_out_in[9]  ^ pci_ad_out_in[8])  ^
+                (pci_ad_out_in[7]  ^ pci_ad_out_in[6]  ^ pci_ad_out_in[5]  ^ pci_ad_out_in[4])  ^
+                (pci_ad_out_in[3]  ^ pci_ad_out_in[2]  ^ pci_ad_out_in[1]  ^ pci_ad_out_in[0]) ;
 
-wire par_out_only = data_par ^^ par_cbe_out ;
+wire par_out_only = data_par ^ par_cbe_out ;
 
 pci_par_crit par_gen
 (
@@ -192,14 +195,14 @@ wire perr_generate =  ~pci_par_en_in && ~pci_ad_en_in                   // par w
                       && ((pci_irdy_en_in && ~pci_trdy_reg_in) ||       // and master is driving irdy and target is signaling ready
                           (pci_trdy_en_in && ~pci_irdy_reg_in)) ;       // or target is driving trdy and master is signaling ready
 
-wire data_in_par = (pci_ad_reg_in[31] ^^ pci_ad_reg_in[30] ^^ pci_ad_reg_in[29] ^^ pci_ad_reg_in[28]) ^^
-                   (pci_ad_reg_in[27] ^^ pci_ad_reg_in[26] ^^ pci_ad_reg_in[25] ^^ pci_ad_reg_in[24]) ^^
-                   (pci_ad_reg_in[23] ^^ pci_ad_reg_in[22] ^^ pci_ad_reg_in[21] ^^ pci_ad_reg_in[20]) ^^
-                   (pci_ad_reg_in[19] ^^ pci_ad_reg_in[18] ^^ pci_ad_reg_in[17] ^^ pci_ad_reg_in[16]) ^^
-                   (pci_ad_reg_in[15] ^^ pci_ad_reg_in[14] ^^ pci_ad_reg_in[13] ^^ pci_ad_reg_in[12]) ^^
-                   (pci_ad_reg_in[11] ^^ pci_ad_reg_in[10] ^^ pci_ad_reg_in[9]  ^^ pci_ad_reg_in[8])  ^^
-                   (pci_ad_reg_in[7]  ^^ pci_ad_reg_in[6]  ^^ pci_ad_reg_in[5]  ^^ pci_ad_reg_in[4])  ^^
-                   (pci_ad_reg_in[3]  ^^ pci_ad_reg_in[2]  ^^ pci_ad_reg_in[1]  ^^ pci_ad_reg_in[0]) ;
+wire data_in_par = (pci_ad_reg_in[31] ^ pci_ad_reg_in[30] ^ pci_ad_reg_in[29] ^ pci_ad_reg_in[28]) ^
+                   (pci_ad_reg_in[27] ^ pci_ad_reg_in[26] ^ pci_ad_reg_in[25] ^ pci_ad_reg_in[24]) ^
+                   (pci_ad_reg_in[23] ^ pci_ad_reg_in[22] ^ pci_ad_reg_in[21] ^ pci_ad_reg_in[20]) ^
+                   (pci_ad_reg_in[19] ^ pci_ad_reg_in[18] ^ pci_ad_reg_in[17] ^ pci_ad_reg_in[16]) ^
+                   (pci_ad_reg_in[15] ^ pci_ad_reg_in[14] ^ pci_ad_reg_in[13] ^ pci_ad_reg_in[12]) ^
+                   (pci_ad_reg_in[11] ^ pci_ad_reg_in[10] ^ pci_ad_reg_in[9]  ^ pci_ad_reg_in[8])  ^
+                   (pci_ad_reg_in[7]  ^ pci_ad_reg_in[6]  ^ pci_ad_reg_in[5]  ^ pci_ad_reg_in[4])  ^
+                   (pci_ad_reg_in[3]  ^ pci_ad_reg_in[2]  ^ pci_ad_reg_in[1]  ^ pci_ad_reg_in[0]) ;
 
 //wire perr = (cbe_par_reg ^ pci_par_in ^ data_in_par) ;
 wire perr ;
@@ -211,7 +214,7 @@ assign pci_perr_out = perr_n ;
 // parity error output assignment
 //assign pci_perr_out = ~(perr && perr_generate) ;
 
-wire non_critical_par = par_cbe_in ^^ data_in_par ;
+wire non_critical_par = par_cbe_in ^ data_in_par ;
 
 pci_perr_crit perr_crit_gen
 (

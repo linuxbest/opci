@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_serr_en_crit.v,v $
+// Revision 1.2  2003/02/13 18:26:33  mihad
+// Cleaned up the code. No functional changes.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -79,6 +82,6 @@ input   non_critical_par_in,
         pci_par_in,
         serr_generate_in ;
 
-assign serr_en_out = serr_generate_in && ( non_critical_par_in ^^ pci_par_in ) ;
+assign serr_en_out = serr_generate_in && ( non_critical_par_in ^ pci_par_in ) ;
 
 endmodule

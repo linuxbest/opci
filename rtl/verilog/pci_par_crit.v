@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_par_crit.v,v $
+// Revision 1.2  2003/02/13 18:26:33  mihad
+// Cleaned up the code. No functional changes.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -82,6 +85,6 @@ input   par_out_in,
 
 input   [3:0] pci_cbe_in ;
 
-assign par_out = pci_cbe_en_in ? par_out_in : ( pci_cbe_in[3] ^^ pci_cbe_in[2] ^^ pci_cbe_in[1] ^^ pci_cbe_in[0] ^^ data_par_in) ;
+assign par_out = pci_cbe_en_in ? par_out_in : ( pci_cbe_in[3] ^ pci_cbe_in[2] ^ pci_cbe_in[1] ^ pci_cbe_in[0] ^ data_par_in) ;
 
 endmodule
