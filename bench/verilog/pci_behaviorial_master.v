@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.2 2002/03/21 07:35:50 mihad Exp $
+// $Id: pci_behaviorial_master.v,v 1.3 2003/08/08 16:29:00 tadejm Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -693,7 +693,9 @@ task Check_Master_Burst_Termination_Cause;
 // Check for Target Retry status
       if (hold_master_target_termination[2:0] == `Test_Target_Retry_On)
       begin
-        Check_Target_Retry (got_target_retry, words_transferred[9:0], hold_master_size - 1);
+//        Check_Target_Retry (got_target_retry, words_transferred[9:0], hold_master_size - 1);
+// tadejm, tadejm@flextronics.si, 7.8.2003; target disconnect is target_retry and target_stop
+        Check_Target_Retry ((got_target_retry || got_target_stop), words_transferred[9:0], hold_master_size - 1);
       end
       `NO_ELSE;
 
@@ -701,7 +703,9 @@ task Check_Master_Burst_Termination_Cause;
       begin
         if (hold_master_size[9:0] >= 10'h2)  // too small, don't get a chance to do 2
         begin
-          Check_Target_Retry (got_target_retry, words_transferred[9:0], hold_master_size - 2);
+//          Check_Target_Retry (got_target_retry, words_transferred[9:0], hold_master_size - 2);
+// tadejm, tadejm@flextronics.si, 7.8.2003; target disconnect is target_retry and target_stop
+          Check_Target_Retry ((got_target_retry || got_target_stop), words_transferred[9:0], hold_master_size - 2);
         end
         else
         begin
@@ -733,7 +737,9 @@ task Check_Master_Burst_Termination_Cause;
 // Check for retry due to starting a delayed read
       if (hold_master_target_termination[2:0] == `Test_Target_Start_Delayed_Read)
       begin
-        Check_Target_Retry (got_target_retry, words_transferred[9:0], 10'h0);
+//        Check_Target_Retry (got_target_retry, words_transferred[9:0], 10'h0);
+// tadejm, tadejm@flextronics.si, 7.8.2003; target disconnect is target_retry and target_stop
+        Check_Target_Retry ((got_target_retry || got_target_stop), words_transferred[9:0], 10'h0);
       end
       `NO_ELSE;
 
