@@ -13,8 +13,8 @@
     // only one at the time can be defined, otherwise testbench won't work
     // they are used to generate both clocks with same period and phase shift of define's value in nano seconds
 
-    //`define PCI_CLOCK_FOLLOWS_WB_CLOCK 1
-    `define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
+    `define PCI_CLOCK_FOLLOWS_WB_CLOCK 2
+    //`define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
     
     // wishbone frequncy in GHz
     `define WB_FREQ 0.033
@@ -67,7 +67,7 @@
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 
-    //`define DISABLE_COMPLETION_EXPIRED_TESTS
+    `define DISABLE_COMPLETION_EXPIRED_TESTS
 `endif
 
 //===================================================================================

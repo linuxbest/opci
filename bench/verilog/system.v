@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.12  2002/10/21 13:04:30  mihad
+// Changed BIST signal names etc..
+//
 // Revision 1.11  2002/10/11 12:03:12  mihad
 // The testcase I just added in previous revision repaired
 //
@@ -148,13 +151,11 @@ wire        TAR2_IDSEL = AD[`TAR2_IDSEL_INDEX] ;
 wire        reset_wb ; // reset to Wb devices
 
 `ifdef PCI_BIST
-wire SO ;
-reg  SI ;
-wire trst = reset_wb ;
-reg  shift_DR ;
-reg  capture_DR ;
-reg  extest ;
-reg  tck ;
+wire scanb_so ;
+reg  scanb_si ;
+reg  scanb_rst ;
+reg  scanb_en ;
+reg  scanb_clk ;
 `endif
 
 `ifdef GUEST
@@ -220,13 +221,12 @@ TOP `PCI_BRIDGE_INSTANCE
 
 `ifdef PCI_BIST
     ,
-    .trst       (trst),
-    .SO         (SO),
-    .SI         (SI),
-    .shift_DR   (shift_DR),
-    .capture_DR (capture_DR),
-    .extest     (extest),
-    .tck        (tck)
+    // bist chain signals
+    .scanb_rst  (scanb_rst),
+    .scanb_clk  (scanb_clk),
+    .scanb_si   (scanb_si),
+    .scanb_so   (scanb_so),
+    .scanb_en   (scanb_en)
 `endif
 ) ;
 
@@ -654,11 +654,10 @@ initial
 begin
 
 `ifdef PCI_BIST
-    SI          = 0 ;
-    shift_DR    = 0 ;
-    capture_DR  = 0 ;
-    extest      = 0 ;
-    tck         = 0 ;
+    scanb_si    = 0 ;
+    scanb_en    = 0 ;
+    scanb_clk   = 0 ;
+    scanb_rst   = 0 ;
 `endif
     next_test_name[79:0] <= "Nowhere___";
     reset = 1'b1 ;
@@ -933,6 +932,10 @@ begin
             master_completion_expiration ;
         `endif
 
+        `ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+            master_special_corner_case_test ;
+        `endif
+
             $display(" ") ;
             $display("WB slave images' tests finished!") ;
 
@@ -1204,7 +1207,7 @@ begin:main
     config_write( pci_ctrl_offset, 32'h0000_0007, 4'h1, ok) ;
     if ( ok !== 1 )
     begin
-        $display("Image testing failed! Failed to write PCI Device Control register! Time %t ", image_num, $time) ;
+        $display("Image testing failed! Failed to write PCI Device Control register! Time %t ", $time) ;
         test_fail("write to PCI Device Control register didn't succeede");
         disable main ;
     end
@@ -1212,7 +1215,7 @@ begin:main
     config_write( err_cs_offset, 32'h0000_0000, 4'h1, ok) ;
     if ( ok !== 1 )
     begin
-        $display("Image testing failed! Failed to write WB Error Control and Status register! Time %t ", image_num, $time) ;
+        $display("Image testing failed! Failed to write WB Error Control and Status register! Time %t ", $time) ;
         test_fail("write to WB Error Control and Status register didn't succeede");
         disable main ;
     end
@@ -19117,9 +19120,9 @@ endtask //config_read
     `endif
 `else
     `ifdef PCI_RAM_DONT_SHARE
-        bist_chain_length = 6 ;
+        parameter bist_chain_length = 6 ;
     `else
-        bist_chain_length = 4 ;
+        parameter bist_chain_length = 4 ;
     `endif
 `endif
 
@@ -19131,11 +19134,10 @@ begin
 
     test_name = "BIST FOR RAMS RUN" ;
 
-    SI          = 0 ;
-    shift_DR    = 0 ;
-    capture_DR  = 0 ;
-    extest      = 0 ;
-    tck         = 0 ;
+    scanb_en  = 0 ;
+    scanb_si  = 0 ;
+    scanb_rst = 0 ;
+    scanb_clk = 0 ;
 
     fork
     begin
@@ -19148,8 +19150,15 @@ begin
     end
     join
 
-    // test is run with forcing extest high
-    extest <= 1'b1 ;
+    // test is run by reseting the test logic
+    scanb_rst <= 1'b1 ;
+    
+    // toggle scan clock for a few times
+    repeat (20)
+        #50 scanb_clk = !scanb_clk ;
+    
+    // release bist reset
+    scanb_rst <= 1'b0 ;
 
     bist_result_vector = 0 ;
 
@@ -19158,24 +19167,20 @@ begin
     begin:scan
         while (bist_result_vector !== {bist_chain_length{1'b1}})
         begin
-            @(negedge tck) ;
-            capture_DR <= #1 1'b1 ;
-            @(negedge tck) ;
-            capture_DR <= #1 1'b0 ;
-            shift_DR   <= #1 1'b1 ;
+            #1 ;
+            @(posedge scanb_clk) ;
+            scanb_en <= #1 1'b1 ;
             for (count = 0 ; count < bist_chain_length ; count = count + 1'b1)
             begin
-                @(negedge tck) ;
-                bist_result_vector[count] = SO ;
+                @(posedge scanb_clk) ;
+                bist_result_vector[count] = scanb_so ;
             end
 
-            shift_DR <= #1 1'b0 ;
+            scanb_en <= #1 1'b0 ;
         end
         #1 disable deadlock ;
-        @(negedge tck) ;
-        extest <= #1 1'b0 ;
-        #1 ;
-        disable tck_gen ;
+        @(negedge scanb_clk) ;
+        #1 disable scanb_clk_gen ;
         test_ok ;
     end
     begin:deadlock
@@ -19186,15 +19191,15 @@ begin
         end
 
         test_fail("BIST Test didn't finish as expected") ;
-        extest <= #1 1'b0 ;
+        scanb_en <= #1 1'b0 ;
         disable scan ;
-        @(negedge tck) ;
+        @(negedge scanb_clk) ;
         #1 ;
-        disable tck_gen ;
+        disable scanb_clk_gen ;
     end
-    begin:tck_gen
+    begin:scanb_clk_gen
         forever
-            #50 tck = !tck ;
+            #50 scanb_clk = !scanb_clk ;
     end
     join
 end
@@ -19250,7 +19255,7 @@ begin:main
     config_write( ba_offset, Target_Base_Addr_R[1], 4'hF, ok_wb ) ;
     if ( ok_wb !== 1 )
     begin
-        $display("Image testing failed! Failed to write P_BA1 register! Time %t ", $time);
+        $display("Special Testcase didn't pass! Failed to write P_BA1 register! Time %t ", $time);
         test_fail("PCI Base Address register 1 could not be written") ;
         #1 ;
         disable main ;
@@ -19260,7 +19265,7 @@ begin:main
     config_write( am_offset, Target_Addr_Mask_R[1], 4'hF, ok_wb ) ;
     if ( ok_wb !== 1 )
     begin
-        $display("Image testing failed! Failed to write P_AM1 register! Time %t ", $time);
+        $display("Special Testcase didn't pass! Failed to write P_AM1 register! Time %t ", $time);
         test_fail("PCI Address Mask register 1 could not be written") ;
         #1 ;
         disable main ;
@@ -19270,7 +19275,7 @@ begin:main
     config_write( ctrl_offset, 0, 4'hF, ok_wb ) ;
     if ( ok_wb !== 1 )
     begin
-        $display("Image testing failed! Failed to write P_CTRL1 register! Time %t ", $time);
+        $display("Special Testcase didn't pass! Failed to write P_CTRL1 register! Time %t ", $time);
         test_fail("PCI Image Control register 1 could not be written") ;
         #1 ;
         disable main ;
@@ -19647,9 +19652,248 @@ begin:main
         test_fail("PCI Behavioral Master or Monitor signaled an error during read from PCI Bridge Target") ;
     end
     
+    // Disable used image
+    config_write( ba_offset, 32'h0000_0000, 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("Special Testcase didn't pass! Failed to write P_BA1 register! Time %t ", $time);
+        test_fail("PCI Base Address register 1 could not be written") ;
+        #1 ;
+        disable main ;
+    end
+
     master1_check_received_data = master_check_data_previous ;
 end
 endtask // target_special_corner_case_test
+`endif
+
+`ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+task master_special_corner_case_test ;
+    reg   [11:0] ctrl_offset ;
+    reg   [11:0] ba_offset ;
+    reg   [11:0] am_offset ;
+    reg `WRITE_STIM_TYPE write_data ;
+    reg `READ_STIM_TYPE  read_data ;
+    reg `READ_RETURN_TYPE read_status ;
+
+    reg `WRITE_RETURN_TYPE write_status ;
+    reg `WB_TRANSFER_FLAGS flags ;
+    reg ok_pci   ;
+    reg ok_wb ;
+
+    reg [31:0] target_address ;
+    
+    reg [11:0] pci_ctrl_offset ;
+
+    reg [31:0] image_base ;
+begin:main
+    test_name = "WISHBONE SLAVE UNIT SPECIAL CORNER CASE" ;
+    pci_ctrl_offset = 12'h4 ;
+    ctrl_offset = {4'h1, `W_IMG_CTRL1_ADDR, 2'b00} ;
+    ba_offset   = {4'h1, `W_BA1_ADDR, 2'b00} ;
+    am_offset   = {4'h1, `W_AM1_ADDR, 2'b00} ;
+
+    target_address  = `BEH_TAR1_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+    target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
+    target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
+
+    flags                      = 0 ;
+    flags`INIT_WAITS           = 0 ;
+    flags`SUBSEQ_WAITS         = 0 ;
+    flags`WB_TRANSFER_AUTO_RTY = 0 ;
+
+    test_target_response[`TARGET_ENCODED_DEVSEL_SPEED] = `Test_Devsel_Fast ;
+    test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = 0 ;
+    test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = 0 ;
+
+    // enable master & target operation
+    config_write( pci_ctrl_offset, 32'h0000_0007, 4'h1, ok_wb) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("WISHBONE Slave Unit special corner case test didn't pass! Failed to write PCI Device Control register! Time %t ", $time) ;
+        test_fail("write to PCI Device Control register didn't succeede");
+        disable main ;
+    end
+
+    // prepare image control register
+    config_write( ctrl_offset, 32'h0000_0000, 4'hF, ok_wb) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("WISHBONE Slave Unit special corner case test didn't pass! Failed to write W_IMG_CTRL1 register! Time %t ", $time) ;
+        test_fail("write to WB Image Control register didn't succeede");
+        disable main ;
+    end
+
+    // prepare base address register
+    config_write( ba_offset, image_base, 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("WISHBONE Slave Unit special corner case test didn't pass! Failed to write W_BA1 register! Time %t ", $time) ;
+        test_fail("write to WB Base Address register didn't succeede");
+        disable main ;
+    end
+
+    // write address mask register
+    config_write( am_offset, 32'hFFFF_FFFF, 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("WISHBONE Slave Unit special corner case test didn't pass! Failed to write W_AM1 register! Time %t ", $time) ;
+        test_fail("write to WB Address Mask register didn't succeede");
+        disable main ;
+    end
+
+    fork
+    begin
+
+        // do one dummy read, to receive bus gnt
+        read_data`READ_ADDRESS  = target_address ;
+        read_data`READ_SEL      = 4'hF ;
+        read_data`READ_TAG_STIM = 0 ;
+
+        // handle retries
+        flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+        wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+        if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+        begin
+            $display("WISHBONE Slave Unit special corner case test didn't pass! Bridge failed to process single memory read! Time %t ", $time) ;
+            test_fail("PCI bridge didn't process the delayed read as expected");
+            disable main ;
+        end
+
+        write_data`WRITE_ADDRESS = target_address + 64;
+        write_data`WRITE_DATA    = 32'hABCD_EF12 ;
+        write_data`WRITE_SEL     = 4'hF ;
+
+        wishbone_master.blk_write_data[0] = write_data ;
+        
+        write_data`WRITE_ADDRESS = target_address + 128 ;
+        write_data`WRITE_DATA    = ~write_data`WRITE_DATA ;
+        write_data`WRITE_SEL     = 4'hF ;
+
+        wishbone_master.blk_write_data[1] = write_data ;
+
+        // no retries should happen
+        flags`WB_TRANSFER_AUTO_RTY = 0 ;
+
+        flags`WB_TRANSFER_SIZE = 2 ;
+
+        wishbone_master.wb_block_write( flags, write_status ) ;
+        if ( write_status`CYC_ACTUAL_TRANSFER !== 2 )
+        begin
+            $display("WISHBONE Slave Unit special corner case test didn't pass! Bridge failed to process block memory write! Time %t ", $time) ;
+            test_fail("WB Slave state machine failed to post block memory write");
+            disable main ;
+        end
+
+        // read data back
+        read_data`READ_ADDRESS  = target_address + 64 ;
+        read_data`READ_SEL      = 4'hF ;
+        read_data`READ_TAG_STIM = 0 ;
+
+        // handle retries
+        flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+        wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+        if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+        begin
+            $display("WISHBONE Slave Unit special corner case test didn't pass! Bridge failed to process single memory read! Time %t ", $time) ;
+            test_fail("PCI bridge didn't process the delayed read as expected");
+            disable main ;
+        end
+
+        if (read_status`READ_DATA !== 32'hABCD_EF12)
+        begin
+            display_warning(target_address + 64, 32'hABCD_EF12, read_status`READ_DATA) ;
+            test_fail("PCI bridge returned unexpected Read Data");
+            ok_wb = 0 ;
+        end
+
+        // read second data back
+        read_data`READ_ADDRESS  = target_address + 128 ;
+        read_data`READ_SEL      = 4'hF ;
+        read_data`READ_TAG_STIM = 0 ;
+
+        // handle retries
+        flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+        wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+        if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+        begin
+            $display("WISHBONE Slave Unit special corner case test didn't pass! Bridge failed to process single memory read! Time %t ", $time) ;
+            test_fail("PCI bridge didn't process the delayed read as expected");
+            disable main ;
+        end
+
+        if (read_status`READ_DATA !== write_data`WRITE_DATA)
+        begin
+            display_warning(target_address + 128, write_data`WRITE_DATA, read_status`READ_DATA) ;
+            test_fail("PCI bridge returned unexpected Read Data");
+            ok_wb = 0 ;
+        end
+    end
+    begin
+
+        pci_transaction_progress_monitor( target_address, `BC_MEM_READ, 1, 0, 1, 0, 0, ok_pci ) ;
+        if ( ok_pci !== 1 )
+        begin
+            test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
+        end
+
+        if(ok_pci)
+        begin
+            pci_transaction_progress_monitor( target_address + 64, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok_pci ) ;
+            if ( ok_pci !== 1 )
+            begin
+                test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+            end
+        end
+
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor( target_address + 128, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok_pci ) ;
+            if ( ok_pci !== 1 )
+            begin
+                test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+            end
+        end
+
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor( target_address + 64, `BC_MEM_READ, 1, 0, 1, 0, 0, ok_pci ) ;
+            if ( ok_pci !== 1 )
+            begin
+                test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
+            end
+        end
+    
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor( target_address + 128, `BC_MEM_READ, 1, 0, 1, 0, 0, ok_pci ) ;
+            if ( ok_pci !== 1 )
+            begin
+                test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
+            end
+        end
+    end
+    join
+
+    if (ok_wb && ok_pci)
+        test_ok ;
+
+    // disable the image
+    config_write( ba_offset, 32'h0000_0000, 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("WISHBONE Slave Unit special corner case test didn't pass! Failed to write W_BA1 register! Time %t ", $time) ;
+        test_fail("write to WB Base Address register didn't succeede");
+        disable main ;
+    end
+end
+endtask // master_special_corner_case_test
 `endif
 
 task test_fail ;

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.8  2002/10/21 13:04:33  mihad
+// Changed BIST signal names etc..
+//
 // Revision 1.7  2002/10/18 03:36:37  tadejm
 // Changed wrong signal name scanb_sen into scanb_en.
 //
@@ -808,7 +811,7 @@ WB_SLAVE_UNIT wishbone_slave_unit
     .scanb_rst      (scanb_rst),
     .scanb_clk      (scanb_clk),
     .scanb_si       (scanb_si),
-    .scanb_so       (scanb_so),
+    .scanb_so       (scanb_so_internal),
     .scanb_en       (scanb_en)
 `endif
 );
@@ -989,7 +992,7 @@ PCI_TARGET_UNIT pci_target_unit
     ,
     .scanb_rst      (scanb_rst),
     .scanb_clk      (scanb_clk),
-    .scanb_si       (scanb_si),
+    .scanb_si       (scanb_so_internal),
     .scanb_so       (scanb_so),
     .scanb_en       (scanb_en)
 `endif
