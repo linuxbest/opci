@@ -5,6 +5,19 @@
 -messages
 -INCDIR ../../../bench/verilog
 -INCDIR ../../../rtl/verilog
+-DEFINE REGRESSION
+-DEFINE REGR_FIFO_SMALL_GENERIC
+-DEFINE GUEST                       
+-DEFINE WB_DECODE_FAST              
+-DEFINE PCI_DECODE_MAX              
+-DEFINE WB_DECODE_MED               
+-DEFINE PCI66                       
+-DEFINE WB_CLK66                    
+-DEFINE ACTIVE_HIGH_OE              
+-DEFINE WB_CNF_BASE_ZERO            
+-DEFINE NO_CNF_IMAGE                
+-DEFINE PCI_CLOCK_FOLLOWS_WB_CLOCK=2
+-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS
 ../../../rtl/verilog/pci_parity_check.v
 ../../../rtl/verilog/pci_target_unit.v
 ../../../rtl/verilog/pci_wb_addr_mux.v
@@ -58,7 +71,7 @@
 ../../../rtl/verilog/pci_rst_int.v
 ../../../rtl/verilog/pci_sync_module.v
 ../../../rtl/verilog/pci_wb_tpram.v
-../../../rtl/verilog/meta_flop.v
+../../../rtl/verilog/pci_wbs_wbb3_2_wbb2.v
 ../../../bench/verilog/wb_master32.v
 ../../../bench/verilog/wb_master_behavioral.v
 ../../../bench/verilog/system.v

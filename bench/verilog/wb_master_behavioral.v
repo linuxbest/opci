@@ -38,6 +38,10 @@
 // CVS Revision History
 //
 // $Log: wb_master_behavioral.v,v $
+// Revision 1.3  2003/08/03 18:04:45  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.2  2003/06/12 02:30:39  mihad
 // Update!
 //
@@ -120,6 +124,8 @@ task wb_single_write ;
     integer cyc_count ;
     integer rty_count ;
     reg retry ;
+    reg [2:0] use_cti ;
+    reg [1:0] use_bte ;
 begin:main
 
     return`TB_ERROR_BIT = 1'b0 ;
@@ -138,6 +144,16 @@ begin:main
     in_use = 1 ;
 
     retry = 1 ;
+
+    use_cti = {$random} % 8 ;
+    if (use_cti === 3'b010)
+        use_cti = 3'b111 ;
+    else if (use_cti === 3'b001)
+        use_cti = 3'b000 ;
+
+    use_bte = {$random} % 4 ;
+
+    write_data`WRITE_TAG_STIM = {use_cti, use_bte} ;
 
     while (retry === 1)
     begin
@@ -212,6 +228,8 @@ task wb_single_read ;
     integer cyc_count ;
     integer rty_count ;
     reg retry ;
+    reg [2:0] use_cti ;
+    reg [1:0] use_bte ;
 begin:main
 
     return`TB_ERROR_BIT = 1'b0 ;
@@ -230,6 +248,16 @@ begin:main
     in_use = 1 ;
 
     retry = 1 ;
+
+    use_cti = {$random} % 8 ;
+    if (use_cti === 3'b010)
+        use_cti = 3'b111 ;
+    else if (use_cti === 3'b001)
+        use_cti = 3'b000 ;
+
+    use_bte = {$random} % 4 ;
+
+    read_data`READ_TAG_STIM = {use_cti, use_bte} ;
 
     while (retry === 1)
     begin
@@ -306,6 +334,8 @@ task wb_RMW_read ;
     integer cyc_count ;
     integer rty_count ;
     reg retry ;
+    reg [2:0] use_cti ;
+    reg [1:0] use_bte ;
 begin:main
 
     return`TB_ERROR_BIT = 1'b0 ;
@@ -324,6 +354,16 @@ begin:main
     in_use = 1 ;
 
     retry = 1 ;
+
+    use_cti = {$random} % 8 ;
+    if (use_cti === 3'b010)
+        use_cti = 3'b111 ;
+    else if (use_cti === 3'b001)
+        use_cti = 3'b000 ;
+
+    use_bte = {$random} % 4 ;
+
+    read_data`READ_TAG_STIM = {use_cti, use_bte} ;
 
     while (retry === 1)
     begin
@@ -403,6 +443,8 @@ task wb_RMW_write ;
     integer cyc_count ;
     integer rty_count ;
     reg retry ;
+    reg [2:0] use_cti ;
+    reg [1:0] use_bte ;
 begin:main
 
     return`TB_ERROR_BIT = 1'b0 ;
@@ -421,6 +463,16 @@ begin:main
     in_use = 1 ;
 
     retry = 1 ;
+
+    use_cti = {$random} % 8 ;
+    if (use_cti === 3'b010)
+        use_cti = 3'b111 ;
+    else if (use_cti === 3'b001)
+        use_cti = 3'b000 ;
+
+    use_bte = {$random} % 4 ;
+
+    write_data`WRITE_TAG_STIM = {use_cti, use_bte} ;
 
     while (retry === 1)
     begin
@@ -499,6 +551,8 @@ task wb_block_write ;
     integer cyc_count ;
     integer rty_count ;
     reg end_blk ;
+    reg [2:0] use_cti    ;
+    reg [1:0] use_bte    ;
 begin:main
 
     return`CYC_ACTUAL_TRANSFER = 0 ;
@@ -524,6 +578,43 @@ begin:main
         @(posedge CLK_I) ;
 
     cab = write_flags`WB_TRANSFER_CAB ;
+
+    current_write = blk_write_data[0] ;
+
+    if (cab)
+    begin:select_burst_type_blk
+        reg [31:0] burst_start_adr ;
+
+        use_cti = 3'b010 ;
+
+        burst_start_adr = current_write`WRITE_ADDRESS ;
+        if (burst_start_adr[5:2] === 4'b0000)
+            use_bte = {$random} % 4 ;
+        else if (burst_start_adr[4:2] === 3'b000)
+            use_bte = {$random} % 3 ;
+        else if (burst_start_adr[3:2] === 2'b00)
+            use_bte = {$random} % 2 ;
+        else
+            use_bte = 2'b00 ;
+    end
+    else
+    begin
+        if ( (current_write`WRITE_TAG_STIM === 0) | (current_write`WRITE_TAG_STIM === {`WB_TAG_WIDTH{1'bx}}) )
+        begin
+            use_cti = {$random} % 8 ;
+            if (use_cti === 3'b010)
+                use_cti = 3'b111 ;
+            else if (use_cti === 3'b001)
+                use_cti = 3'b000 ;
+                
+            use_bte = {$random} % 4 ;
+        end
+        else
+        begin
+            {use_cti, use_bte} = current_write`WRITE_TAG_STIM ;
+        end
+    end
+
     wbm_low_level.start_cycle(cab, 1'b1, write_flags`WB_FAST_B2B, ok) ;
     if ( ok !== 1 )
     begin
@@ -543,8 +634,18 @@ begin:main
     end_blk = 0 ;
     while (end_blk === 0)
     begin
+        
         // collect data for current data beat
         current_write = blk_write_data[return`CYC_ACTUAL_TRANSFER] ;
+
+        if (cab)
+        begin
+            if ((return`CYC_ACTUAL_TRANSFER + 1'b1) >= write_flags`WB_TRANSFER_SIZE)
+                use_cti = 3'b111 ;
+        end
+
+        current_write`WRITE_TAG_STIM = {use_cti, use_bte} ;
+
         wbm_low_level.wbm_write(current_write, return) ;
 
         // check result of write operation
@@ -583,6 +684,11 @@ begin:main
             end
             else
             begin
+                if (cab)
+                begin
+                    use_bte = 2'b00 ;
+                end
+
                 rty_count = rty_count + 1 ;
             end
         end
@@ -642,6 +748,8 @@ task wb_block_read ;
     integer rty_count ;
     reg end_blk ;
     integer transfered ;
+    reg [2:0] use_cti ;
+    reg [1:0] use_bte ;
 begin:main
 
     return`CYC_ACTUAL_TRANSFER = 0 ;
@@ -667,6 +775,24 @@ begin:main
     @(posedge CLK_I) ;
     cab = read_flags`WB_TRANSFER_CAB ;
 
+    if (cab)
+    begin:select_burst_type_blk
+        reg [31:0] burst_start_adr ;
+
+        use_cti = 3'b010 ;
+
+        current_read = blk_read_data_in[0] ;
+        burst_start_adr = current_read`READ_ADDRESS ;
+        if (burst_start_adr[5:2] === 4'b0000)
+            use_bte = {$random} % 4 ;
+        else if (burst_start_adr[4:2] === 3'b000)
+            use_bte = {$random} % 3 ;
+        else if (burst_start_adr[3:2] === 2'b00)
+            use_bte = {$random} % 2 ;
+        else
+            use_bte = 2'b00 ;
+    end
+
     wbm_low_level.start_cycle(cab, 1'b0, read_flags`WB_FAST_B2B, ok) ;
 
     if ( ok !== 1 )
@@ -689,6 +815,14 @@ begin:main
     begin
         // collect data for current data beat
         current_read = blk_read_data_in[return`CYC_ACTUAL_TRANSFER] ;
+
+        if (cab)
+        begin
+            if ((return`CYC_ACTUAL_TRANSFER + 1'b1) >= read_flags`WB_TRANSFER_SIZE)
+                use_cti = 3'b111 ;
+        end
+
+        current_read`READ_TAG_STIM = {use_cti, use_bte} ;
 
         wbm_low_level.wbm_read(current_read, return) ;
 
@@ -734,6 +868,11 @@ begin:main
             end
             else
             begin
+                if (cab)
+                begin
+                    use_bte = 2'b00 ;
+                end
+
                 rty_count = rty_count + 1 ;
             end
         end

@@ -39,6 +39,10 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.9  2003/08/03 18:05:06  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.8  2003/03/14 15:31:57  mihad
 // Entered the option to disable no response counter in wb master.
 //
@@ -236,3 +240,8 @@ capable device
 // define the macro below to disable internal retry generation in the wishbone master interface
 // used when wb master accesses extremly slow devices.
 `define PCI_WBM_NO_RESPONSE_CNT_DISABLE
+
+//`define PCI_WB_REV_B3
+//`define PCI_WBS_B3_RTY_DISABLE
+
+//`define PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS

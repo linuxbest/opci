@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: wb_bus_mon.v,v $
+// Revision 1.3  2003/08/03 18:04:44  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.2  2002/08/13 11:03:51  mihad
 // Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
 //
@@ -93,188 +97,229 @@ input   [(`WB_TAG_WIDTH-1):0] TAG_O  ;
 input                           CAB_O  ;
 input [31:0] log_file_desc ;
 
-always@(posedge CLK_I or posedge RST_I)
+always@(posedge CLK_I)
 begin
-    if (RST_I)
+    if (RST_I !== 1'b0)
     begin
         // when reset is applied, all control signals must be low
-        if (CYC_O)
+        if (CYC_O !== 1'b0)
         begin
-            $display("CYC_O active under reset") ;
-            $fdisplay(log_file_desc, "CYC_O active under reset") ;
+            message_out("CYC_O active under reset") ;
         end
-        if (STB_O)
+
+        if (STB_O !== 1'b0)
         begin
-            $display("STB_O active under reset") ;
-            $fdisplay(log_file_desc, "STB_O active under reset") ;
+            message_out("STB_O active under reset") ;
         end
-        /*if (ACK_I)
-            $display("ACK_I active under reset") ;*/
-        if (ERR_I)
+        
+        if (ACK_I !== 1'b0)
+            message_out("ACK_I active under reset") ;
+
+        if (ERR_I !== 1'b0)
         begin
-            $display("ERR_I active under reset") ;
-            $fdisplay(log_file_desc, "ERR_I active under reset") ;
+            message_out("ERR_I active under reset") ;
         end
-        if (RTY_I)
+
+        if (RTY_I !== 1'b0)
         begin
-            $display("RTY_I active under reset") ;
-            $fdisplay(log_file_desc, "RTY_I active under reset") ;
+            message_out("RTY_I active under reset") ;
         end
-        if (CAB_O)
-        begin
-            $display("CAB_O active under reset") ;
-            $fdisplay(log_file_desc, "CAB_O active under reset") ;
-        end
+
     end // reset
     else
-    if (~CYC_O)
+    if (CYC_O !== 1'b1)
     begin
         // when cycle indicator is low, all control signals must be low
-        if (STB_O)
+        if (STB_O !== 1'b0)
         begin
-            $display("STB_O active without CYC_O being active") ;
-            $fdisplay(log_file_desc, "STB_O active without CYC_O being active") ;
+            message_out("STB_O active without CYC_O being active") ;
         end
-        if (ACK_I)
+
+        if (ACK_I !== 1'b0)
         begin
-            $display("ACK_I active without CYC_O being active") ;
-            $fdisplay(log_file_desc, "ACK_I active without CYC_O being active") ;
+            message_out("ACK_I active without CYC_O being active") ;
         end
-        if (ERR_I)
+
+        if (ERR_I !== 1'b0)
         begin
-            $display("ERR_I active without CYC_O being active") ;
-            $fdisplay(log_file_desc, "ERR_I active without CYC_O being active") ;
+            message_out("ERR_I active without CYC_O being active") ;
         end
-        if (RTY_I)
+
+        if (RTY_I !== 1'b0)
         begin
-            $display("RTY_I active without CYC_O being active") ;
-            $fdisplay(log_file_desc, "RTY_I active without CYC_O being active") ;
+            message_out("RTY_I active without CYC_O being active") ;
         end
-        if (CAB_O)
-        begin
-            $display("CAB_O active without CYC_O being active") ;
-            $fdisplay(log_file_desc, "CAB_O active without CYC_O being active") ;
-        end
+
     end // ~CYC_O
 end
 
-reg [`WB_DATA_WIDTH-1:0] previous_data ;
+reg [`WB_DATA_WIDTH-1:0] previous_data_o ;
+reg [`WB_DATA_WIDTH-1:0] previous_data_i ;
 reg [`WB_ADDR_WIDTH-1:0] previous_address ;
 reg [`WB_SEL_WIDTH-1:0] previous_sel ;
+reg [`WB_TAG_WIDTH-1:0] previous_tag ;
 reg                     previous_stb ;
 reg                     previous_ack ;
 reg                     previous_err ;
 reg                     previous_rty ;
 reg                     previous_cyc ;
-reg can_change ;
+reg                     previous_we  ;
 
 always@(posedge CLK_I or posedge RST_I)
 begin
     if (RST_I)
     begin
-        previous_stb <= 1'b0 ;
-        previous_ack <= 1'b0 ;
-        previous_err <= 1'b0 ;
-        previous_rty <= 1'b0 ;
-        previous_cyc <= 1'b0 ;
+        previous_stb        <= 1'b0 ;
+        previous_ack        <= 1'b0 ;
+        previous_err        <= 1'b0 ;
+        previous_rty        <= 1'b0 ;
+        previous_cyc        <= 1'b0 ;
+        previous_tag        <= 'd0  ;
+        previous_we         <= 1'b0 ;
+        previous_data_o     <= 0    ;
+        previous_data_i     <= 0    ;
+        previous_address    <= 0    ;
+        previous_sel        <= 0    ;
     end
     else
     begin
-        previous_stb <= STB_O ;
-        previous_ack <= ACK_I ;
-        previous_err <= ERR_I ;
-        previous_rty <= RTY_I ;
-        previous_cyc <= CYC_O ;
+        previous_stb        <= STB_O    ;
+        previous_ack        <= ACK_I    ;
+        previous_err        <= ERR_I    ;
+        previous_rty        <= RTY_I    ;
+        previous_cyc        <= CYC_O    ;
+        previous_tag        <= TAG_O    ;
+        previous_we         <= WE_O     ;
+        previous_data_o     <= DAT_O    ;
+        previous_data_i     <= DAT_I    ;
+        previous_address    <= ADDR_O   ;
+        previous_sel        <= SEL_O    ;
     end
 end
 
 // cycle monitor
 always@(posedge CLK_I)
-begin
-    if (CYC_O && ~RST_I) // cycle in progress
+begin:cycle_monitor_blk
+    reg master_can_change ;
+    reg slave_can_change  ;
+
+    if ((CYC_O !== 1'b0) & (RST_I !== 1'b1)) // cycle in progress
     begin
-        if (STB_O)
+        // check for two control signals active at same edge
+        if ( (ACK_I !== 1'b0) & (RTY_I !== 1'b0) )
         begin
-            // check for two control signals active at same edge
-            if ( ACK_I && RTY_I )
-            begin
-                $display("ACK_I and RTY_I asserted at the same time during cycle") ;
-                $fdisplay(log_file_desc, "ACK_I and RTY_I asserted at the same time during cycle") ;
-            end
-            if ( ACK_I && ERR_I )
-            begin
-                $display("ACK_I and ERR_I asserted at the same time during cycle") ;
-                $fdisplay(log_file_desc, "ACK_I and ERR_I asserted at the same time during cycle") ;
-            end
-            if ( RTY_I && ERR_I )
-            begin
-                $display("RTY_I and ERR_I asserted at the same time during cycle") ;
-                $fdisplay(log_file_desc, "RTY_I and ERR_I asserted at the same time during cycle") ;
-            end
+            message_out("ACK_I and RTY_I asserted at the same time during cycle") ;
+        end
 
-            if ( can_change !== 1 )
+        if ( (ACK_I !== 1'b0) & (ERR_I !== 1'b0) )
+        begin
+            message_out("ACK_I and ERR_I asserted at the same time during cycle") ;
+        end
+
+        if ( (RTY_I !== 1'b0) & (ERR_I !== 1'b0) )
+        begin
+            message_out("RTY_I and ERR_I asserted at the same time during cycle") ;
+        end
+
+        if (previous_cyc === 1'b1)
+        begin
+            if (previous_stb === 1'b1)
             begin
-                if ( ADDR_O !== previous_address )
-                begin
-                    $display("WB bus monitor detected address change in the middle of the cycle!") ;
-                    $fdisplay(log_file_desc, "WB bus monitor detected address change in the middle of the cycle!") ;
-                end
-
-                if ( SEL_O !== previous_sel )
-                begin
-                    $display("WB bus monitor detected select lines changed in the middle of the cycle!") ;
-                    $fdisplay(log_file_desc, "WB bus monitor detected select lines changed in the middle of the cycle!") ;
-                end
-
-                if ( (WE_O !== 0) && ( DAT_O !== previous_data ) )
-                begin
-                    $display("WB bus monitor detected data lines changed in the middle of the cycle!") ;
-                    $fdisplay(log_file_desc, "WB bus monitor detected data lines changed in the middle of the cycle!") ;
-                end
+                if ((previous_ack === 1'b1) | (previous_rty === 1'b1) | (previous_err === 1'b1))
+                    master_can_change = 1'b1 ;
+                else
+                    master_can_change = 1'b0 ;
             end
-
-            if ( ACK_I || RTY_I || ERR_I )
-                can_change       = 1 ;
             else
             begin
-                previous_data    = DAT_O ;
-                previous_address = ADDR_O ;
-                previous_sel     = SEL_O ;
-                can_change = 0 ;
+                master_can_change = 1'b1 ;
             end
 
-        end // STB_O
+            if ((previous_ack === 1'b1) | (previous_err === 1'b1) | (previous_rty === 1'b1))
+            begin
+                if (previous_stb === 1'b1)
+                    slave_can_change = 1'b1 ;
+                else
+                    slave_can_change = 1'b0 ;
+            end
+            else
+            begin
+                slave_can_change = 1'b1 ;
+            end
+        end
         else
-        begin //~STB_O
-            // while STB_O is inactive, only ACK_I is allowed to be active
-            if ( ERR_I )
-            begin
-                $display("ERR_I asserted during cycle without STB_O") ;
-                $fdisplay(log_file_desc, "ERR_I asserted during cycle without STB_O") ;
-            end
-            if ( RTY_I )
-            begin
-                $display("RTY_I asserted during cycle without STB_O") ;
-                $fdisplay(log_file_desc, "RTY_I asserted during cycle without STB_O") ;
-            end
-
-            if ((previous_ack !== 1) && (previous_err !== 1) && (previous_rty !== 1) && (previous_stb !== 0))
-            begin
-                $display("STB_O de-asserted without reception of slave response") ;
-                $fdisplay(log_file_desc, "STB_O de-asserted without reception of slave response") ;
-            end
-
-            can_change = 1 ;
-        end   // ~STB_O
-    end // cycle in progress
-    else if (!RST_I)
-    begin
-        // cycle not in progress anymore
-        can_change = 1 ;
-        if ((previous_ack !== 1) && (previous_err !== 1) && (previous_rty !== 1) && (previous_stb !== 0))
         begin
-            $display("STB_O de-asserted without reception of slave response") ;
-            $fdisplay(log_file_desc, "STB_O de-asserted without reception of slave response") ;
+            master_can_change = 1'b1 ;
+            slave_can_change  = 1'b1 ;
+        end
+    end
+    else
+    begin
+        master_can_change = 1'b1 ;
+        slave_can_change  = 1'b1 ;
+    end
+
+    if (master_can_change !== 1'b1)
+    begin
+        if (CYC_O !== previous_cyc)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of CYC_O signal at inappropriate time!") ;
+        end
+
+        if (STB_O !== previous_stb)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of STB_O signal at inappropriate time!") ;
+        end
+
+        if (TAG_O !== previous_tag)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of TAG_O signals at inappropriate time!") ;
+        end
+
+        if (ADDR_O !== previous_address)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of ADR_O signals at inappropriate time!") ;
+        end
+
+        if (SEL_O !== previous_sel)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of SEL_O signals at inappropriate time!") ;
+        end
+
+        if (WE_O !== previous_we)
+        begin
+            message_out("Master violated WISHBONE protocol by changing the value of WE_O signal at inappropriate time!") ;
+        end
+
+        if (WE_O !== 1'b0)
+        begin
+            if (DAT_O !== previous_data_o)
+            begin
+                message_out("Master violated WISHBONE protocol by changing the value of DAT_O signals at inappropriate time!") ;
+            end
+        end
+    end
+
+    if (slave_can_change !== 1'b1)
+    begin
+        if (previous_ack !== ACK_I)
+        begin
+            message_out("Slave violated WISHBONE protocol by changing the value of ACK_O signal at inappropriate time!") ;
+        end
+
+        if (previous_rty !== RTY_I)
+        begin
+            message_out("Slave violated WISHBONE protocol by changing the value of RTY_O signal at inappropriate time!") ;
+        end
+
+        if (previous_err !== ERR_I)
+        begin
+            message_out("Slave violated WISHBONE protocol by changing the value of ERR_O signal at inappropriate time!") ;
+        end
+
+        if (previous_data_i !== DAT_I)
+        begin
+            message_out("Slave violated WISHBONE protocol by changing the value of DAT_O signals at inappropriate time!") ;
         end
     end
 end // cycle monitor
@@ -329,16 +374,18 @@ begin
         if (STB_O && ACK_I)
         begin
             if (address[`WB_ADDR_WIDTH] == 1'b0)
-                address <= {1'b1, (ADDR_O + `WB_SEL_WIDTH)} ;
+            begin
+                address <= (ADDR_O + `WB_SEL_WIDTH) | { 1'b1, {`WB_ADDR_WIDTH{1'b0}} } ;
+            end
             else
             begin
                 if ( address[(`WB_ADDR_WIDTH-1):0] != ADDR_O)
                 begin
-                    $display("Consecutive address burst address incrementing incorrect") ;
-                    $fdisplay(log_file_desc, "Consecutive address burst address incrementing incorrect") ;
+                    $display("Expected ADR_O = 0x%h, Actual = 0x%h", address[(`WB_ADDR_WIDTH-1):0], ADDR_O) ;
+                    message_out("Consecutive address burst address incrementing incorrect") ;
                 end
                 else
-                    address <= {1'b1, (ADDR_O + `WB_SEL_WIDTH)} ;
+                    address <= (ADDR_O + `WB_SEL_WIDTH) | { 1'b1, {`WB_ADDR_WIDTH{1'b0}} } ;
             end
         end
     end
@@ -346,53 +393,78 @@ end // address monitor
 
 // data monitor
 always@(posedge CLK_I or posedge RST_I)
-begin
-    if (CYC_O && STB_O && ~RST_I)
+begin:data_monitor_blk
+    reg                       last_valid_we     ;
+    reg [`WB_SEL_WIDTH - 1:0] last_valid_sel    ;
+
+    if ((CYC_O !== 1'b0) & (RST_I !== 1'b1))
     begin
-        if ( ((^ADDR_O) !== 1'b1) && ((^ADDR_O) !== 1'b0) )
+        if (STB_O !== 1'b0)
         begin
-            $display("Master provided invalid address and qualified it with STB_O") ;
-            $fdisplay(log_file_desc, "Master provided invalid address and qualified it with STB_O") ;
-        end
-        if ( WE_O )
-        begin
-            if (
-                (SEL_O[0] && (((^DAT_O[7:0])   !== 1'b0) && ((^DAT_O[7:0])   !== 1'b1))) ||
-                (SEL_O[1] && (((^DAT_O[15:8])  !== 1'b0) && ((^DAT_O[15:8])  !== 1'b1))) ||
-                (SEL_O[2] && (((^DAT_O[23:16]) !== 1'b0) && ((^DAT_O[23:16]) !== 1'b1))) ||
-                (SEL_O[3] && (((^DAT_O[31:24]) !== 1'b0) && ((^DAT_O[31:24]) !== 1'b1)))
-               )
+            last_valid_we   = WE_O  ;
+            last_valid_sel  = SEL_O ;
+
+            if ( (ADDR_O ^ ADDR_O) !== 0 )
             begin
-                $display("Master provided invalid data during write and qualified it with STB_O") ;
-                $fdisplay(log_file_desc, "Master provided invalid data during write and qualified it with STB_O") ;
-                $display("Byte select value: SEL_O = %b, Data bus value: DAT_O =  %h ", SEL_O, DAT_O) ;
-                $fdisplay(log_file_desc, "Byte select value: SEL_O = %b, Data bus value: DAT_O =  %h ", SEL_O, DAT_O) ;
+                message_out("Master provided invalid ADR_O and qualified it with STB_O") ;
+            end
+    
+            if ( (SEL_O ^ SEL_O) !== 0 )
+            begin
+                message_out("Master provided invalid SEL_O and qualified it with STB_O") ;
             end
 
+            if ( WE_O )
+            begin
+                if (
+                    ( SEL_O[0] & ((DAT_O[ 7:0 ] ^ DAT_O[ 7:0 ]) !== 0) ) |
+                    ( SEL_O[1] & ((DAT_O[15:8 ] ^ DAT_O[15:8 ]) !== 0) ) |
+                    ( SEL_O[2] & ((DAT_O[23:16] ^ DAT_O[23:16]) !== 0) ) |
+                    ( SEL_O[3] & ((DAT_O[31:24] ^ DAT_O[31:24]) !== 0) )
+                   )
+                begin
+                    message_out("Master provided invalid data during write and qualified it with STB_O") ;
+                    $display("Byte select value: SEL_O = %b, Data bus value: DAT_O =  %h ", SEL_O, DAT_O) ;
+                    $fdisplay(log_file_desc, "Byte select value: SEL_O = %b, Data bus value: DAT_O =  %h ", SEL_O, DAT_O) ;
+                end    
+            end
+
+            if ((TAG_O ^ TAG_O) !== 0)
+            begin
+                message_out("Master provided invalid TAG_O and qualified it with STB_O!") ;
+            end
         end
-        else
-        if (~WE_O && ACK_I)
+
+        if ((last_valid_we !== 1'b1) & (ACK_I !== 1'b0))
         begin
             if (
-                (SEL_O[0] && (((^DAT_I[7:0])   !== 1'b0) && ((^DAT_I[7:0])   !== 1'b1))) ||
-                (SEL_O[1] && (((^DAT_I[15:8])  !== 1'b0) && ((^DAT_I[15:8])  !== 1'b1))) ||
-                (SEL_O[2] && (((^DAT_I[23:16]) !== 1'b0) && ((^DAT_I[23:16]) !== 1'b1))) ||
-                (SEL_O[3] && (((^DAT_I[31:24]) !== 1'b0) && ((^DAT_I[31:24]) !== 1'b1)))
+                ( SEL_O[0] & ((DAT_I[ 7:0 ] ^ DAT_I[ 7:0 ]) !== 0) ) |
+                ( SEL_O[1] & ((DAT_I[15:8 ] ^ DAT_I[15:8 ]) !== 0) ) |
+                ( SEL_O[2] & ((DAT_I[23:16] ^ DAT_I[23:16]) !== 0) ) |
+                ( SEL_O[3] & ((DAT_I[31:24] ^ DAT_I[31:24]) !== 0) )
                )
             begin
-                $display("Slave provided invalid data during read and qualified it with ACK_I") ;
-                $fdisplay(log_file_desc, "Slave provided invalid data during read and qualified it with ACK_I") ;
-                $display("Byte select value: SEL_O = %b, Data bus value: DAT_I =  %h ", SEL_O, DAT_I) ;
-                $fdisplay(log_file_desc, "Byte select value: SEL_O = %b, Data bus value: DAT_I =  %h ", SEL_O, DAT_I) ;
+                message_out("Slave provided invalid data during read and qualified it with ACK_I") ;
+                $display("Byte select value: SEL_O = %b, Data bus value: DAT_I =  %h ", last_valid_sel, DAT_I) ;
+                $fdisplay(log_file_desc, "Byte select value: SEL_O = %b, Data bus value: DAT_I =  %h ", last_valid_sel, DAT_I) ;
             end
         end
     end
+    else
+    begin
+        last_valid_sel = {`WB_SEL_WIDTH{1'bx}} ;
+        last_valid_we  = 1'bx ;
+    end
 end
 
-initial
+task message_out ;
+    input [7999:0] message_i ;
 begin
-    previous_data = 0 ;
-    previous_address = 0 ;
-    can_change = 1 ;
+    $display("Time: %t", $time) ;
+    $display("%m, %0s", message_i) ;
+    $fdisplay(log_file_desc, "Time: %t", $time) ;
+    $fdisplay(log_file_desc, "%m, %0s", message_i) ;
 end
+endtask // display message
+
 endmodule // BUS_MON

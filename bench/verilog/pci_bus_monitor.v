@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.3 2002/08/13 11:03:51 mihad Exp $
+// $Id: pci_bus_monitor.v,v 1.4 2003/08/03 18:04:44 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -639,6 +639,8 @@ endtask
     `NO_ELSE;
   end
 
+  wire [4:0] grant_now = {pci_ext_gnt_l[3:0], pci_real_gnt_l} ;
+
   always @(posedge pci_ext_clk or negedge pci_ext_reset_l)
   begin
     if (pci_ext_reset_l == 1'b0)
@@ -656,7 +658,7 @@ endtask
     end
     else
     begin
-      grant_prev <= {pci_ext_gnt_l[3:0], pci_real_gnt_l};
+      grant_prev <= grant_now ;
       ad_prev[PCI_BUS_DATA_RANGE:0] <= pci_ext_ad[PCI_BUS_DATA_RANGE:0];
       cbe_l_prev[PCI_BUS_CBE_RANGE:0] <= pci_ext_cbe_l[PCI_BUS_CBE_RANGE:0];
       frame_prev <= frame_now;
@@ -1220,7 +1222,6 @@ endtask
         begin
           $display ("*** monitor - Unknown operation started, AD: 'h%x, CBE: 'h%x, at time %t",
                       ad_prev[PCI_BUS_DATA_RANGE:0], cbe_l_prev[PCI_BUS_CBE_RANGE:0], $time);
-          $fdisplay (log_file_desc,
           error_detected <= ~error_detected;
         end
       endcase
@@ -1228,5 +1229,206 @@ endtask
     `NO_ELSE;
   end
 `endif // VERBOSE_MONITOR_DEVICE
-endmodule
 
+initial get_pci_op.timeout_val = 32'hffff ;
+
+reg     [4:0] cur_transaction_owner ;
+
+initial cur_transaction_owner = 5'h1F ;
+
+task get_pci_op ;
+    output [31:0] address_o     ;
+    output [3:0 ] bus_command_o ;
+    reg    [31:0] timeout_val   ;
+    reg           in_use        ;
+begin:main
+    if (in_use === 1'b1)
+    begin
+        $display("%m re-entered!") ;
+        $fdisplay(log_file_desc, "%m re-entered!") ;
+        error_detected <= ~error_detected;
+        disable main ;
+    end
+
+    in_use = 1'b1 ;
+
+    fork
+    begin:get_op_blk
+        wait(pci_ext_reset_l === 1'b1) ;
+        
+        @(posedge pci_ext_clk) ;
+    
+        while ((frame_now !== 1'b1) | (frame_prev !== 1'b0) )
+            @(posedge pci_ext_clk) ;
+
+        disable timeout_blk ;
+
+        address_o     = pci_ext_ad    ;
+        bus_command_o = pci_ext_cbe_l ;
+        cur_transaction_owner = grant_now ;
+
+    end
+    begin:timeout_blk
+        #(timeout_val) ;
+        disable get_op_blk ;
+        address_o     = 32'hxxxx_xxxx ;
+        bus_command_o = 4'hx ;
+    end
+    join
+
+    in_use = 1'b0 ;
+
+end
+endtask // get_pci_op
+
+task get_pci_op_num_of_transfers ;
+    output [31:0] num_of_transfers_o             ;
+    output        gnt_deasserted_o ;
+    reg    [7:0]  num_of_cycles_without_transfer ;
+    reg           in_use        ;
+begin:main
+
+    if (in_use === 1'b1)
+    begin
+        $display("%m re-entered!") ;
+        $fdisplay(log_file_desc, "%m re-entered!") ;
+        error_detected <= ~error_detected;
+        disable main ;
+    end
+
+    in_use = 1'b1 ;
+
+    num_of_transfers_o             = 0 ;
+    num_of_cycles_without_transfer = 0 ;
+
+    @(posedge pci_ext_clk) ;
+    while( (frame_now === 1'b1) & (num_of_cycles_without_transfer < 128) )
+    begin
+        if ( (irdy_now === 1'b1) & (trdy_now === 1'b1) & (devsel_now === 1'b1))
+        begin
+            num_of_transfers_o = num_of_transfers_o + 1'b1 ;
+            num_of_cycles_without_transfer = 0 ;
+        end
+        else
+        begin
+            num_of_cycles_without_transfer = num_of_cycles_without_transfer + 1'b1 ;
+        end
+
+        @(posedge pci_ext_clk) ;
+
+    end
+
+    if (num_of_cycles_without_transfer === 128)
+    begin
+        $display("%m, no transfers in 128 pci clock cycles! Terminating!") ;
+        $fdisplay(log_file_desc, "%m, no transfers in 128 pci clock cycles! Terminating!") ;
+        error_detected <= ~error_detected ;
+        num_of_transfers_o = 32'hxxxx_xxxx ;
+        gnt_deasserted_o = 1'bx ;
+    end
+    else
+    begin
+        gnt_deasserted_o = ( cur_transaction_owner != grant_now ) ;
+
+        while ( (irdy_now === 1'b1) & (trdy_now === 1'b0) & (stop_now === 1'b0) )
+            @(posedge pci_ext_clk) ;
+
+        if ( (irdy_now === 1'b1) & (trdy_now === 1'b1) & (devsel_now === 1'b1))
+            num_of_transfers_o = num_of_transfers_o + 1'b1 ;
+    end        
+
+    in_use = 1'b0 ;
+end
+endtask // get_pci_op_num_of_transfers
+
+task get_pci_op_num_of_cycles ;
+    output [31:0] frame_asserted_cycles_o ;
+    reg    [31:0] num_of_cycles_after_last_data_phase_termination ;
+    reg           in_use        ;
+begin:main
+    if (in_use === 1'b1)
+    begin
+        $display("%m re-entered!") ;
+        $fdisplay(log_file_desc, "%m re-entered!") ;
+        error_detected <= ~error_detected;
+        disable main ;
+    end
+
+    in_use = 1'b1 ;
+
+    frame_asserted_cycles_o                         = 1 ;
+    num_of_cycles_after_last_data_phase_termination = 1 ;
+
+    @(posedge pci_ext_clk) ;
+    while( (frame_now === 1'b1) & (num_of_cycles_after_last_data_phase_termination < 128) )
+    begin
+
+        if (irdy_prev & trdy_prev & devsel_prev )
+        begin
+
+            frame_asserted_cycles_o = frame_asserted_cycles_o + num_of_cycles_after_last_data_phase_termination ;
+
+            num_of_cycles_after_last_data_phase_termination = 1 ;
+        end
+        else
+            num_of_cycles_after_last_data_phase_termination = num_of_cycles_after_last_data_phase_termination + 1'b1 ;
+
+        @(posedge pci_ext_clk) ;
+
+    end
+
+    if ( num_of_cycles_after_last_data_phase_termination === 128)
+    begin
+        $display("%m, no transfers in 128 pci clock cycles! Terminating!") ;
+        $fdisplay(log_file_desc, "%m, no transfers in 128 pci clock cycles! Terminating!") ;
+        error_detected <= ~error_detected ;
+        frame_asserted_cycles_o = 32'hxxxx_xxxx ;
+    end
+
+    in_use = 1'b0 ;
+end
+endtask // get_pci_op_num_of_cycles
+
+task get_pci_master_abort ;
+    output [31:0 ] ret_adr_o ;
+    output [ 3:0 ] ret_bc_o  ;
+    output         ret_mabort_detected_o ;
+begin:main
+    ret_mabort_detected_o = 1'b0 ;
+    get_pci_op(ret_adr_o, ret_bc_o) ;
+
+    if ( (ret_adr_o ^ ret_adr_o) !== 0 )
+        disable main ;
+
+    if ( (ret_bc_o ^ ret_bc_o) !== 0 )
+        disable main ;
+
+    while (frame_now !== 1'b0)
+    begin
+        if (devsel_now !== 1'b0)
+        begin
+            // exit immediately on target response detection
+            ret_mabort_detected_o = 1'b0 ;
+            disable main ;
+        end
+
+        @(posedge pci_ext_clk) ;
+    end
+
+    while(irdy_now !== 1'b0)
+    begin
+
+        if (devsel_now !== 1'b0)
+        begin
+            // exit immediately on target response detection
+            ret_mabort_detected_o = 1'b0 ;
+            disable main ;
+        end
+
+        @(posedge pci_ext_clk) ;
+    end
+
+    ret_mabort_detected_o = 1'b1 ;
+end
+endtask // get_pci_master_abort
+endmodule

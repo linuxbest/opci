@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.10  2003/08/03 18:05:06  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.9  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -113,6 +117,8 @@ module TOP
     STB_I,
     WE_I,
     CAB_I,
+    CTI_I,
+    BTE_I,
     ACK_O,
     RTY_O,
     ERR_O,
@@ -174,6 +180,8 @@ input           CYC_I ;
 input           STB_I ;
 input           WE_I  ;
 input           CAB_I ;
+input   [ 2:0]  CTI_I ;
+input   [ 1:0]  BTE_I ;
 output          ACK_O ;
 output          RTY_O ;
 output          ERR_O ;
@@ -273,7 +281,18 @@ pci_bridge32 bridge
     .wbs_cyc_i(CYC_I),
     .wbs_stb_i(STB_I),
     .wbs_we_i (WE_I),
+
+`ifdef PCI_WB_REV_B3
+
+    .wbs_cti_i(CTI_I),
+    .wbs_bte_i(BTE_I),
+
+`else
+
     .wbs_cab_i(CAB_I),
+
+`endif
+
     .wbs_ack_o(ACK_O),
     .wbs_rty_o(RTY_O),
     .wbs_err_o(ERR_O),

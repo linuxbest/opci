@@ -43,6 +43,10 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.10  2003/08/03 18:05:06  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.9  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -99,7 +103,18 @@ module pci_bridge32
     wbs_cyc_i,
     wbs_stb_i,
     wbs_we_i,
+
+`ifdef PCI_WB_REV_B3
+
+    wbs_cti_i,
+    wbs_bte_i,
+
+`else
+
     wbs_cab_i,
+
+`endif
+
     wbs_ack_o,
     wbs_rty_o,
     wbs_err_o,
@@ -204,7 +219,18 @@ input   [3:0]   wbs_sel_i ;
 input           wbs_cyc_i ;
 input           wbs_stb_i ;
 input           wbs_we_i ;
-input           wbs_cab_i ;
+
+`ifdef PCI_WB_REV_B3
+
+input [2:0] wbs_cti_i ;
+input [1:0] wbs_bte_i ;
+
+`else
+
+input wbs_cab_i ;
+
+`endif
+
 output          wbs_ack_o ;
 output          wbs_rty_o ;
 output          wbs_err_o ;
@@ -357,12 +383,6 @@ wire            wbu_wbw_fifo_empty_out ;
 wire            wbu_ad_load_out ;
 wire            wbu_ad_load_on_transfer_out ;
 wire            wbu_pciif_frame_load_out ;
-
-// assign wishbone slave unit's outputs to top outputs where possible
-assign wbs_dat_o   =   wbu_sdata_out ;
-assign wbs_ack_o    =   wbu_ack_out ;
-assign wbs_rty_o    =   wbu_rty_out ;
-assign wbs_err_o    =   wbu_err_out ;
 
 // PCI TARGET UNIT OUTPUTS
 wire    [31:0]  pciu_adr_out ;
@@ -628,6 +648,81 @@ pci_rst_int pci_resets_and_interrupts
     .conf_isr_int_prop_out  (pci_into_conf_isr_int_prop_out)
 );
 
+
+`ifdef PCI_WB_REV_B3
+
+wire            wbs_wbb3_2_wbb2_cyc_o   ;
+wire            wbs_wbb3_2_wbb2_stb_o   ;
+wire    [31:0]  wbs_wbb3_2_wbb2_adr_o   ;
+wire    [31:0]  wbs_wbb3_2_wbb2_dat_i_o ;
+wire    [31:0]  wbs_wbb3_2_wbb2_dat_o_o ;
+wire            wbs_wbb3_2_wbb2_we_o    ;
+wire    [ 3:0]  wbs_wbb3_2_wbb2_sel_o   ;
+wire            wbs_wbb3_2_wbb2_ack_o   ;
+wire            wbs_wbb3_2_wbb2_err_o   ;
+wire            wbs_wbb3_2_wbb2_rty_o   ;
+wire            wbs_wbb3_2_wbb2_cab_o   ;
+
+// assign wishbone slave unit's outputs to top outputs where possible
+assign wbs_dat_o    =   wbs_wbb3_2_wbb2_dat_o_o ;
+assign wbs_ack_o    =   wbs_wbb3_2_wbb2_ack_o   ;
+assign wbs_rty_o    =   wbs_wbb3_2_wbb2_rty_o   ;
+assign wbs_err_o    =   wbs_wbb3_2_wbb2_err_o       ;
+
+wire            wbs_wbb3_2_wbb2_cyc_i   =   wbs_cyc_i       ;
+wire            wbs_wbb3_2_wbb2_stb_i   =   wbs_stb_i       ;
+wire            wbs_wbb3_2_wbb2_we_i    =   wbs_we_i        ;
+wire            wbs_wbb3_2_wbb2_ack_i   =   wbu_ack_out     ;
+wire            wbs_wbb3_2_wbb2_err_i   =   wbu_err_out     ;
+wire            wbs_wbb3_2_wbb2_rty_i   =   wbu_rty_out     ;
+wire    [31:0]  wbs_wbb3_2_wbb2_adr_i   =   wbs_adr_i       ;
+wire    [ 3:0]  wbs_wbb3_2_wbb2_sel_i   =   wbs_sel_i       ;
+wire    [31:0]  wbs_wbb3_2_wbb2_dat_i_i =   wbs_dat_i       ;
+wire    [31:0]  wbs_wbb3_2_wbb2_dat_o_i =   wbu_sdata_out   ;
+wire    [ 2:0]  wbs_wbb3_2_wbb2_cti_i   =   wbs_cti_i       ;
+wire    [ 1:0]  wbs_wbb3_2_wbb2_bte_i   =   wbs_bte_i       ;
+
+pci_wbs_wbb3_2_wbb2 i_pci_wbs_wbb3_2_wbb2
+(
+    .wb_clk_i       (   wb_clk_i    )   ,
+    .wb_rst_i       (   wb_rst_i    )   ,
+
+    .wbs_cyc_i      (   wbs_wbb3_2_wbb2_cyc_i   )   ,
+    .wbs_cyc_o      (   wbs_wbb3_2_wbb2_cyc_o   )   ,
+    .wbs_stb_i      (   wbs_wbb3_2_wbb2_stb_i   )   ,
+    .wbs_stb_o      (   wbs_wbb3_2_wbb2_stb_o   )   ,
+    .wbs_adr_i      (   wbs_wbb3_2_wbb2_adr_i   )   ,
+    .wbs_adr_o      (   wbs_wbb3_2_wbb2_adr_o   )   ,
+    .wbs_dat_i_i    (   wbs_wbb3_2_wbb2_dat_i_i )   ,
+    .wbs_dat_i_o    (   wbs_wbb3_2_wbb2_dat_i_o )   ,
+    .wbs_dat_o_i    (   wbs_wbb3_2_wbb2_dat_o_i )   ,
+    .wbs_dat_o_o    (   wbs_wbb3_2_wbb2_dat_o_o )   ,
+    .wbs_we_i       (   wbs_wbb3_2_wbb2_we_i    )   ,
+    .wbs_we_o       (   wbs_wbb3_2_wbb2_we_o    )   ,
+    .wbs_sel_i      (   wbs_wbb3_2_wbb2_sel_i   )   ,
+    .wbs_sel_o      (   wbs_wbb3_2_wbb2_sel_o   )   ,
+    .wbs_ack_i      (   wbs_wbb3_2_wbb2_ack_i   )   ,
+    .wbs_ack_o      (   wbs_wbb3_2_wbb2_ack_o   )   ,
+    .wbs_err_i      (   wbs_wbb3_2_wbb2_err_i   )   ,
+    .wbs_err_o      (   wbs_wbb3_2_wbb2_err_o   )   ,
+    .wbs_rty_i      (   wbs_wbb3_2_wbb2_rty_i   )   ,
+    .wbs_rty_o      (   wbs_wbb3_2_wbb2_rty_o   )   ,
+    .wbs_cti_i      (   wbs_wbb3_2_wbb2_cti_i   )   ,
+    .wbs_bte_i      (   wbs_wbb3_2_wbb2_bte_i   )   ,
+    .wbs_cab_o      (   wbs_wbb3_2_wbb2_cab_o   )
+) ;
+
+// WISHBONE SLAVE UNIT INPUTS
+wire    [31:0]  wbu_addr_in     =   wbs_wbb3_2_wbb2_adr_o   ;
+wire    [31:0]  wbu_sdata_in    =   wbs_wbb3_2_wbb2_dat_i_o ;
+wire            wbu_cyc_in      =   wbs_wbb3_2_wbb2_cyc_o   ;
+wire            wbu_stb_in      =   wbs_wbb3_2_wbb2_stb_o   ;
+wire            wbu_we_in       =   wbs_wbb3_2_wbb2_we_o    ;
+wire    [3:0]   wbu_sel_in      =   wbs_wbb3_2_wbb2_sel_o   ;
+wire            wbu_cab_in      =   wbs_wbb3_2_wbb2_cab_o   ;
+
+`else
+
 // WISHBONE SLAVE UNIT INPUTS
 wire    [31:0]  wbu_addr_in                     =   wbs_adr_i ;
 wire    [31:0]  wbu_sdata_in                    =   wbs_dat_i ;
@@ -636,6 +731,14 @@ wire            wbu_stb_in                      =   wbs_stb_i ;
 wire            wbu_we_in                       =   wbs_we_i ;
 wire    [3:0]   wbu_sel_in                      =   wbs_sel_i ;
 wire            wbu_cab_in                      =   wbs_cab_i ;
+
+// assign wishbone slave unit's outputs to top outputs where possible
+assign wbs_dat_o    =   wbu_sdata_out   ;
+assign wbs_ack_o    =   wbu_ack_out     ;
+assign wbs_rty_o    =   wbu_rty_out     ;
+assign wbs_err_o    =   wbu_err_out     ;
+
+`endif
 
 wire    [5:0]   wbu_map_in                      =   {
                                                      conf_wb_mem_io5_out,

@@ -79,7 +79,7 @@
 `define Thold  1
 
 // how many clock cycles should model wait for design's response - integer 32 bit value
-`define WAIT_FOR_RESPONSE 6
+`define WAIT_FOR_RESPONSE 10
 
 // maximum number of transactions allowed in single call to block or cab transfer routines
 `define MAX_BLK_SIZE  4096
@@ -92,7 +92,7 @@
 `define WB_ADDR_WIDTH 32
 `define WB_DATA_WIDTH 32
 `define WB_SEL_WIDTH `WB_DATA_WIDTH/8
-`define WB_TAG_WIDTH 4
+`define WB_TAG_WIDTH 5
 `define WB_ADDR_TYPE [(`WB_ADDR_WIDTH - 1):0]
 `define WB_DATA_TYPE [(`WB_DATA_WIDTH - 1):0]
 `define WB_SEL_TYPE  [(`WB_SEL_WIDTH  - 1):0]

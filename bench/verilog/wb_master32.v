@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: wb_master32.v,v $
+// Revision 1.4  2003/08/03 18:04:45  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
+//
 // Revision 1.3  2003/07/29 08:19:47  mihad
 // Found and simulated the problem in the synchronization logic.
 // Repaired the synchronization logic in the FIFOs.
@@ -310,7 +314,26 @@ module WB_MASTER32
         num_of_cyc = `WAIT_FOR_RESPONSE ;
 
         ADR_O      <= #(Tp - `Tsetup) input_data`WRITE_ADDRESS ;
-        DAT_O      <= #(Tp - `Tsetup) input_data`WRITE_DATA ;
+
+        begin:dat_o_assign_blk
+            reg [`WB_SEL_WIDTH - 1:0] cur_sel ;
+            reg [`WB_DATA_WIDTH - 1:0] cur_dat ;
+            reg [`WB_DATA_WIDTH - 1:0] rnd_dat ;
+            integer cur_bit ;
+
+            cur_dat = input_data`WRITE_DATA ;
+            cur_sel = input_data`WRITE_SEL  ;
+            rnd_dat = $random ;
+
+            for(cur_bit = 0 ; cur_bit < `WB_DATA_WIDTH ; cur_bit = cur_bit + 1)
+            begin
+                if (cur_sel[cur_bit/8] === 1'b1)
+                    DAT_O[cur_bit] <= #(Tp - `Tsetup) cur_dat[cur_bit] ;
+                else
+                    DAT_O[cur_bit] <= #(Tp - `Tsetup) rnd_dat[cur_bit] ;
+            end
+        end
+
         SEL_O      <= #(Tp - `Tsetup) input_data`WRITE_SEL ;
         TAG_O      <= #(Tp - `Tsetup) input_data`WRITE_TAG_STIM ;
 

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.4 2002/08/13 11:03:51 mihad Exp $
+// $Id: pci_behaviorial_target.v,v 1.5 2003/08/03 18:04:44 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -205,9 +205,9 @@ module pci_behaviorial_target (
   reg    [7:0] Latency_Timer;
   reg    [7:0] Cache_Line_Size;
   reg    [7:0] Interrupt_Line;
-  reg    [`PCI_BASE_ADDR0_MATCH_RANGE] BAR0;  // Base Address Registers, used to match addresses
+  reg    [PCI_BUS_DATA_RANGE:0] BAR0;  // Base Address Registers, used to match addresses
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-  reg    [`PCI_BASE_ADDR1_MATCH_RANGE] BAR1;
+  reg    [PCI_BUS_DATA_RANGE:0] BAR1;
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 
   wire   [15:0] Target_Command =
@@ -240,6 +240,8 @@ module pci_behaviorial_target (
 task Read_Test_Device_Config_Regs;
   input  [7:2] reg_number;
   output [PCI_BUS_DATA_RANGE:0] Read_Config_Reg;
+  input  [PCI_BUS_CBE_RANGE:0] byte_mask_l ;
+
   begin  // Addresses except 0, 4, 8, A, 10, 14, 3C all return 0x00
     case (reg_number[7:2])
     6'h00: Read_Config_Reg = 32'h8000AAAA
@@ -252,11 +254,26 @@ task Read_Test_Device_Config_Regs;
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
     6'h05: Read_Config_Reg = {BAR1[`PCI_BASE_ADDR1_MATCH_RANGE],
                               `PCI_BASE_ADDR1_FILL, `PCI_BASE_ADDR1_MAP_QUAL};
-`else  // PCI_BASE_ADDR1_MATCH_ENABLE
-    6'h05: Read_Config_Reg = 32'h00000000;
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
     6'h0F: Read_Config_Reg = {16'h0000, 8'h01, Interrupt_Line[7:0]};
     default: Read_Config_Reg = 32'h00000000;
+    endcase
+
+    case(reg_number[7:2])
+        6'h00, 6'h01, 6'h02, 6'h03, 6'h04, 6'h0F `ifdef PCI_BASE_ADDR1_MATCH_ENABLE , 6'h05 `endif :
+        begin
+            if (byte_mask_l[3] !== 1'b0)
+                Read_Config_Reg[31:24] = $random ;
+            
+            if (byte_mask_l[2] !== 1'b0)
+                Read_Config_Reg[23:16] = $random ;
+            
+            if (byte_mask_l[1] !== 1'b0)
+                Read_Config_Reg[15:8] = $random ;
+            
+            if (byte_mask_l[0] !== 1'b0)
+                Read_Config_Reg[7:0] = $random ;
+        end
     endcase
   end
 endtask
@@ -301,9 +318,9 @@ endtask
       Master_Caused_PERR <= 1'b0;
       Latency_Timer <= 8'h00;         Cache_Line_Size <= 8'h00;
       Interrupt_Line <= 8'h00;
-      BAR0 <= 8'hXX;
+      BAR0 <= {PCI_BUS_DATA_RANGE + 1{1'b0}} ;
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-      BAR1 <= 8'hXX;
+      BAR1 <= {PCI_BUS_DATA_RANGE + 1{1'b0}} ;
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
       pending_config_write_request <= 1'b0;
     end
@@ -365,13 +382,36 @@ endtask
                               & ~pending_config_reg_write_byte_enables[0])
                           ? pending_config_reg_write_data[7:0] : Cache_Line_Size;
 
-        BAR0             <= (  (pending_config_reg_write_address[7:2] == 6'h04)
-                              & ~pending_config_reg_write_byte_enables[3])
-                          ? pending_config_reg_write_data[`PCI_BASE_ADDR0_MATCH_RANGE] : BAR0;
+        if (pending_config_reg_write_address[7:2] == 6'h04)
+        begin
+            if (~pending_config_reg_write_byte_enables[3])
+                BAR0[31:24]      <= pending_config_reg_write_data[31:24] ;
+
+            if (~pending_config_reg_write_byte_enables[2])
+                BAR0[23:16]      <= pending_config_reg_write_data[23:16] ;
+
+            if (~pending_config_reg_write_byte_enables[1])
+                BAR0[15:8]      <= pending_config_reg_write_data[15:8] ;
+
+            if (~pending_config_reg_write_byte_enables[0])
+                BAR0[7:0]      <= pending_config_reg_write_data[7:0] ;
+        end
+
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-        BAR1             <= (  (pending_config_reg_write_address[7:2] == 6'h05)
-                              & ~pending_config_reg_write_byte_enables[3])
-                          ? pending_config_reg_write_data[`PCI_BASE_ADDR1_MATCH_RANGE] : BAR1;
+        if (pending_config_reg_write_address[7:2] == 6'h05)
+        begin
+            if (~pending_config_reg_write_byte_enables[3])
+                BAR1[31:24]      <= pending_config_reg_write_data[31:24] ;
+
+            if (~pending_config_reg_write_byte_enables[2])
+                BAR1[23:16]      <= pending_config_reg_write_data[23:16] ;
+
+            if (~pending_config_reg_write_byte_enables[1])
+                BAR1[15:8]      <= pending_config_reg_write_data[15:8] ;
+
+            if (~pending_config_reg_write_byte_enables[0])
+                BAR1[7:0]      <= pending_config_reg_write_data[7:0] ;
+        end
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
         Interrupt_Line   <= (  (pending_config_reg_write_address[7:2] == 6'h0F)
                               & ~pending_config_reg_write_byte_enables[0])
@@ -575,7 +615,7 @@ endtask
 task Fetch_Config_Reg_Data_For_Read_Onto_AD_Bus;
   output [PCI_BUS_DATA_RANGE:0] target_read_data;
   begin
-    Read_Test_Device_Config_Regs (hold_target_address[7:2], target_read_data[PCI_BUS_DATA_RANGE:0]);
+    Read_Test_Device_Config_Regs (hold_target_address[7:2], target_read_data[PCI_BUS_DATA_RANGE:0], cbe_l_now);
     hold_target_address[7:2] = hold_target_address[7:2] + 6'h01;  // addr++
   end
 endtask
