@@ -39,6 +39,10 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.23  2004/01/07 17:41:21  fr2201
+// added test_initial_all_conf_values
+// mbist_ctrl_i  replaced by  mbist_en_i
+//
 // Revision 1.22  2003/12/28 09:54:48  fr2201
 // def_wb_imagex_addr_map  defined correctly
 //
@@ -749,7 +753,7 @@ begin
 
 `ifdef PCI_BIST
     mbist_si_i    = 0 ;
-    mbist_ctrl_i    = 0 ;
+    mbist_en_i    = 0 ;
     mbist_clk   = 0 ;
     mbist_rst   = 0 ;
 `endif
@@ -957,6 +961,11 @@ begin
 `endif
 
     test_initial_conf_values ;
+
+    //additional test of all reset values
+    //Some values have been changed in test_initial_conf_values 
+   test_initial_all_conf_values;
+
 
 `ifdef PCI_CPCI_HS_IMPLEMENT
     test_insertion_during_active_bus ;
@@ -11631,7 +11640,351 @@ begin:main
 end
 endtask // test_configuration_cycle_type1_generation
 `endif
+task test_initial_all_conf_values;
+    reg [11:0] register_offset ;
+    reg [31:0] expected_value ;
+    reg        failed ;
+    reg [31:0] reg_value  [0:`ISR_ADDR]  ;
+    reg [5:0] reg_address  ;
+    integer t_i;
 
+`ifdef HOST
+    reg `READ_STIM_TYPE    read_data ;
+    reg `WB_TRANSFER_FLAGS flags ;
+    reg `READ_RETURN_TYPE  read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+begin
+    test_name  = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
+    flags      = 0 ;
+    read_data  = 0 ;
+    write_data = 0 ;
+
+    failed    = 0 ;
+    t_i=0;
+    while ((    t_i <= `ISR_ADDR) )//all to zero
+    begin
+      reg_value[t_i]=31'h0;      
+       t_i= t_i+1;
+    end
+////PCI register
+   `ifdef HOST
+
+    `ifdef NO_CNF_IMAGE
+     `ifdef PCI_IMAGE0
+      `ifdef ADDR_TRAN_IMPL
+        reg_value[0 ]=32'h00000004;          //PCi Control         Register0
+      `endif
+       if (`PCI_AM0)
+        reg_value[1 ]=`PCI_BA0_MEM_IO;       //PCi Base Address    Register0 
+        reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
+        reg_value[3 ]={`PCI_TA0, 12'h000};   //PCi Translation Adr.Register0
+     `endif
+	`else
+      reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
+
+    `endif //NO_CNF_IMAGE
+   `endif //host
+   `ifdef ADDR_TRAN_IMPL
+       reg_value[4 ]=32'h00000004;          //PCi Control         Register1
+   `endif
+    if (`PCI_AM1)
+    reg_value[5 ]={ 31'h0,`PCI_BA1_MEM_IO}; //PCi Base Address    Register1 
+    reg_value[6 ]={`PCI_AM1, 12'h000};      //PCi Address Mask    Register1
+    reg_value[7 ]={`PCI_TA1, 12'h000};      //PCi Translation Adr.Register1
+   `ifdef PCI_IMAGE2
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[8 ]=32'h00000004;          //PCi Control         Register2
+    `endif
+    if (`PCI_AM2)                        //PCi Base Address    Register2
+    reg_value[9 ]={31'h0,`PCI_BA2_MEM_IO};
+    reg_value[10]={`PCI_AM2, 12'h000};   //PCi Address Mask    Register2
+    `endif
+    reg_value[11]={`PCI_TA2, 12'h000};   //PCi Translation Adr.Register2
+   `ifdef PCI_IMAGE3
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[12]=32'h00000004;          //PCi Control         Register3
+    `endif
+    if (`PCI_AM3)                        //PCi Base Address    Register3
+    reg_value[13]={31'h000,`PCI_BA3_MEM_IO};
+    reg_value[14]={`PCI_AM3, 12'h000};   //PCi Address Mask    Register3
+    `endif
+    reg_value[15]={`PCI_TA3, 12'h000};   //PCi Translation Adr.Register3
+   `ifdef PCI_IMAGE4
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[16]=32'h00000004;          //PCi Control         Register4
+    `endif
+    if (`PCI_AM4)                        //PCi Base Address    Register4 
+    reg_value[17]={31'h000,`PCI_BA4_MEM_IO};    
+    reg_value[18]={`PCI_AM4, 12'h000};   //PCi Address Mask    Register4
+    `endif
+    reg_value[19]={`PCI_TA4, 12'h000};   //PCi Translation Adr.Register4
+   `ifdef PCI_IMAGE5
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[20]=32'h00000004;          //PCi Control         Register5 
+    `endif
+    if (`PCI_AM5)                        //PCi Base Address    Register5 
+    reg_value[21]={31'h000,`PCI_BA5_MEM_IO};  
+    reg_value[22]={`PCI_AM5, 12'h000};   //PCi Address Mask    Register5
+    `endif
+    reg_value[23]={`PCI_TA5, 12'h000};   //PCi Translation Adr.Register5
+                                         //PCi err control status =0
+                                         //PCI err Adress         =0
+                                         //PCI err Data           =0
+/// WB                                   //wB configuration Base                      
+    reg_value[32]={`WB_CONFIGURATION_BASE, 12'h000};
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[33 ]=32'h00000004;         //WB Control         Register1      
+    `endif
+    reg_value[34]={`WB_BA1,11'h000,`WB_BA1_MEM_IO};   //WB Base Address   
+    reg_value[35]={`WB_AM1, 12'h000};   //WB Address Mask    Register1
+    reg_value[36]={`WB_TA1, 12'h000};   //WB Translation Adr.Register1
+   `ifdef WB_IMAGE2
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[37]=32'h00000004;          //WB Control         Register2
+    `endif
+                                     //WB Base Address    Register2 
+    reg_value[38]={`WB_BA2,11'h000,`WB_BA2_MEM_IO};
+    reg_value[39]={`WB_AM2, 12'h000};   //WB Address Mask    Register2
+    `endif
+    reg_value[40]={`WB_TA2, 12'h000};   //WB Translation Adr.Register2
+   `ifdef WB_IMAGE3
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[41]=32'h00000004;          //WB Control         Register3
+    `endif
+                                         //WB Base Address    Register3 
+    reg_value[42]={`WB_BA3,11'h000,`WB_BA3_MEM_IO};
+    reg_value[43]={`WB_AM3, 12'h000};   //WB Address Mask    Register3
+    `endif
+    reg_value[44]={`WB_TA3, 12'h000};   //WB Translation Adr.Register3
+   `ifdef WB_IMAGE4
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[45]=32'h00000004;          //WB Control         Register4
+    `endif
+                                         //WB Base Address    Register4 
+    reg_value[46]={`WB_BA4,11'h000,`WB_BA4_MEM_IO};     
+    reg_value[47]={`WB_AM4, 12'h000};   //WB Address Mask    Register4
+    `endif
+    reg_value[48]={`WB_TA4, 12'h000};   //WB Translation Adr.Register4
+   `ifdef WB_IMAGE5
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[49]=32'h00000004;          //WB Control         Register5 
+    `endif
+                                         //WB Base Address    Register5 
+    reg_value[50]={`WB_BA5,11'h000,`WB_BA5_MEM_IO};  
+    reg_value[51]={`WB_AM5, 12'h000};   //WB Address Mask    Register5
+    `endif
+    reg_value[52]={`WB_TA5, 12'h000};   //WB Translation Adr.Register5
+
+
+    read_data`READ_SEL = 4'hF ;
+    flags`INIT_WAITS           = wb_init_waits ;
+    flags`SUBSEQ_WAITS         = wb_subseq_waits ;
+    
+  
+    //read registers
+    reg_address=0;
+    while ((reg_address <= `INT_ACK_ADDR) && (failed==0) )
+
+    begin
+     if ((  reg_address !== `CNF_DATA_ADDR) && (  reg_address !== `INT_ACK_ADDR))
+     begin
+      register_offset = {1'b1, reg_address, 2'b00} ;
+      read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE,register_offset} ;
+      wishbone_master.wb_single_read(read_data, flags, read_status) ;
+     if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+     begin
+        $fdisplay( tb_log_file,"error Config Register Adress %h", read_data`READ_ADDRESS);
+        $display("error Config Register Adress %h", read_data`READ_ADDRESS);
+        test_fail("read from config register didn't succeede") ;
+        failed = 1 ;
+
+     end
+     else
+
+      if( read_status`READ_DATA !== reg_value[reg_address])
+      begin
+        $fdisplay( tb_log_file,"error Config Register Adress %h",
+                 read_data`READ_ADDRESS,
+                 ," expected: %h ",reg_value[reg_address]," read: %h",read_status`READ_DATA);
+        $display("error Config Register Adress %h",
+                  read_data`READ_ADDRESS  ,
+                 ," expected: %h ",reg_value[reg_address]," read: %h",read_status`READ_DATA," Time %t ", $time) ;
+        test_fail("Initial value of register not as expected") ;
+        failed = 1 ;
+      end
+     end
+      if (`P_ERR_DATA_ADDR  ==reg_address )
+        reg_address=`WB_CONF_SPC_BAR_ADDR ;
+      else
+       reg_address= reg_address+1;
+
+    end
+
+               
+
+`endif
+
+`ifdef GUEST
+    reg [31:0] read_data ;
+    integer t_max;
+    reg           ok   ;
+
+
+begin
+    test_name = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
+    failed    = 0 ;
+    t_i=0;
+    while ((    t_i <= `ISR_ADDR) )
+    begin
+      reg_value[t_i]=31'h0;      
+       t_i= t_i+1;
+    end
+////PCI register
+    reg_value[0 ]=32'h00000000;          //PCi Control         Register0  Guest    
+    reg_value[1 ]=`TAR0_BASE_ADDR_0;     //PCi Base Address    Register0 configured before
+    reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
+    reg_value[3 ]=32'h00000000;          //PCi Translation Adr.Register0
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[4 ]=31'h00000004;          //PCi Control         Register1
+    `endif  
+    if (`PCI_AM1)                        //PCi Base Address    Register1 FF written before
+    reg_value[5 ]={`PCI_AM1, 11'h000,`PCI_BA1_MEM_IO}; 
+    reg_value[6 ]={`PCI_AM1, 12'h000};   //PCi Address Mask    Register1
+    reg_value[7 ]={`PCI_TA1, 12'h000};   //PCi Translation Adr.Register1
+   `ifdef PCI_IMAGE2
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[8 ]=31'h00000004;          //PCi Control         Register2
+    `endif
+    if (`PCI_AM2)                        //PCi Base Address    Register2 FF written before
+    reg_value[9 ]={`PCI_AM2, 11'h000,`PCI_BA2_MEM_IO};
+    reg_value[10]={`PCI_AM2, 12'h000};   //PCi Address Mask    Register2
+    `endif
+    reg_value[11]={`PCI_TA2, 12'h000};   //PCi Translation Adr.Register2
+   `ifdef PCI_IMAGE3
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[12]=31'h00000004;          //PCi Control         Register3
+    `endif
+    if (`PCI_AM3)                       //PCi Base Address    Register3 FF written before
+    reg_value[13]={`PCI_AM3, 11'h000,`PCI_BA3_MEM_IO};
+    reg_value[14]={`PCI_AM3, 12'h000};   //PCi Address Mask    Register3
+    `endif
+    reg_value[15]={`PCI_TA3, 12'h000};   //PCi Translation Adr.Register3
+   `ifdef PCI_IMAGE4
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[16]=31'h00000004;          //PCi Control         Register4
+    `endif
+    if (`PCI_AM4)                        //PCi Base Address    Register4 FF written before
+    reg_value[17]={`PCI_AM4, 11'h000,`PCI_BA4_MEM_IO};  
+    reg_value[18]={`PCI_AM4, 12'h000};   //PCi Address Mask    Register4
+    `endif
+    reg_value[19]={`PCI_TA4, 12'h000};   //PCi Translation Adr.Register4
+   `ifdef PCI_IMAGE5
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[20]=31'h00000004;          //PCi Control         Register5 
+    `endif
+    if (`PCI_AM5)                        //PCi Base Address    Register5 FF written before
+    reg_value[21]={`PCI_AM5, 11'h000,`PCI_BA5_MEM_IO};  
+    reg_value[22]={`PCI_AM5, 12'h000};   //PCi Address Mask    Register5
+    `endif
+    reg_value[23]={`PCI_TA5, 12'h000};   //PCi Translation Adr.Register5
+                                         //PCi err control status =0
+                                         //PCI err Adress         =0
+                                         //PCI err Data           =0
+/// WB                                   //wB configuration Base                      
+    reg_value[32]={`WB_CONFIGURATION_BASE, 12'h000};
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[33 ]=31'h00000004;         //WB Control         Register1      
+    `endif
+    reg_value[34]={`WB_BA1,11'h000,`WB_BA1_MEM_IO};   //WB Base Address    
+    reg_value[35]={`WB_AM1, 12'h000};   //WB Address Mask    Register1
+    reg_value[36]={`WB_TA1, 12'h000};   //WB Translation Adr.Register1
+   `ifdef WB_IMAGE2
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[37]=31'h00000004;          //WB Control         Register2
+    `endif
+                                     //WB Base Address    Register2 
+    reg_value[38]={`WB_BA2,11'h000,`WB_BA2_MEM_IO};
+    reg_value[39]={`WB_AM2, 12'h000};   //WB Address Mask    Register2
+    `endif
+    reg_value[40]={`WB_TA2, 12'h000};   //WB Translation Adr.Register2
+   `ifdef WB_IMAGE3
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[41]=31'h00000004;          //WB Control         Register3
+    `endif
+                                         //WB Base Address    Register3 
+    reg_value[42]={`WB_BA3,11'h000,`WB_BA3_MEM_IO};
+    reg_value[43]={`WB_AM3, 12'h000};   //WB Address Mask    Register3
+    `endif
+    reg_value[44]={`WB_TA3, 12'h000};   //WB Translation Adr.Register3
+   `ifdef WB_IMAGE4
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[45]=31'h00000004;          //WB Control         Register4
+    `endif
+                                         //WB Base Address    Register4 
+    reg_value[46]={`WB_BA4,11'h000,`WB_BA4_MEM_IO};     
+    reg_value[47]={`WB_AM4, 12'h000};   //WB Address Mask    Register4
+    `endif
+    reg_value[48]={`WB_TA4, 12'h000};   //WB Translation Adr.Register4
+   `ifdef WB_IMAGE5
+    `ifdef ADDR_TRAN_IMPL
+    reg_value[49]=31'h00000004;          //WB Control         Register5 
+    `endif
+                                         //WB Base Address    Register5 
+    reg_value[50]={`WB_BA5,11'h000,`WB_BA5_MEM_IO};  
+    reg_value[51]={`WB_AM5, 12'h000};   //WB Address Mask    Register5
+    `endif
+    reg_value[52]={`WB_TA5, 12'h000};   //WB Translation Adr.Register5
+
+
+    configure_bridge_target;//Target must be configured to read the other bars 
+
+    reg_address=0;
+    while ((reg_address <= `INT_ACK_ADDR) && (failed==0) )
+    begin
+      config_read( {4'h1, reg_address   ,2'b00} , 4'hF, read_data ) ;
+      if( read_data !== reg_value[reg_address])
+      begin
+        $fdisplay( tb_log_file,"error Config Register Adress %h",
+                 {4'h1, reg_address ,2'b00},
+                 ," expected:%h ",reg_value[reg_address]," read:%h",read_data);
+        $display("error Config Register Adress %h",
+                 {4'h1, reg_address ,2'b00},
+                 ," expected:%h ",reg_value[reg_address]," read:%h",read_data," Time %t ", $time) ;
+        test_fail("Initial value of register not as expected") ;
+        failed = 1 ;
+      end
+      if (`P_ERR_DATA_ADDR  ==reg_address )
+        reg_address=`WB_CONF_SPC_BAR_ADDR ;
+      else
+       reg_address= reg_address+1;
+
+    end
+    //clearing  all TA's for later tests
+    reg_address=`P_TA0_ADDR;
+    while ((reg_address <= `W_TA5_ADDR) && (failed==0) )
+    begin
+      config_write(  {4'h1, reg_address ,2'b00}, 32'h0000_0000, 4'h1, ok) ;
+      if ( ok !== 1 )
+      begin
+        $display("Image testing failed! Failed to write PCI Device Control register! Time %t ", $time) ;
+        test_fail("write to PCI Device Control register didn't succeede");
+      end
+      
+      if (`P_TA5_ADDR   ==reg_address )
+        reg_address=`W_TA1_ADDR ;
+      else
+       reg_address= reg_address+4;//next Ta Register
+    end
+
+
+`endif
+
+if (!failed)
+    test_ok ;
+end
+endtask //
 task test_initial_conf_values ;
     reg [11:0] register_offset ;
     reg [31:0] expected_value ;
@@ -22353,7 +22706,7 @@ begin
 
     test_name = "BIST FOR RAMS RUN" ;
 
-    mbist_ctrl_i  = 0 ;
+    mbist_en_i  = 0 ;                 
     mbist_si_i  = 0 ;
     mbist_rst = 0 ;
     mbist_clk = 0 ;
@@ -22388,14 +22741,16 @@ begin
         begin
             #1 ;
             @(posedge mbist_clk) ;
-            mbist_ctrl_i <= #1 1'b1 ;
+            mbist_en_i <= #1 1'b1 ;
+
             for (count = 0 ; count < bist_chain_length ; count = count + 1'b1)
             begin
                 @(posedge mbist_clk) ;
                 bist_result_vector[count] = mbist_so_o ;
             end
 
-            mbist_ctrl_i <= #1 1'b0 ;
+            mbist_en_i <= #1 1'b0 ;
+
         end
         #1 disable deadlock ;
         @(negedge mbist_clk) ;
@@ -22410,7 +22765,8 @@ begin
         end
 
         test_fail("BIST Test didn't finish as expected") ;
-        mbist_ctrl_i <= #1 1'b0 ;
+        mbist_en_i <= #1 1'b0 ;
+
         disable scan ;
         @(negedge mbist_clk) ;
         #1 ;
