@@ -1,3 +1,4 @@
+../../../bench/verilog/top.v
 ../../../bench/verilog/wb_master32.v
 ../../../bench/verilog/wb_master_behavioral.v
 ../../../bench/verilog/system.v

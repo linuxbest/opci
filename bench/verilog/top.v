@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.1  2003/12/15 12:21:29  mihad
+// Moved top.v to bench directory. Removed unneeded meta_flop,
+// modified files list files accordingly.
+//
 // Revision 1.12  2003/10/17 09:11:52  markom
 // mbist signals updated according to newest convention
 //
@@ -150,12 +154,28 @@ module TOP
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    ,
+    // Compact PCI Hot Swap signals
+    ENUM    ,
+    LED     ,
+    ES
+`endif
 );
 
 input           CLK ;
 inout   [31:0]  AD ;
 inout   [3:0]   CBE ;
-inout           RST ;
+
+`ifdef HOST
+output          RST ;
+`endif
+
+`ifdef GUEST
+input           RST ;
+`endif
+
 inout           INTA ;
 output          REQ ;
 input           GNT ;
@@ -214,6 +234,17 @@ output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
+`ifdef PCI_CPCI_HS_IMPLEMENT
+output  ENUM    ;
+output  LED     ;
+input   ES      ;
+
+wire ENUM_en    ;
+wire ENUM_out   ;
+wire LED_out    ;
+wire LED_en     ;
+`endif
+
 wire    [31:0]  AD_out ;
 wire    [31:0]  AD_en ;
 
@@ -224,9 +255,11 @@ wire    [3:0]   CBE_in = CBE ;
 wire    [3:0]   CBE_out ;
 wire    [3:0]   CBE_en ;
 
-
-
+`ifdef HOST
+wire            RST_in = 1'bx;
+`else
 wire            RST_in = RST ;
+`endif
 wire            RST_out ;
 wire            RST_en ;
 
@@ -382,6 +415,16 @@ pci_bridge32 bridge
     .mbist_so_o       (mbist_so_o),
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    ,
+    // Compact PCI Hot Swap signals
+    .pci_cpci_hs_enum_o     (ENUM_out)  ,
+    .pci_cpci_hs_enum_oe_o  (ENUM_en)   ,
+    .pci_cpci_hs_led_o      (LED_out)   ,
+    .pci_cpci_hs_led_oe_o   (LED_en)    ,
+    .pci_cpci_hs_es_i       (ES)
+`endif
 );
    
    
@@ -432,15 +475,23 @@ bufif0 DEVSEL_buf   ( DEVSEL, DEVSEL_out, DEVSEL_en ) ;
 bufif0 TRDY_buf     ( TRDY, TRDY_out, TRDY_en ) ;
 bufif0 STOP_buf     ( STOP, STOP_out, STOP_en ) ;
 
+`ifdef HOST
 bufif0 RST_buf      ( RST, RST_out, RST_en ) ;
+`endif
+
 bufif0 INTA_buf     ( INTA, INTA_out, INTA_en) ;
 bufif0 REQ_buf      ( REQ, REQ_out, REQ_en ) ;
 bufif0 PAR_buf      ( PAR, PAR_out, PAR_en ) ;
 bufif0 PERR_buf     ( PERR, PERR_out, PERR_en ) ;
 bufif0 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
 
+`ifdef PCI_CPCI_HS_IMPLEMENT
+bufif0 ENUM_buf (ENUM, ENUM_out, ENUM_en) ;
+bufif0 LED_buf  (LED,  LED_out,  LED_en ) ;
+`endif
+
 `else
- `ifdef ACTIVE_HIGH_OE
+`ifdef ACTIVE_HIGH_OE
 
 bufif1 AD_buf0   ( AD[0],  AD_out[0], AD_en[0]) ;
 bufif1 AD_buf1   ( AD[1],  AD_out[1], AD_en[1]) ;
@@ -486,14 +537,22 @@ bufif1 DEVSEL_buf   ( DEVSEL, DEVSEL_out, DEVSEL_en ) ;
 bufif1 TRDY_buf     ( TRDY, TRDY_out, TRDY_en ) ;
 bufif1 STOP_buf     ( STOP, STOP_out, STOP_en ) ;
  
+`ifdef HOST
 bufif1 RST_buf      ( RST, RST_out, RST_en ) ;
+`endif
+
 bufif1 INTA_buf     ( INTA, INTA_out, INTA_en) ;
 bufif1 REQ_buf      ( REQ, REQ_out, REQ_en ) ;
 bufif1 PAR_buf      ( PAR, PAR_out, PAR_en ) ;
 bufif1 PERR_buf     ( PERR, PERR_out, PERR_en ) ;
 bufif1 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
-`endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+bufif1 ENUM_buf (ENUM, ENUM_out, ENUM_en) ;
+bufif1 LED_buf  (LED,  LED_out,  LED_en ) ;
 `endif
 
+`endif
+`endif
 
 endmodule

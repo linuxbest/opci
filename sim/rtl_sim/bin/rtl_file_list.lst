@@ -47,7 +47,6 @@
 ../../../rtl/verilog/pci_mas_ch_state_crit.v
 ../../../rtl/verilog/pci_master32_sm_if.v
 ../../../rtl/verilog/pci_target32_trdy_crit.v
-../../../rtl/verilog/top.v
 ../../../rtl/verilog/pci_rst_int.v
 ../../../rtl/verilog/pci_sync_module.v
 ../../../rtl/verilog/pci_wb_tpram.v
