@@ -65,8 +65,8 @@
 //===================================================================================
 
 // setup and hold time definitions for WISHBONE - used in BFMs for signal generation
-`define Tsetup 0.5
-`define Thold  0.5
+`define Tsetup 3
+`define Thold  1
 
 // how many clock cycles should model wait for design's response - integer 32 bit value
 `define WAIT_FOR_RESPONSE 6
