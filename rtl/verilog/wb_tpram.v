@@ -62,6 +62,9 @@
 // CVS Revision History
 //
 // $Log: wb_tpram.v,v $
+// Revision 1.4  2002/10/08 17:17:06  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.3  2002/09/30 17:22:27  mihad
 // Added support for Virtual Silicon two port RAM. Didn't run regression on it yet!
 //
@@ -97,6 +100,16 @@ module WB_TPRAM
     addr_b,
     di_b,
     do_b
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO,
+    SI,
+    shift_DR,
+    capture_DR,
+    extest,
+    tck
+`endif
 );
 
 //
@@ -125,23 +138,50 @@ input 	[aw-1:0]	addr_b;	// address bus inputs
 input	[dw-1:0]	di_b;	// input data bus
 output	[dw-1:0]	do_b;	// output data bus
 
+`ifdef PCI_BIST
+// debug chain signals
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+`endif
+
 //
 // Internal wires and registers
 //
 
 `ifdef WB_VS_STP
     `define PCI_WB_RAM_SELECTED
-    vs_hdtp_64x40 i_vs_hdtp_64x40
-    (
-        .RCK        (clk_b),
-        .WCK        (clk_a),
-        .RADR       (addr_b),
-        .WADR       (addr_a),
-        .DI         (di_a),
-        .DOUT       (do_b),
-        .REN        (1'b0),
-        .WEN        (!we_a)
-    );
+    `ifdef PCI_BIST
+        vs_hdtp_64x40_bist i_vs_hdtp_64x40_bist
+    `else
+        vs_hdtp_64x40 i_vs_hdtp_64x40
+    `endif
+        (
+            .RCK        (clk_b),
+            .WCK        (clk_a),
+            .RADR       (addr_b),
+            .WADR       (addr_a),
+            .DI         (di_a),
+            .DOUT       (do_b),
+            .REN        (1'b0),
+            .WEN        (!we_a)
+        `ifdef PCI_BIST
+            ,
+            // reset
+            .rst        (rst_a),
+
+            // debug chain signals
+            .SO         (SO),
+            .SI         (SI),
+            .shift_DR   (shift_DR),
+            .capture_DR (capture_DR),
+            .extest     (extest),
+            .tck        (tck)
+        `endif
+        );
     
     assign do_a = 0 ;
 `endif

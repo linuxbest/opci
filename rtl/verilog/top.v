@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.5  2002/10/08 17:17:06  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.4  2002/03/21 07:36:04  mihad
 // Files updated with missing includes, resolved some race conditions in test bench
 //
@@ -114,6 +117,17 @@ module TOP
     ACK_I,
     RTY_I,
     ERR_I
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck
+`endif
 );
 
 input           CLK ;
@@ -166,6 +180,18 @@ input           ACK_I ;
 input           RTY_I ;
 input           ERR_I ;
 
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+
+`endif
 
 wire    [31:0]  AD_out ;
 wire    [31:0]  AD_en ;
@@ -316,6 +342,16 @@ PCI_BRIDGE32 bridge
     // system error pin
     .PCI_SERRn_OUT ( SERR_out ),
     .PCI_SERRn_EN_OUT ( SERR_en )
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO),
+    .SI         (SI),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
 );
    
    

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
+// Revision 1.6  2002/10/08 17:17:06  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.5  2002/09/30 16:03:04  mihad
 // Added meta flop module for easier meta stable FF identification during synthesis
 //
@@ -65,33 +68,45 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module WBW_WBR_FIFOS(
-                        wb_clock_in,
-                        pci_clock_in,
-                        reset_in,
-                        wbw_wenable_in,
-                        wbw_addr_data_in,
-                        wbw_cbe_in,
-                        wbw_control_in,
-                        wbw_renable_in,
-                        wbw_addr_data_out,
-                        wbw_cbe_out,
-                        wbw_control_out,
-//                        wbw_flush_in,         write fifo flush not used
-                        wbw_almost_full_out,
-                        wbw_full_out,
-                        wbw_empty_out,
-                        wbw_transaction_ready_out,
-                        wbr_wenable_in,
-                        wbr_data_in,
-                        wbr_be_in,
-                        wbr_control_in,
-                        wbr_renable_in,
-                        wbr_data_out,
-                        wbr_be_out,
-                        wbr_control_out,
-                        wbr_flush_in,
-                        wbr_empty_out
+module WBW_WBR_FIFOS
+(
+    wb_clock_in,
+    pci_clock_in,
+    reset_in,
+    wbw_wenable_in,
+    wbw_addr_data_in,
+    wbw_cbe_in,
+    wbw_control_in,
+    wbw_renable_in,
+    wbw_addr_data_out,
+    wbw_cbe_out,
+    wbw_control_out,
+//    wbw_flush_in,         write fifo flush not used
+    wbw_almost_full_out,
+    wbw_full_out,
+    wbw_empty_out,
+    wbw_transaction_ready_out,
+    wbr_wenable_in,
+    wbr_data_in,
+    wbr_be_in,
+    wbr_control_in,
+    wbr_renable_in,
+    wbr_data_out,
+    wbr_be_out,
+    wbr_control_out,
+    wbr_flush_in,
+    wbr_empty_out
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck        
+`endif                        
 ) ;
 
 /*-----------------------------------------------------------------------------------------------------------
@@ -192,6 +207,18 @@ input wbr_flush_in ;
 
 output wbr_empty_out ;
 
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+`endif
+
 /*-----------------------------------------------------------------------------------------------------------
 FIFO depth parameters:
 WBW_DEPTH = defines WBW_FIFO depth
@@ -203,10 +230,6 @@ parameter WBW_DEPTH = `WBW_DEPTH ;
 parameter WBW_ADDR_LENGTH = `WBW_ADDR_LENGTH ;
 parameter WBR_DEPTH = `WBR_DEPTH ;
 parameter WBR_ADDR_LENGTH = `WBR_ADDR_LENGTH ;
-
-// obvious
-wire vcc = 1'b1 ;
-wire gnd = 1'b0 ;
 
 /*-----------------------------------------------------------------------------------------------------------
 wbw_wallow = WBW_FIFO write allow wire - writes to FIFO are allowed when FIFO isn't full and write enable is 1
@@ -308,6 +331,11 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     wire wbw_read_enable = 1'b1 ;
     wire wbr_read_enable = 1'b1 ;
 
+    `ifdef PCI_BIST
+    wire SO_internal ; // wires for connection of debug ports on two rams
+    wire SI_internal = SO_internal ;
+    `endif
+
     // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
     WB_TPRAM #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbw_fifo_storage
     (
@@ -329,6 +357,16 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
         .addr_b(wbw_whole_raddr),
         .di_b(40'h00_0000_0000),
         .do_b(dpram_portB_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO_internal),
+        .SI         (SI),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
     WB_TPRAM #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbr_fifo_storage
@@ -351,6 +389,16 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
         .addr_b(wbr_whole_raddr),
         .di_b(40'h00_0000_0000),
         .do_b(dpram_portA_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO),
+        .SI         (SI_internal),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
 `else // RAM blocks sharing between two fifos
@@ -405,6 +453,16 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
         .addr_b(portB_addr),
         .di_b(dpram_portB_input),
         .do_b(dpram_portB_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO),
+        .SI         (SI),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
 `endif

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.7  2002/10/08 17:17:05  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.6  2002/09/25 15:53:52  mihad
 // Removed all logic from asynchronous reset network
 //
@@ -156,6 +159,17 @@ module PCI_TARGET_UNIT
     pciu_conf_select_out,
     pciu_pci_drcomp_pending_out,
     pciu_pciw_fifo_empty_out
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck
+`endif
 );
 
 input reset_in,
@@ -252,6 +266,18 @@ output  [31:0]  pciu_conf_data_out ;
 
 output          pciu_pci_drcomp_pending_out ;
 output          pciu_pciw_fifo_empty_out ;
+
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+`endif
 
 
 // pci target state machine and interface outputs
@@ -530,6 +556,16 @@ PCIW_PCIR_FIFOS fifos
     .pcir_almost_empty_out      (fifos_pcir_almost_empty_out), //for PCI Target !!!
     .pcir_empty_out             (fifos_pcir_empty_out),        //for PCI Target !!!
     .pcir_transaction_ready_out ()
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO),
+    .SI         (SI),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
 ) ;
 
 // delayed transaction logic inputs

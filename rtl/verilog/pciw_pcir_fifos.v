@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
+// Revision 1.7  2002/10/08 17:17:06  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.6  2002/09/30 16:03:04  mihad
 // Added meta flop module for easier meta stable FF identification during synthesis
 //
@@ -101,6 +104,17 @@ module PCIW_PCIR_FIFOS
     pcir_almost_empty_out,
     pcir_empty_out,
     pcir_transaction_ready_out
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck
+`endif
 ) ;
 
 /*-----------------------------------------------------------------------------------------------------------
@@ -211,6 +225,18 @@ output pcir_almost_empty_out ;
 output pcir_empty_out ;
 output pcir_transaction_ready_out ;
 
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+`endif
+
 /*-----------------------------------------------------------------------------------------------------------
 Address length parameters:
 PCIW_DEPTH = defines PCIW_FIFO depth
@@ -222,10 +248,6 @@ parameter PCIW_DEPTH = `PCIW_DEPTH ;
 parameter PCIW_ADDR_LENGTH = `PCIW_ADDR_LENGTH ;
 parameter PCIR_DEPTH = `PCIR_DEPTH ;
 parameter PCIR_ADDR_LENGTH = `PCIR_ADDR_LENGTH ;
-
-// obvious
-wire vcc = 1'b1 ;
-wire gnd = 1'b0 ;
 
 /*-----------------------------------------------------------------------------------------------------------
 pciw_wallow = PCIW_FIFO write allow wire - writes to FIFO are allowed when FIFO isn't full and write enable is 1
@@ -335,6 +357,11 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
     wire pciw_read_enable = 1'b1 ;
     wire pcir_read_enable = 1'b1 ;
 
+    `ifdef PCI_BIST
+    wire SO_internal ; // wires for connection of debug ports on two rams
+    wire SI_internal = SO_internal ;
+    `endif
+
     // instantiate and connect two generic rams - one for pci write fifo and one for pci read fifo
     PCI_TPRAM #(`PCI_FIFO_RAM_ADDR_LENGTH, 40) pciw_fifo_storage
     (
@@ -356,6 +383,16 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .addr_b(pciw_whole_raddr),
         .di_b(40'h00_0000_0000),
         .do_b(dpram_portB_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO_internal),
+        .SI         (SI),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
     PCI_TPRAM #(`PCI_FIFO_RAM_ADDR_LENGTH, 40) pcir_fifo_storage
@@ -378,6 +415,16 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .addr_b(pcir_whole_raddr),
         .di_b(40'h00_0000_0000),
         .do_b(dpram_portA_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO),
+        .SI         (SI_internal),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
 `else // RAM blocks sharing between two fifos
@@ -432,6 +479,16 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .addr_b(portB_addr),
         .di_b(dpram_portB_input),
         .do_b(dpram_portB_output)
+
+    `ifdef PCI_BIST
+        ,
+        .SO         (SO),
+        .SI         (SI),
+        .shift_DR   (shift_DR),
+        .capture_DR (capture_DR),
+        .extest     (extest),
+        .tck        (tck)
+    `endif
     );
 
 `endif

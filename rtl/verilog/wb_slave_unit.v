@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.5  2002/10/08 17:17:06  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.4  2002/09/25 15:53:52  mihad
 // Removed all logic from asynchronous reset network
 //
@@ -149,6 +152,17 @@ module WB_SLAVE_UNIT
     wbu_latency_tim_val_in,
     wbu_ad_load_out,
     wbu_ad_load_on_transfer_out
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck
+`endif
 );
 
 input reset_in,
@@ -250,6 +264,17 @@ input   [7:0]   wbu_latency_tim_val_in ;
 output          wbu_ad_load_out ;
 output          wbu_ad_load_on_transfer_out ;
 
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+`endif
 
 // pci master interface outputs
 wire [31:0] pcim_if_address_out ;
@@ -521,34 +546,45 @@ wire        fifos_wbr_renable_in        =       wbs_sm_wbr_renable_out ;
 wire        fifos_wbr_flush_in          =       wbs_sm_wbr_flush_out || del_sync_comp_flush_out ;
 
 // WBW_FIFO and WBR_FIFO instantiation
-WBW_WBR_FIFOS fifos(
-                    .wb_clock_in               (wb_clock_in),
-                    .pci_clock_in              (pci_clock_in),
-                    .reset_in                  (reset_in),
-                    .wbw_wenable_in            (fifos_wbw_wenable_in),
-                    .wbw_addr_data_in          (fifos_wbw_addr_data_in),
-                    .wbw_cbe_in                (fifos_wbw_cbe_in),
-                    .wbw_control_in            (fifos_wbw_control_in),
-                    .wbw_renable_in            (fifos_wbw_renable_in),
-                    .wbw_addr_data_out         (fifos_wbw_addr_data_out),
-                    .wbw_cbe_out               (fifos_wbw_cbe_out),
-                    .wbw_control_out           (fifos_wbw_control_out),
-//                    .wbw_flush_in              (fifos_wbw_flush_in),        // flush for write fifo not used
-                    .wbw_almost_full_out       (fifos_wbw_almost_full_out),
-                    .wbw_full_out              (fifos_wbw_full_out),
-                    .wbw_empty_out             (fifos_wbw_empty_out),
-                    .wbw_transaction_ready_out (fifos_wbw_transaction_ready_out),
-                    .wbr_wenable_in            (fifos_wbr_wenable_in),
-                    .wbr_data_in               (fifos_wbr_data_in),
-                    .wbr_be_in                 (fifos_wbr_be_in),
-                    .wbr_control_in            (fifos_wbr_control_in),
-                    .wbr_renable_in            (fifos_wbr_renable_in),
-                    .wbr_data_out              (fifos_wbr_data_out),
-                    .wbr_be_out                (fifos_wbr_be_out),
-                    .wbr_control_out           (fifos_wbr_control_out),
-                    .wbr_flush_in              (fifos_wbr_flush_in),
-                    .wbr_empty_out             (fifos_wbr_empty_out)
-                   ) ;
+WBW_WBR_FIFOS fifos
+(
+    .wb_clock_in               (wb_clock_in),
+    .pci_clock_in              (pci_clock_in),
+    .reset_in                  (reset_in),
+    .wbw_wenable_in            (fifos_wbw_wenable_in),
+    .wbw_addr_data_in          (fifos_wbw_addr_data_in),
+    .wbw_cbe_in                (fifos_wbw_cbe_in),
+    .wbw_control_in            (fifos_wbw_control_in),
+    .wbw_renable_in            (fifos_wbw_renable_in),
+    .wbw_addr_data_out         (fifos_wbw_addr_data_out),
+    .wbw_cbe_out               (fifos_wbw_cbe_out),
+    .wbw_control_out           (fifos_wbw_control_out),
+//    .wbw_flush_in              (fifos_wbw_flush_in),        // flush for write fifo not used
+    .wbw_almost_full_out       (fifos_wbw_almost_full_out),
+    .wbw_full_out              (fifos_wbw_full_out),
+    .wbw_empty_out             (fifos_wbw_empty_out),
+    .wbw_transaction_ready_out (fifos_wbw_transaction_ready_out),
+    .wbr_wenable_in            (fifos_wbr_wenable_in),
+    .wbr_data_in               (fifos_wbr_data_in),
+    .wbr_be_in                 (fifos_wbr_be_in),
+    .wbr_control_in            (fifos_wbr_control_in),
+    .wbr_renable_in            (fifos_wbr_renable_in),
+    .wbr_data_out              (fifos_wbr_data_out),
+    .wbr_be_out                (fifos_wbr_be_out),
+    .wbr_control_out           (fifos_wbr_control_out),
+    .wbr_flush_in              (fifos_wbr_flush_in),
+    .wbr_empty_out             (fifos_wbr_empty_out)
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO),
+    .SI         (SI),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
+) ;
 
 wire [31:0] amux_addr_in  = ADDR_I ;
 wire        amux_sample_address_in = wbs_sm_sample_address_out ;

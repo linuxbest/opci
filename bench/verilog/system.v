@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.9  2002/10/08 17:17:02  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.8  2002/09/25 09:54:47  mihad
 // Added completion expiration test for WB Slave unit. Changed expiration signalling
 //
@@ -138,6 +141,15 @@ wire        TAR2_IDSEL = AD[`TAR2_IDSEL_INDEX] ;
 
 wire        reset_wb ; // reset to Wb devices
 
+`ifdef PCI_BIST
+wire SO ;
+reg  SI ;
+reg  shift_DR ;
+reg  capture_DR ;
+reg  extest ;
+reg  tck ;
+`endif
+
 `ifdef GUEST
     wire    RST = ~reset ;
     assign  reset_wb = RST_O ;
@@ -198,6 +210,16 @@ TOP `PCI_BRIDGE_INSTANCE
     .ACK_I  ( ACK_I ),
     .RTY_I  ( RTY_I ),
     .ERR_I  ( ERR_I )
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO),
+    .SI         (SI),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
 ) ;
 
 WB_MASTER_BEHAVIORAL wishbone_master
@@ -605,6 +627,14 @@ integer   target_io_image ;
 
 initial
 begin
+
+`ifdef PCI_BIST
+    SI          = 0 ;
+    shift_DR    = 0 ;
+    capture_DR  = 0 ;
+    extest      = 0 ;
+    tck         = 0 ;
+`endif
     next_test_name[79:0] <= "Nowhere___";
     reset = 1'b1 ;
     pci_clock = 1'b0 ;
@@ -793,6 +823,11 @@ task run_tests ;
 begin
     // first - reset logic
     do_reset ;
+
+    // if BIST is implemented, give it a go
+`ifdef PCI_BIST
+    run_bist_test ;
+`endif
     test_initial_conf_values ;
 
     next_test_name[79:0] <= "Initing...";
@@ -19015,6 +19050,99 @@ begin:main
     in_use = 0 ;
 end
 endtask //config_read
+
+`ifdef PCI_BIST
+`ifdef WB_RAM_DONT_SHARE
+    `ifdef PCI_RAM_DONT_SHARE
+        parameter bist_chain_length = 8 ;
+    `else
+        parameter bist_chain_length = 6 ;
+    `endif
+`else
+    `ifdef PCI_RAM_DONT_SHARE
+        bist_chain_length = 6 ;
+    `else
+        bist_chain_length = 4 ;
+    `endif
+`endif
+
+task run_bist_test ;
+    reg [(bist_chain_length - 1):0] bist_result_vector ;
+    integer count ;
+    integer deadlock_count ;
+begin
+
+    test_name = "BIST FOR RAMS RUN" ;
+
+    SI          = 0 ;
+    shift_DR    = 0 ;
+    capture_DR  = 0 ;
+    extest      = 0 ;
+    tck         = 0 ;
+
+    fork
+    begin
+        repeat(2)
+            @(posedge wb_clock) ;
+    end
+    begin
+        repeat(2)
+            @(posedge pci_clock) ;
+    end
+    join
+
+    // test is run with forcing extest high
+    extest <= 1'b1 ;
+
+    bist_result_vector = 0 ;
+
+    // result vector must be all 1s, because in RTL there cannot be a reason for BIST to fail
+    fork
+    begin:scan
+        while (bist_result_vector !== {bist_chain_length{1'b1}})
+        begin
+            @(negedge tck) ;
+            capture_DR <= #1 1'b1 ;
+            @(negedge tck) ;
+            capture_DR <= #1 1'b0 ;
+            shift_DR   <= #1 1'b1 ;
+            for (count = 0 ; count < bist_chain_length ; count = count + 1'b1)
+            begin
+                @(negedge tck) ;
+                bist_result_vector[count] = SO ;
+            end
+
+            shift_DR <= #1 1'b0 ;
+        end
+        #1 disable deadlock ;
+        @(negedge tck) ;
+        extest <= #1 1'b0 ;
+        #1 ;
+        disable tck_gen ;
+        test_ok ;
+    end
+    begin:deadlock
+        for (deadlock_count = 0; deadlock_count <= 100000; deadlock_count = deadlock_count + 1'b1)
+        begin
+            @(posedge pci_clock) ;
+            @(posedge wb_clock) ;
+        end
+
+        test_fail("BIST Test didn't finish as expected") ;
+        extest <= #1 1'b0 ;
+        disable scan ;
+        @(negedge tck) ;
+        #1 ;
+        disable tck_gen ;
+    end
+    begin:tck_gen
+        forever
+            #50 tck = !tck ;
+    end
+    join
+end
+endtask // run_bist_test
+`endif
 
 task test_fail ;
     input [7999:0] failure_reason ;

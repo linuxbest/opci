@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.4  2002/10/08 17:17:05  mihad
+// Added BIST signals for RAMs.
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -159,6 +162,17 @@ module PCI_BRIDGE32
     // system error pin
     PCI_SERRn_OUT,
     PCI_SERRn_EN_OUT
+
+`ifdef PCI_BIST
+    ,
+    // debug chain signals
+    SO         ,
+    SI         ,
+    shift_DR   ,
+    capture_DR ,
+    extest     ,
+    tck
+`endif
 );
 
 // WISHBONE system signals
@@ -254,6 +268,22 @@ output  PCI_PERRn_EN_OUT ;
 // system error pin
 output  PCI_SERRn_OUT ;
 output  PCI_SERRn_EN_OUT ;
+
+`ifdef PCI_BIST
+/*-----------------------------------------------------
+BIST debug chain port signals
+-----------------------------------------------------*/
+output  SO ;
+input   SI ;
+input   shift_DR ;
+input   capture_DR ;
+input   extest ;
+input   tck ;
+
+// internal wires for serial chain connection
+wire SO_internal ;
+wire SI_internal = SO_internal ;
+`endif
 
 // declare clock and reset wires
 wire pci_clk = PCI_CLK_IN ;
@@ -765,6 +795,16 @@ WB_SLAVE_UNIT wishbone_slave_unit
     .wbu_pciif_trdy_reg_in         (wbu_pciif_trdy_reg_in),
     .wbu_pciif_stop_reg_in         (wbu_pciif_stop_reg_in),
     .wbu_pciif_devsel_reg_in       (wbu_pciif_devsel_reg_in)
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO_internal),
+    .SI         (SI),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
 );
 
 // PCI TARGET UNIT INPUTS
@@ -938,6 +978,16 @@ PCI_TARGET_UNIT pci_target_unit
     .pciu_conf_select_out           (pciu_conf_select_out),
     .pciu_pci_drcomp_pending_out    (pciu_pci_drcomp_pending_out),
     .pciu_pciw_fifo_empty_out       (pciu_pciw_fifo_empty_out)
+
+`ifdef PCI_BIST
+    ,
+    .SO         (SO),
+    .SI         (SI_internal),
+    .shift_DR   (shift_DR),
+    .capture_DR (capture_DR),
+    .extest     (extest),
+    .tck        (tck)
+`endif
 );
 
 
