@@ -44,6 +44,9 @@
 // CVS Revision History
 //
 // $Log: ssvga_wbm_if.v,v $
+// Revision 1.3  2003/01/21 16:21:53  mihad
+// Include statement moved out of off/on pragma as reported by Uwe.
+//
 // Revision 1.2  2002/02/01 15:24:46  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -54,8 +57,8 @@
 
 // synopsys translate_off
 `include "timescale.v"
-`include "ssvga_defines.v"
 // synopsys translate_on
+`include "ssvga_defines.v"
 
 module ssvga_wbm_if(
 	// Clock and reset
