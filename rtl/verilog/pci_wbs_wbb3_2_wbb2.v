@@ -40,6 +40,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbs_wbb3_2_wbb2.v,v $
+// Revision 1.5  2004/08/16 09:12:01  mihad
+// Removed unsinthesizable !== comparation.
+//
 // Revision 1.4  2004/01/24 11:54:18  mihad
 // Update! SPOCI Implemented!
 //
@@ -272,7 +275,7 @@ begin
 end
 
 assign wbs_stb_o = (wbs_cyc_o & ~wbs_we_o & ~wbs_ack_o & ~wbs_err_o & ~wbs_rty_o) |
-                   (wbs_cyc_o & wbs_stb_i & wbs_cab_o & ~wbs_we_o & wbs_cti_i !== 3'b111) |
+                   (wbs_cyc_o & wbs_stb_i & wbs_cab_o & ~wbs_we_o & wbs_cti_i != 3'b111) |
                    (wbs_cyc_o & wbs_we_o & wbs_dat_i_o_valid) ;
 
 endmodule
