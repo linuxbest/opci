@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.11  2003/08/21 20:49:03  tadejm
+// Added signals for WB Master B3.
+//
 // Revision 1.10  2003/08/03 18:05:06  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -131,7 +134,8 @@ module TOP
     CYC_O,
     STB_O,
     WE_O,
-    CAB_O,
+    CTI_O,
+    BTE_O,
     ACK_I,
     RTY_I,
     ERR_I
@@ -194,7 +198,8 @@ output  [3:0]   SEL_O ;
 output          CYC_O ;
 output          STB_O ;
 output          WE_O  ;
-output          CAB_O ;
+output  [2:0]   CTI_O ;
+output  [1:0]   BTE_O ;
 input           ACK_I ;
 input           RTY_I ;
 input           ERR_I ;
@@ -305,7 +310,8 @@ pci_bridge32 bridge
     .wbm_cyc_o(CYC_O),
     .wbm_stb_o(STB_O),
     .wbm_we_o (WE_O),
-    .wbm_cab_o(CAB_O),
+    .wbm_cti_o(CTI_O),
+    .wbm_bte_o(BTE_O),
     .wbm_ack_i(ACK_I),
     .wbm_rty_i(RTY_I),
     .wbm_err_i(ERR_I),

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.12  2003/08/21 20:49:03  tadejm
+// Added signals for WB Master B3.
+//
 // Revision 1.11  2003/08/08 16:36:33  tadejm
 // Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
 //
@@ -130,7 +133,8 @@ module pci_bridge32
     wbm_cyc_o,
     wbm_stb_o,
     wbm_we_o,
-    wbm_cab_o,
+    wbm_cti_o,
+    wbm_bte_o,
     wbm_ack_i,
     wbm_rty_i,
     wbm_err_i,
@@ -246,7 +250,8 @@ output  [3:0]   wbm_sel_o ;
 output          wbm_cyc_o ;
 output          wbm_stb_o ;
 output          wbm_we_o ;
-output          wbm_cab_o ;
+output  [2:0]   wbm_cti_o ;
+output  [1:0]   wbm_bte_o ;
 input           wbm_ack_i ;
 input           wbm_rty_i ;
 input           wbm_err_i ;
@@ -393,8 +398,9 @@ wire    [31:0]  pciu_mdata_out ;
 wire            pciu_cyc_out ;
 wire            pciu_stb_out ;
 wire            pciu_we_out ;
+wire    [2:0]   pciu_cti_out ;
+wire    [1:0]   pciu_bte_out ;
 wire    [3:0]   pciu_sel_out ;
-wire            pciu_cab_out ;
 wire            pciu_pciif_trdy_out ;
 wire            pciu_pciif_stop_out ;
 wire            pciu_pciif_devsel_out ;
@@ -424,12 +430,13 @@ wire            pciu_pciw_fifo_empty_out ;
 
 // assign pci target unit's outputs to top outputs where possible
 assign wbm_adr_o    =   pciu_adr_out ;
-assign wbm_dat_o   =   pciu_mdata_out ;
+assign wbm_dat_o    =   pciu_mdata_out ;
 assign wbm_cyc_o    =   pciu_cyc_out ;
 assign wbm_stb_o    =   pciu_stb_out ;
 assign wbm_we_o     =   pciu_we_out ;
+assign wbm_cti_o    =   pciu_cti_out ;
+assign wbm_bte_o    =   pciu_bte_out ;
 assign wbm_sel_o    =   pciu_sel_out ;
-assign wbm_cab_o    =   pciu_cab_out ;
 
 // CONFIGURATION SPACE OUTPUTS
 wire    [31:0]  conf_w_data_out ;
@@ -1017,17 +1024,18 @@ pci_target_unit pci_target_unit
     .reset_in                       (reset),
     .wb_clock_in                    (wb_clk),
     .pci_clock_in                   (pci_clk),
-    .ADR_O                          (pciu_adr_out),
-    .MDATA_O                        (pciu_mdata_out),
-    .MDATA_I                        (pciu_mdata_in),
-    .CYC_O                          (pciu_cyc_out),
-    .STB_O                          (pciu_stb_out),
-    .WE_O                           (pciu_we_out),
-    .SEL_O                          (pciu_sel_out),
-    .ACK_I                          (pciu_ack_in),
-    .RTY_I                          (pciu_rty_in),
-    .ERR_I                          (pciu_err_in),
-    .CAB_O                          (pciu_cab_out),
+    .pciu_wbm_adr_o                 (pciu_adr_out),
+    .pciu_wbm_dat_o                 (pciu_mdata_out),
+    .pciu_wbm_dat_i                 (pciu_mdata_in),
+    .pciu_wbm_cyc_o                 (pciu_cyc_out),
+    .pciu_wbm_stb_o                 (pciu_stb_out),
+    .pciu_wbm_we_o                  (pciu_we_out),
+    .pciu_wbm_cti_o                 (pciu_cti_out),
+    .pciu_wbm_bte_o                 (pciu_bte_out),
+    .pciu_wbm_sel_o                 (pciu_sel_out),
+    .pciu_wbm_ack_i                 (pciu_ack_in),
+    .pciu_wbm_rty_i                 (pciu_rty_in),
+    .pciu_wbm_err_i                 (pciu_err_in),
     .pciu_mem_enable_in             (pciu_mem_enable_in),
     .pciu_io_enable_in              (pciu_io_enable_in),
     .pciu_map_in                    (pciu_map_in),
