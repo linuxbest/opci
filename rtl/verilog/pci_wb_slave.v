@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_slave.v,v $
+// Revision 1.3  2003/08/14 18:01:53  simons
+// ifdefs moved to thier own lines, this confuses some of the tools.
+//
 // Revision 1.2  2003/08/03 18:05:06  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -452,8 +455,18 @@ wire alligned_address = ~|(wb_addr_in[1:0]) ;
     reg current_delayed_is_ccyc ;
     reg current_delayed_is_iack ;
 
-    wire wccyc_hit = (wb_addr_in[8:2] == {1'b1, `CNF_DATA_ADDR}) `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif ;
-    wire wiack_hit = (wb_addr_in[8:2] == {1'b1, `INT_ACK_ADDR})  `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif ;
+    wire wccyc_hit = (wb_addr_in[8:2] == {1'b1, `CNF_DATA_ADDR}) 
+    `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+    `else 
+                     && alligned_address 
+    `endif 
+                     ;
+    wire wiack_hit = (wb_addr_in[8:2] == {1'b1, `INT_ACK_ADDR})  
+    `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+    `else 
+                     && alligned_address 
+    `endif 
+                     ;
     reg iack_hit ;
     reg ccyc_hit ;
     always@(posedge reset_in or posedge wb_clock_in)
@@ -872,14 +885,34 @@ begin
     S_CONF_WRITE:  begin
                         `ifdef HOST
                             wbw_data_out_sel = SEL_CCYC_ADDR ;
-                            del_req          = do_ccyc_req && ~burst_transfer  `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif ;
-                            del_done         = do_ccyc_comp && ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif ;
-                            del_in_progress  = do_ccyc_comp && ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif ;
+                            del_req          = do_ccyc_req && ~burst_transfer  
+                              `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                              `else 
+                                               && alligned_address 
+                              `endif 
+                                               ;
+                            del_done         = do_ccyc_comp && ~burst_transfer 
+                              `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                              `else 
+                                               && alligned_address 
+                              `endif 
+                                               ;
+                            del_in_progress  = do_ccyc_comp && ~burst_transfer 
+                              `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                              `else 
+                                               && alligned_address 
+                              `endif 
+                                               ;
                         `endif
 
                         n_state         = S_IDLE ; // next state after configuration access is always idle
 
-                        if ( burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else | ~alligned_address `endif )
+                        if ( burst_transfer 
+                        `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                        `else 
+                            | ~alligned_address 
+                        `endif 
+                           )
                         begin
                             err = 1'b1 ;
                         end
@@ -911,15 +944,40 @@ begin
     S_CONF_READ:   begin
                         `ifdef HOST
                             wbw_data_out_sel = SEL_CCYC_ADDR ;
-                            del_req          = ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif && ( do_ccyc_req  || do_iack_req  ) ;
-                            del_done         = ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif && ( do_ccyc_comp || do_iack_comp ) ;
-                            del_in_progress  = ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif && ( do_ccyc_comp || do_iack_comp ) ;
-                            wbr_fifo_renable = ~burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else && alligned_address `endif && ( do_ccyc_comp || do_iack_comp ) ;
+                            del_req          = ~burst_transfer 
+                          `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                          `else 
+                                                && alligned_address 
+                          `endif 
+                                                && ( do_ccyc_req  || do_iack_req  ) ;
+                            del_done         = ~burst_transfer 
+                          `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                          `else 
+                                                && alligned_address 
+                          `endif 
+                                                && ( do_ccyc_comp || do_iack_comp ) ;
+                            del_in_progress  = ~burst_transfer 
+                          `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                          `else 
+                                                && alligned_address 
+                          `endif 
+                                                && ( do_ccyc_comp || do_iack_comp ) ;
+                            wbr_fifo_renable = ~burst_transfer 
+                          `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                          `else 
+                                                && alligned_address 
+                          `endif 
+                                                && ( do_ccyc_comp || do_iack_comp ) ;
                         `endif
 
                         n_state = S_IDLE ; // next state after configuration access is always idle
 
-                        if ( burst_transfer `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS `else | ~alligned_address `endif )
+                        if ( burst_transfer 
+                        `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS 
+                        `else 
+                              | ~alligned_address 
+                        `endif 
+                           )
                         begin
                             err = 1'b1 ;
                         end
