@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_io_mux_ad_load_crit.v,v $
+// Revision 1.2  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.1  2002/02/01 14:43:31  mihad
 // *** empty log message ***
 //
@@ -53,7 +56,7 @@
 
 // module is provided for last level of logic for loading AD output flip-flops
 // and output backup flip - flops
-module PCI_IO_MUX_AD_LOAD_CRIT
+module pci_io_mux_ad_load_crit
 (
     load_in,
     load_on_transfer_in,

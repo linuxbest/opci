@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_io_mux.v,v $
+// Revision 1.4  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -60,7 +63,7 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module PCI_IO_MUX
+module pci_io_mux
 (
     reset_in,
     clk_in,
@@ -212,7 +215,7 @@ wire ad_en_ctrl_high ;
 
 wire ad_enable_internal = mas_ad_en_in || tar_ad_en_in ;
 
-PCI_IO_MUX_AD_EN_CRIT ad_en_low_gen
+pci_io_mux_ad_en_crit ad_en_low_gen
 (
     .ad_en_in       (ad_enable_internal),
     .pci_frame_in   (pci_frame_in),
@@ -221,7 +224,7 @@ PCI_IO_MUX_AD_EN_CRIT ad_en_low_gen
     .ad_en_out      (ad_en_ctrl_low)
 );
 
-PCI_IO_MUX_AD_EN_CRIT ad_en_mlow_gen
+pci_io_mux_ad_en_crit ad_en_mlow_gen
 (
     .ad_en_in       (ad_enable_internal),
     .pci_frame_in   (pci_frame_in),
@@ -230,7 +233,7 @@ PCI_IO_MUX_AD_EN_CRIT ad_en_mlow_gen
     .ad_en_out      (ad_en_ctrl_mlow)
 );
 
-PCI_IO_MUX_AD_EN_CRIT ad_en_mhigh_gen
+pci_io_mux_ad_en_crit ad_en_mhigh_gen
 (
     .ad_en_in       (ad_enable_internal),
     .pci_frame_in   (pci_frame_in),
@@ -239,7 +242,7 @@ PCI_IO_MUX_AD_EN_CRIT ad_en_mhigh_gen
     .ad_en_out      (ad_en_ctrl_mhigh)
 );
 
-PCI_IO_MUX_AD_EN_CRIT ad_en_high_gen
+pci_io_mux_ad_en_crit ad_en_high_gen
 (
     .ad_en_in       (ad_enable_internal),
     .pci_frame_in   (pci_frame_in),
@@ -260,7 +263,7 @@ wire   ad_load_ctrl_high ;
 
 assign ad_load_out = ad_load_ctrl_high ;
 
-PCI_IO_MUX_AD_LOAD_CRIT ad_load_low_gen
+pci_io_mux_ad_load_crit ad_load_low_gen
 (
     .load_in(load),
     .load_on_transfer_in(load_on_transfer),
@@ -269,7 +272,7 @@ PCI_IO_MUX_AD_LOAD_CRIT ad_load_low_gen
     .load_out(ad_load_ctrl_low)
 );
 
-PCI_IO_MUX_AD_LOAD_CRIT ad_load_mlow_gen
+pci_io_mux_ad_load_crit ad_load_mlow_gen
 (
     .load_in(load),
     .load_on_transfer_in(load_on_transfer),
@@ -278,7 +281,7 @@ PCI_IO_MUX_AD_LOAD_CRIT ad_load_mlow_gen
     .load_out(ad_load_ctrl_mlow)
 );
 
-PCI_IO_MUX_AD_LOAD_CRIT ad_load_mhigh_gen
+pci_io_mux_ad_load_crit ad_load_mhigh_gen
 (
     .load_in(load),
     .load_on_transfer_in(load_on_transfer),
@@ -287,7 +290,7 @@ PCI_IO_MUX_AD_LOAD_CRIT ad_load_mhigh_gen
     .load_out(ad_load_ctrl_mhigh)
 );
 
-PCI_IO_MUX_AD_LOAD_CRIT ad_load_high_gen
+pci_io_mux_ad_load_crit ad_load_high_gen
 (
     .load_in(load),
     .load_on_transfer_in(load_on_transfer),
@@ -296,7 +299,7 @@ PCI_IO_MUX_AD_LOAD_CRIT ad_load_high_gen
     .load_out(ad_load_ctrl_high)
 );
 
-OUT_REG ad_iob0
+pci_out_reg ad_iob0
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -308,7 +311,7 @@ OUT_REG ad_iob0
     .dat_out      ( ad_out[0] )
 );
 
-OUT_REG ad_iob1
+pci_out_reg ad_iob1
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -320,7 +323,7 @@ OUT_REG ad_iob1
     .dat_out      ( ad_out[1] )
 );
 
-OUT_REG ad_iob2
+pci_out_reg ad_iob2
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -332,7 +335,7 @@ OUT_REG ad_iob2
     .dat_out      ( ad_out[2] )
 );
 
-OUT_REG ad_iob3
+pci_out_reg ad_iob3
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -344,7 +347,7 @@ OUT_REG ad_iob3
     .dat_out      ( ad_out[3] )
 );
 
-OUT_REG ad_iob4
+pci_out_reg ad_iob4
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -356,7 +359,7 @@ OUT_REG ad_iob4
     .dat_out      ( ad_out[4] )
 );
 
-OUT_REG ad_iob5
+pci_out_reg ad_iob5
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -368,7 +371,7 @@ OUT_REG ad_iob5
     .dat_out      ( ad_out[5] )
 );
 
-OUT_REG ad_iob6
+pci_out_reg ad_iob6
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -380,7 +383,7 @@ OUT_REG ad_iob6
     .dat_out      ( ad_out[6] )
 );
 
-OUT_REG ad_iob7
+pci_out_reg ad_iob7
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -392,7 +395,7 @@ OUT_REG ad_iob7
     .dat_out      ( ad_out[7] )
 );
 
-OUT_REG ad_iob8
+pci_out_reg ad_iob8
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -404,7 +407,7 @@ OUT_REG ad_iob8
     .dat_out      ( ad_out[8] )
 );
 
-OUT_REG ad_iob9
+pci_out_reg ad_iob9
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -416,7 +419,7 @@ OUT_REG ad_iob9
     .dat_out      ( ad_out[9] )
 );
 
-OUT_REG ad_iob10
+pci_out_reg ad_iob10
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -428,7 +431,7 @@ OUT_REG ad_iob10
     .dat_out      ( ad_out[10] )
 );
 
-OUT_REG ad_iob11
+pci_out_reg ad_iob11
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -440,7 +443,7 @@ OUT_REG ad_iob11
     .dat_out      ( ad_out[11] )
 );
 
-OUT_REG ad_iob12
+pci_out_reg ad_iob12
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -452,7 +455,7 @@ OUT_REG ad_iob12
     .dat_out      ( ad_out[12] )
 );
 
-OUT_REG ad_iob13
+pci_out_reg ad_iob13
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -464,7 +467,7 @@ OUT_REG ad_iob13
     .dat_out      ( ad_out[13] )
 );
 
-OUT_REG ad_iob14
+pci_out_reg ad_iob14
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -476,7 +479,7 @@ OUT_REG ad_iob14
     .dat_out      ( ad_out[14] )
 );
 
-OUT_REG ad_iob15
+pci_out_reg ad_iob15
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -488,7 +491,7 @@ OUT_REG ad_iob15
     .dat_out      ( ad_out[15] )
 );
 
-OUT_REG ad_iob16
+pci_out_reg ad_iob16
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -500,7 +503,7 @@ OUT_REG ad_iob16
     .dat_out      ( ad_out[16] )
 );
 
-OUT_REG ad_iob17
+pci_out_reg ad_iob17
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -512,7 +515,7 @@ OUT_REG ad_iob17
     .dat_out      ( ad_out[17] )
 );
 
-OUT_REG ad_iob18
+pci_out_reg ad_iob18
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -524,7 +527,7 @@ OUT_REG ad_iob18
     .dat_out      ( ad_out[18] )
 );
 
-OUT_REG ad_iob19
+pci_out_reg ad_iob19
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -536,7 +539,7 @@ OUT_REG ad_iob19
     .dat_out      ( ad_out[19] )
 );
 
-OUT_REG ad_iob20
+pci_out_reg ad_iob20
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -548,7 +551,7 @@ OUT_REG ad_iob20
     .dat_out      ( ad_out[20] )
 );
 
-OUT_REG ad_iob21
+pci_out_reg ad_iob21
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -560,7 +563,7 @@ OUT_REG ad_iob21
     .dat_out      ( ad_out[21] )
 );
 
-OUT_REG ad_iob22
+pci_out_reg ad_iob22
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -572,7 +575,7 @@ OUT_REG ad_iob22
     .dat_out      ( ad_out[22] )
 );
 
-OUT_REG ad_iob23
+pci_out_reg ad_iob23
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -584,7 +587,7 @@ OUT_REG ad_iob23
     .dat_out      ( ad_out[23] )
 );
 
-OUT_REG ad_iob24
+pci_out_reg ad_iob24
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -596,7 +599,7 @@ OUT_REG ad_iob24
     .dat_out      ( ad_out[24] )
 );
 
-OUT_REG ad_iob25
+pci_out_reg ad_iob25
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -608,7 +611,7 @@ OUT_REG ad_iob25
     .dat_out      ( ad_out[25] )
 );
 
-OUT_REG ad_iob26
+pci_out_reg ad_iob26
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -620,7 +623,7 @@ OUT_REG ad_iob26
     .dat_out      ( ad_out[26] )
 );
 
-OUT_REG ad_iob27
+pci_out_reg ad_iob27
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -632,7 +635,7 @@ OUT_REG ad_iob27
     .dat_out      ( ad_out[27] )
 );
 
-OUT_REG ad_iob28
+pci_out_reg ad_iob28
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -644,7 +647,7 @@ OUT_REG ad_iob28
     .dat_out      ( ad_out[28] )
 );
 
-OUT_REG ad_iob29
+pci_out_reg ad_iob29
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -656,7 +659,7 @@ OUT_REG ad_iob29
     .dat_out      ( ad_out[29] )
 );
 
-OUT_REG ad_iob30
+pci_out_reg ad_iob30
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -668,7 +671,7 @@ OUT_REG ad_iob30
     .dat_out      ( ad_out[30] )
 );
 
-OUT_REG ad_iob31
+pci_out_reg ad_iob31
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -683,7 +686,7 @@ OUT_REG ad_iob31
 wire [3:0] cbe_load_ctrl = {4{ master_load_in }} ;
 wire [3:0] cbe_en_ctrl   = {4{ cbe_en_in }} ;
 
-OUT_REG cbe_iob0
+pci_out_reg cbe_iob0
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -695,7 +698,7 @@ OUT_REG cbe_iob0
     .dat_out      ( cbe_out[0] )
 );
 
-OUT_REG cbe_iob1
+pci_out_reg cbe_iob1
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -707,7 +710,7 @@ OUT_REG cbe_iob1
     .dat_out      ( cbe_out[1] )
 );
 
-OUT_REG cbe_iob2
+pci_out_reg cbe_iob2
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -719,7 +722,7 @@ OUT_REG cbe_iob2
     .dat_out      ( cbe_out[2] )
 );
 
-OUT_REG cbe_iob3
+pci_out_reg cbe_iob3
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -731,7 +734,7 @@ OUT_REG cbe_iob3
     .dat_out      ( cbe_out[3] )
 );
 
-OUT_REG frame_iob
+pci_out_reg frame_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -743,7 +746,7 @@ OUT_REG frame_iob
     .dat_out      ( frame_out )
 );
 
-OUT_REG irdy_iob
+pci_out_reg irdy_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -755,7 +758,7 @@ OUT_REG irdy_iob
     .dat_out      ( irdy_out )
 );
 
-OUT_REG trdy_iob
+pci_out_reg trdy_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -767,7 +770,7 @@ OUT_REG trdy_iob
     .dat_out      ( trdy_out )
 );
 
-OUT_REG stop_iob
+pci_out_reg stop_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -779,7 +782,7 @@ OUT_REG stop_iob
     .dat_out      ( stop_out )
 );
 
-OUT_REG devsel_iob
+pci_out_reg devsel_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -791,7 +794,7 @@ OUT_REG devsel_iob
     .dat_out      ( devsel_out )
 );
 
-OUT_REG par_iob
+pci_out_reg par_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -803,7 +806,7 @@ OUT_REG par_iob
     .dat_out      ( par_out )
 );
 
-OUT_REG perr_iob
+pci_out_reg perr_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -815,7 +818,7 @@ OUT_REG perr_iob
     .dat_out      ( perr_out )
 );
 
-OUT_REG serr_iob
+pci_out_reg serr_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,
@@ -827,7 +830,7 @@ OUT_REG serr_iob
     .dat_out      ( serr_out )
 );
 
-OUT_REG req_iob
+pci_out_reg req_iob
 (
     .reset_in     ( reset_in ),
     .clk_in       ( clk_in) ,

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.9  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.8  2002/10/18 03:36:37  tadejm
 // Changed wrong signal name scanb_sen into scanb_en.
 //
@@ -253,101 +256,101 @@ wire            PERR_en ;
 wire            SERR_out ;
 wire            SERR_en ;
 
-PCI_BRIDGE32 bridge
+pci_bridge32 bridge
 (
     // WISHBONE system signals
-    .CLK_I(CLK_I),
-    .RST_I(RST_I),
-    .RST_O(RST_O),
-    .INT_I(INT_I),
-    .INT_O(INT_O),
+    .wb_clk_i(CLK_I),
+    .wb_rst_i(RST_I),
+    .wb_rst_o(RST_O),
+    .wb_int_i(INT_I),
+    .wb_int_o(INT_O),
 
     // WISHBONE slave interface
-    .ADR_I(ADR_I),
-    .SDAT_I(SDAT_I),
-    .SDAT_O(SDAT_O),
-    .SEL_I(SEL_I),
-    .CYC_I(CYC_I),
-    .STB_I(STB_I),
-    .WE_I(WE_I),
-    .CAB_I(CAB_I),
-    .ACK_O(ACK_O),
-    .RTY_O(RTY_O),
-    .ERR_O(ERR_O),
+    .wbs_adr_i(ADR_I),
+    .wbs_dat_i(SDAT_I),
+    .wbs_dat_o(SDAT_O),
+    .wbs_sel_i(SEL_I),
+    .wbs_cyc_i(CYC_I),
+    .wbs_stb_i(STB_I),
+    .wbs_we_i (WE_I),
+    .wbs_cab_i(CAB_I),
+    .wbs_ack_o(ACK_O),
+    .wbs_rty_o(RTY_O),
+    .wbs_err_o(ERR_O),
 
     // WISHBONE master interface
-    .ADR_O(ADR_O),
-    .MDAT_I(MDAT_I),
-    .MDAT_O(MDAT_O),
-    .SEL_O(SEL_O),
-    .CYC_O(CYC_O),
-    .STB_O(STB_O),
-    .WE_O(WE_O),
-    .CAB_O(CAB_O),
-    .ACK_I(ACK_I),
-    .RTY_I(RTY_I),
-    .ERR_I(ERR_I),
+    .wbm_adr_o(ADR_O),
+    .wbm_dat_i(MDAT_I),
+    .wbm_dat_o(MDAT_O),
+    .wbm_sel_o(SEL_O),
+    .wbm_cyc_o(CYC_O),
+    .wbm_stb_o(STB_O),
+    .wbm_we_o (WE_O),
+    .wbm_cab_o(CAB_O),
+    .wbm_ack_i(ACK_I),
+    .wbm_rty_i(RTY_I),
+    .wbm_err_i(ERR_I),
 
     // pci interface - system pins
-    .PCI_CLK_IN (CLK),
-    .PCI_RSTn_IN ( RST_in ),
-    .PCI_RSTn_OUT ( RST_out ),
-    .PCI_INTAn_IN ( INTA_in ),
-    .PCI_INTAn_OUT( INTA_out),
-    .PCI_RSTn_EN_OUT( RST_en),
-    .PCI_INTAn_EN_OUT(INTA_en),
+    .pci_clk_i    (CLK),
+    .pci_rst_i    ( RST_in ),
+    .pci_rst_o    ( RST_out ),
+    .pci_inta_i   ( INTA_in ),
+    .pci_inta_o   ( INTA_out),
+    .pci_rst_oe_o ( RST_en),
+    .pci_inta_oe_o(INTA_en),
 
     // arbitration pins
-    .PCI_REQn_OUT( REQ_out ),
-    .PCI_REQn_EN_OUT ( REQ_en ),
+    .pci_req_o   ( REQ_out ),
+    .pci_req_oe_o( REQ_en ),
 
-    .PCI_GNTn_IN( GNT ),
+    .pci_gnt_i   ( GNT ),
 
     // protocol pins
-    .PCI_FRAMEn_IN( FRAME_in),
-    .PCI_FRAMEn_OUT( FRAME_out ),
-
-    .PCI_FRAMEn_EN_OUT( FRAME_en ),
-    .PCI_IRDYn_EN_OUT ( IRDY_en ),
-    .PCI_DEVSELn_EN_OUT ( DEVSEL_en ),
-    .PCI_TRDYn_EN_OUT ( TRDY_en ),
-    .PCI_STOPn_EN_OUT ( STOP_en ),
-    .PCI_AD_EN_OUT(AD_en),
-    .PCI_CBEn_EN_OUT ( CBE_en) ,
-
-    .PCI_IRDYn_IN ( IRDY_in ),
-    .PCI_IRDYn_OUT ( IRDY_out ),
-
-    .PCI_IDSEL_IN ( IDSEL ),
-
-    .PCI_DEVSELn_IN( DEVSEL_in ),
-    .PCI_DEVSELn_OUT ( DEVSEL_out ),
-
-    .PCI_TRDYn_IN ( TRDY_in ),
-    .PCI_TRDYn_OUT ( TRDY_out ),
-
-    .PCI_STOPn_IN( STOP_in ),
-    .PCI_STOPn_OUT ( STOP_out ),
+    .pci_frame_i   ( FRAME_in),
+    .pci_frame_o   ( FRAME_out ),
+                    
+    .pci_frame_oe_o( FRAME_en ),
+    .pci_irdy_oe_o ( IRDY_en ),
+    .pci_devsel_oe_o( DEVSEL_en ),
+    .pci_trdy_oe_o ( TRDY_en ),
+    .pci_stop_oe_o ( STOP_en ),
+    .pci_ad_oe_o   (AD_en),
+    .pci_cbe_oe_o  ( CBE_en) ,
+                    
+    .pci_irdy_i    ( IRDY_in ),
+    .pci_irdy_o    ( IRDY_out ),
+                    
+    .pci_idsel_i   ( IDSEL ),
+                    
+    .pci_devsel_i  ( DEVSEL_in ),
+    .pci_devsel_o  ( DEVSEL_out ),
+                    
+    .pci_trdy_i    ( TRDY_in ),
+    .pci_trdy_o    ( TRDY_out ),
+                    
+    .pci_stop_i    ( STOP_in ),
+    .pci_stop_o    ( STOP_out ),
 
     // data transfer pins
-    .PCI_AD_IN(AD_in),
-    .PCI_AD_OUT (AD_out),
-
-    .PCI_CBEn_IN( CBE_in ),
-    .PCI_CBEn_OUT ( CBE_out ),
+    .pci_ad_i(AD_in),
+    .pci_ad_o(AD_out),
+              
+    .pci_cbe_i( CBE_in ),
+    .pci_cbe_o( CBE_out ),
 
     // parity generation and checking pins
-    .PCI_PAR_IN ( PAR_in ),
-    .PCI_PAR_OUT ( PAR_out ),
-    .PCI_PAR_EN_OUT ( PAR_en ),
-
-    .PCI_PERRn_IN ( PERR_in ),
-    .PCI_PERRn_OUT ( PERR_out ),
-    .PCI_PERRn_EN_OUT ( PERR_en ),
+    .pci_par_i    ( PAR_in ),
+    .pci_par_o    ( PAR_out ),
+    .pci_par_oe_o ( PAR_en ),
+                  
+    .pci_perr_i   ( PERR_in ),
+    .pci_perr_o   ( PERR_out ),
+    .pci_perr_oe_o( PERR_en ),
 
     // system error pin
-    .PCI_SERRn_OUT ( SERR_out ),
-    .PCI_SERRn_EN_OUT ( SERR_en )
+    .pci_serr_o   ( SERR_out ),
+    .pci_serr_oe_o( SERR_en )
 
 `ifdef PCI_BIST
     ,

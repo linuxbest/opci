@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm.v,v $
+// Revision 1.5  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.4  2003/01/21 16:06:56  mihad
 // Bug fixes, testcases added.
 //
@@ -63,7 +66,7 @@
 // synopsys translate_on
 `include "pci_constants.v"
 
-module PCI_MASTER32_SM
+module pci_master32_sm
 (
     // system inputs
     clk_in,
@@ -348,7 +351,7 @@ wire force_frame = ~sm_idle ;
 wire slow_frame  = last_in || (latency_time_out && pci_gnt_in) || (next_last_in && sm_data_phases) || mabort1 ;
 // critical timing frame logic in separate module - some combinations of target signals force frame to inactive state immediately after sampled asserted
 // (STOP)
-FRAME_CRIT frame_iob_feed
+pci_frame_crit frame_iob_feed
 (
     .pci_frame_out      (pci_frame_out),
     .force_frame_in     (force_frame),
@@ -361,7 +364,7 @@ FRAME_CRIT frame_iob_feed
 wire frame_load_slow = sm_idle || sm_address || mabort1 ;
 
 // critical clock enable for frame IOB in separate module - target response signals actually allow frame value change - critical timing
-FRAME_LOAD_CRIT frame_iob_ce
+pci_frame_load_crit frame_iob_ce
 (
     .pci_frame_load_out (pci_frame_load_out),
     .sm_data_phases_in  (sm_data_phases),
@@ -375,7 +378,7 @@ FRAME_LOAD_CRIT frame_iob_ce
 wire irdy_slow = pci_frame_out_in && mabort1 || mabort2 ;
 
 // critical path in separate module
-IRDY_OUT_CRIT irdy_iob_feed
+pci_irdy_out_crit irdy_iob_feed
 (
     .pci_irdy_out       (pci_irdy_out),
     .irdy_slow_in       (irdy_slow),
@@ -418,7 +421,7 @@ assign retry_out = timeout_termination || (~pci_stop_reg_in && ~pci_devsel_reg_i
 wire ad_load_slow = sm_address ;
 wire ad_load_on_grant = sm_idle && pci_frame_in && pci_irdy_in ;
 
-MAS_AD_LOAD_CRIT mas_ad_load_feed
+pci_mas_ad_load_crit mas_ad_load_feed
 (
     .ad_load_out         (ad_load_out),
     .ad_load_in          (ad_load_slow),
@@ -445,7 +448,7 @@ wire ch_state_slow = sm_address || sm_turn_arround || sm_data_phases && ( pci_fr
 wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && req_in && rdy_in ;
 
 // most critical change state enable - calculated from target response signals
-MAS_CH_STATE_CRIT state_machine_ce
+pci_mas_ch_state_crit state_machine_ce
 (
     .change_state_out   (change_state),
     .ch_state_med_in    (ch_state_med),
@@ -465,7 +468,7 @@ wire ad_en_slow     = do_write && ( sm_address || ( sm_data_phases && !( ( pci_f
 wire ad_en_on_grant = ( sm_idle && pci_frame_in && pci_irdy_in ) || sm_turn_arround ;
 
 // critical timing ad enable - calculated from grant input
-MAS_AD_EN_CRIT ad_iob_oe_feed
+pci_mas_ad_en_crit ad_iob_oe_feed
 (
     .pci_ad_en_out      (pci_ad_en_out),
     .ad_en_slow_in      (ad_en_slow),
@@ -479,7 +482,7 @@ wire cbe_en_slow     = cbe_en_on_grant && ~pci_gnt_in || sm_address || sm_data_p
 wire cbe_en_keep     = sm_data_phases && pci_frame_out_in && ~mabort1 && ~mabort2 ;
 
 // most critical cbe enable in separate module - calculated with most critical target inputs
-CBE_EN_CRIT cbe_iob_feed
+pci_cbe_en_crit cbe_iob_feed
 (
     .pci_cbe_en_out     (pci_cbe_en_out),
     .cbe_en_slow_in     (cbe_en_slow),
@@ -497,7 +500,7 @@ wire frame_en_slow = (sm_idle && u_have_pci_bus && req_in && rdy_in) || sm_addre
 wire frame_en_keep = sm_data_phases && pci_frame_out_in && ~mabort1 && ~mabort2 ;
 
 // most critical frame enable - calculated from heavily constrained target inputs in separate module
-FRAME_EN_CRIT frame_iob_en_feed
+pci_frame_en_crit frame_iob_en_feed
 (
     .pci_frame_en_out   (pci_frame_en_out),
     .frame_en_slow_in   (frame_en_slow),

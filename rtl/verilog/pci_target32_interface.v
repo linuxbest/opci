@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.7  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.6  2003/01/21 16:06:56  mihad
 // Bug fixes, testcases added.
 //
@@ -69,7 +72,7 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module PCI_TARGET32_INTERFACE
+module pci_target32_interface
 (
     // system inputs
     clk_in,
@@ -434,7 +437,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 `ifdef			HOST
 	`ifdef		NO_CNF_IMAGE
 		`ifdef	PCI_IMAGE0	// if PCI bridge is HOST and IMAGE0 is assigned as general image space
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
 				   (.hit			(hit0_in),
 					.addr_out		(address0_in),
 					.addr_in		(address_in),
@@ -449,7 +452,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 		`endif
 	`else
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
 				   (.hit			(hit0_in),
 					.addr_out		(address0_in),
 					.addr_in		(address_in),
@@ -464,7 +467,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 	`endif
 `else // GUEST
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder0
 				   (.hit			(hit0_in),
 					.addr_out		(address0_in),
 					.addr_in		(address_in),
@@ -478,7 +481,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					.io_en			(io_enable_in)
 					) ;
 `endif
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder1
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder1
 				   (.hit			(hit1_in),
 					.addr_out		(address1_in),
 					.addr_in		(address_in),
@@ -492,7 +495,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					.io_en			(io_enable_in)
 					) ;
 `ifdef		PCI_IMAGE2
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder2
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder2
 				   (.hit			(hit2_in),
 					.addr_out		(address2_in),
 					.addr_in		(address_in),
@@ -507,7 +510,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 `endif
 `ifdef		PCI_IMAGE3
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder3
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder3
 				   (.hit			(hit3_in),
 					.addr_out		(address3_in),
 					.addr_in		(address_in),
@@ -522,7 +525,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 `endif
 `ifdef		PCI_IMAGE4
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder4
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder4
 				   (.hit			(hit4_in),
 					.addr_out		(address4_in),
 					.addr_in		(address_in),
@@ -537,7 +540,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 `endif
 `ifdef		PCI_IMAGE5
-	PCI_DECODER   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder5
+	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder5
 				   (.hit			(hit5_in),
 					.addr_out		(address5_in),
 					.addr_in		(address_in),
@@ -818,7 +821,7 @@ assign	target_abort_out = ( ~addr_phase_in && calc_target_abort ) ;
 
 // flush signal for PCIR_FIFO must be registered, since it asinchronously resets some status registers
 wire		pcir_fifo_flush_reg ;
-async_reset_flop		  async_reset_as_pcir_flush
+pci_async_reset_flop async_reset_as_pcir_flush
 (
     .data_in        	  (comp_flush_in || pcir_fifo_flush),
     .clk_in         	  (clk_in),

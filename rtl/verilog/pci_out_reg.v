@@ -1,20 +1,20 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  File name: pci_target32_stop_crit.v                         ////
+////  File name "out_reg.v"                                       ////
 ////                                                              ////
 ////  This file is part of the "PCI bridge" project               ////
 ////  http://www.opencores.org/cores/pci/                         ////
 ////                                                              ////
 ////  Author(s):                                                  ////
-////      - Tadej Markovic, tadej@opencores.org                   ////
+////      - Miha Dolenc (mihad@opencores.org)                     ////
 ////                                                              ////
-////  All additional information is avaliable in the README.txt   ////
+////  All additional information is avaliable in the README       ////
 ////  file.                                                       ////
 ////                                                              ////
 ////                                                              ////
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// Copyright (C) 2000 Tadej Markovic, tadej@opencores.org       ////
+//// Copyright (C) 2001 Miha Dolenc, mihad@opencores.org          ////
 ////                                                              ////
 //// This source file may be used and distributed without         ////
 //// restriction provided that this copyright statement is not    ////
@@ -41,49 +41,84 @@
 //
 // CVS Revision History
 //
-// $Log: pci_target32_stop_crit.v,v $
-// Revision 1.4  2003/01/27 16:49:31  mihad
+// $Log: pci_out_reg.v,v $
+// Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
-// Revision 1.2  2001/10/05 08:14:30  mihad
+// Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
-// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
 // New project directory structure
 //
 //
 
-// module is used to separate logic which uses criticaly constrained inputs from slower logic.
-// It is used to synthesize critical timing logic separately with faster cells or without optimization
+`include "pci_constants.v"
 
 // synopsys translate_off
 `include "timescale.v"
 // synopsys translate_on
 
-module pci_target32_stop_crit
+// module inferes a single IOB output block as known in FPGA architectures
+// It provides data flip flop with clock enable and output enable flip flop with clock enable
+// This is tested in Xilinx FPGA - active low output enable
+// Check polarity of output enable flip flop for specific architecure.
+module pci_out_reg
 (
-    stop_w,
-    stop_w_frm,
-    stop_w_frm_irdy,
-    pci_frame_in,
-    pci_irdy_in,
-    pci_stop_out
+    reset_in,
+    clk_in,
+    dat_en_in,
+    en_en_in,
+    dat_in,
+    en_in,
+    en_out,
+    dat_out
 );
 
-input       stop_w ;			// stop signal (composed without critical signals) that do not need critical inputs
-input       stop_w_frm ;		// stop signal (composed without critical signals) that needs AND with critical FRAME input
-input       stop_w_frm_irdy ;	// stop signal (composed without critical signals) that needs AND with critical FRAME and
-								// IRDY inputs
-input       pci_frame_in ;		// critical constrained input signal
-input		pci_irdy_in ;		// critical constrained input signal
+input   reset_in,
+        clk_in,
+        dat_en_in,
+        en_en_in,
+        dat_in,
+        en_in ;
 
-output		pci_stop_out ;		// PCI stop output
+output dat_out ;
+output en_out ;
 
-// PCI stop output with preserved hierarchy for minimum delay!
-assign 	pci_stop_out = ~(stop_w || (stop_w_frm && ~pci_frame_in) || (stop_w_frm_irdy && ~pci_frame_in && ~pci_irdy_in)) ;
+reg dat_out,
+    en_out ;
 
+`ifdef ACTIVE_LOW_OE
+wire en = ~en_in ;
+`else
+`ifdef ACTIVE_HIGH_OE
+wire en = en_in ;
+`endif
+`endif
+
+always@(posedge reset_in or posedge clk_in)
+begin
+    if ( reset_in )
+        dat_out <= #`FF_DELAY 1'b0 ;
+    else if ( dat_en_in )
+        dat_out <= #`FF_DELAY dat_in ;
+end
+
+always@(posedge reset_in or posedge clk_in)
+begin
+    if ( reset_in )
+        `ifdef ACTIVE_LOW_OE
+        en_out <= #`FF_DELAY 1'b1 ;
+        `else
+        `ifdef ACTIVE_HIGH_OE
+        en_out <= #`FF_DELAY 1'b0 ;
+        `endif
+        `endif
+    else if ( en_en_in )
+        en_out <= #`FF_DELAY en ;
+end
 
 endmodule

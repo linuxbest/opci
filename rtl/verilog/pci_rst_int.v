@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_rst_int.v,v $
+// Revision 1.2  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.1  2002/02/01 14:43:31  mihad
 // *** empty log message ***
 //
@@ -55,7 +58,7 @@
 // synopsys translate_on
 
 // Module is used to switch appropriate reset and interrupt signals with few logic
-module PCI_RST_INT
+module pci_rst_int
 (
 	clk_in,
 	// reset signals
@@ -142,7 +145,7 @@ assign pci_intan_out = 1'b0 ;
 // guest implementation of the bridge gets its interrupt from WISHBONE bus - INT_I and propagates it to PCI bus
 `ifdef GUEST
     wire interrupt_a_en;
-    OUT_REG inta
+    pci_out_reg inta
     (
         .reset_in     ( reset ),
         .clk_in       ( clk_in) ,

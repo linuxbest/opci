@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
+// Revision 1.4  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -64,7 +67,7 @@
 Module provides interface between PCI bridge internals and PCI master
 state machine
 ====================================================================*/
-module PCI_MASTER32_SM_IF
+module pci_master32_sm_if
 (
     clk_in,
     reset_in,

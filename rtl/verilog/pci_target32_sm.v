@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.9  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.8  2003/01/21 16:06:56  mihad
 // Bug fixes, testcases added.
 //
@@ -74,7 +77,7 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module PCI_TARGET32_SM
+module pci_target32_sm
 (
     // system inputs
     clk_in,
@@ -449,7 +452,7 @@ end
 assign config_disconnect = sm_transfere && (norm_access_to_conf_reg || cnf_progress) ;
 
 // Clock enable module used for preserving the architecture because of minimum delay for critical inputs
-PCI_TARGET32_CLK_EN         pci_target_clock_en
+pci_target32_clk_en pci_target_clock_en
 (
     .addr_phase             (addr_phase),
     .config_access          (config_access),
@@ -532,7 +535,7 @@ wire    trdy_w_frm      =   (
         // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
 wire    trdy_w_frm_irdy =   ( ~bckp_trdy_in ) ;
 // TRDY critical module used for preserving the architecture because of minimum delay for critical inputs
-PCI_TARGET32_TRDY_CRIT      pci_target_trdy_critical
+pci_target32_trdy_crit pci_target_trdy_critical
 (
     .trdy_w                 (trdy_w),
     .trdy_w_frm             (trdy_w_frm),
@@ -563,7 +566,7 @@ wire    stop_w_frm_irdy =   (
         (state_transfere && ~rw_cbe0 && pcir_fifo_data_err_in)
                             ) ;
 // STOP critical module used for preserving the architecture because of minimum delay for critical inputs
-PCI_TARGET32_STOP_CRIT      pci_target_stop_critical
+pci_target32_stop_crit pci_target_stop_critical
 (
     .stop_w                 (stop_w),
     .stop_w_frm             (stop_w_frm),
@@ -594,7 +597,7 @@ wire    devs_w_frm_irdy =   (
         (state_transfere && ~rw_cbe0 && pcir_fifo_data_err_in)
                             ) ;
 // DEVSEL critical module used for preserving the architecture because of minimum delay for critical inputs
-PCI_TARGET32_DEVS_CRIT      pci_target_devsel_critical
+pci_target32_devs_crit pci_target_devsel_critical
 (
     .devs_w                 (devs_w),
     .devs_w_frm             (devs_w_frm),

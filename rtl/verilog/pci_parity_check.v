@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_parity_check.v,v $
+// Revision 1.5  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.4  2002/08/13 11:03:53  mihad
 // Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
 //
@@ -62,7 +65,7 @@
 `include "pci_constants.v"
 `include "bus_commands.v"
 
-module PCI_PARITY_CHECK
+module pci_parity_check
 (
     reset_in,
     clk_in,
@@ -164,7 +167,7 @@ wire data_par = (pci_ad_out_in[31] ^^ pci_ad_out_in[30] ^^ pci_ad_out_in[29] ^^ 
 
 wire par_out_only = data_par ^^ par_cbe_out ;
 
-PAR_CRIT par_gen
+pci_par_crit par_gen
 (
     .par_out        (pci_par_out),
     .par_out_in     (par_out_only),
@@ -210,7 +213,7 @@ assign pci_perr_out = perr_n ;
 
 wire non_critical_par = par_cbe_in ^^ data_in_par ;
 
-PERR_CRIT perr_crit_gen
+pci_perr_crit perr_crit_gen
 (
     .perr_out           (perr),
     .perr_n_out         (perr_n),
@@ -221,7 +224,7 @@ PERR_CRIT perr_crit_gen
 
 // PERR# enable
 wire pci_perr_en_reg ;
-PERR_EN_CRIT perr_en_crit_gen
+pci_perr_en_crit perr_en_crit_gen
 (
     .reset_in               (reset_in),
     .clk_in                 (clk_in),
@@ -259,7 +262,7 @@ wire check_for_serr = check_for_serr_on_first || check_for_serr_on_second ;
 
 wire serr_generate = check_for_serr && serr_enable_in && par_err_response_in ;
 
-SERR_EN_CRIT serr_en_crit_gen
+pci_serr_en_crit serr_en_crit_gen
 (
     .serr_en_out        (pci_serr_en_out),
     .pci_par_in         (pci_par_in),
@@ -272,7 +275,7 @@ SERR_EN_CRIT serr_en_crit_gen
 assign sig_serr_out = pci_serr_en_in ;
 
 // SERR# output is always 0, just enable is driven apropriately
-SERR_CRIT serr_crit_gen
+pci_serr_crit serr_crit_gen
 (
     .serr_out               (pci_serr_out),
     .non_critical_par_in    (non_critical_par),

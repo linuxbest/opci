@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_trdy_crit.v,v $
+// Revision 1.4  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -60,7 +63,7 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module PCI_TARGET32_TRDY_CRIT
+module pci_target32_trdy_crit
 (
     trdy_w,
     trdy_w_frm,

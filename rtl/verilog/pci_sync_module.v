@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  File name: pci_target32_stop_crit.v                         ////
+////  File name "sync_module.v"                                   ////
 ////                                                              ////
 ////  This file is part of the "PCI bridge" project               ////
 ////  http://www.opencores.org/cores/pci/                         ////
@@ -41,49 +41,119 @@
 //
 // CVS Revision History
 //
-// $Log: pci_target32_stop_crit.v,v $
-// Revision 1.4  2003/01/27 16:49:31  mihad
+// $Log: pci_sync_module.v,v $
+// Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
-// Revision 1.3  2002/02/01 15:25:12  mihad
-// Repaired a few bugs, updated specification, added test bench files and design document
-//
-// Revision 1.2  2001/10/05 08:14:30  mihad
-// Updated all files with inclusion of timescale file for simulation purposes.
-//
-// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
-// New project directory structure
+// Revision 1.1  2002/02/01 14:43:31  mihad
+// *** empty log message ***
 //
 //
-
-// module is used to separate logic which uses criticaly constrained inputs from slower logic.
-// It is used to synthesize critical timing logic separately with faster cells or without optimization
+//
 
 // synopsys translate_off
 `include "timescale.v"
 // synopsys translate_on
 
-module pci_target32_stop_crit
+module pci_sync_module
 (
-    stop_w,
-    stop_w_frm,
-    stop_w_frm_irdy,
-    pci_frame_in,
-    pci_irdy_in,
-    pci_stop_out
+					set_clk_in,
+					delete_clk_in,
+					reset_in,
+					delete_set_out,
+					block_set_out,
+					delete_in
 );
 
-input       stop_w ;			// stop signal (composed without critical signals) that do not need critical inputs
-input       stop_w_frm ;		// stop signal (composed without critical signals) that needs AND with critical FRAME input
-input       stop_w_frm_irdy ;	// stop signal (composed without critical signals) that needs AND with critical FRAME and
-								// IRDY inputs
-input       pci_frame_in ;		// critical constrained input signal
-input		pci_irdy_in ;		// critical constrained input signal
+// system inputs from two clock domains
+input	set_clk_in;
+input	delete_clk_in;
+input	reset_in;
+// control outputs
+output	delete_set_out;
+output	block_set_out;
+// control input
+input	delete_in;
 
-output		pci_stop_out ;		// PCI stop output
+// internal signals
+reg		del_bit;
+wire	meta_del_bit;
+reg		sync_del_bit;
+reg		delayed_del_bit;
+wire	meta_bckp_bit;
+reg		sync_bckp_bit;
+reg		delayed_bckp_bit;
 
-// PCI stop output with preserved hierarchy for minimum delay!
-assign 	pci_stop_out = ~(stop_w || (stop_w_frm && ~pci_frame_in) || (stop_w_frm_irdy && ~pci_frame_in && ~pci_irdy_in)) ;
 
+// DELETE_IN input FF - when set must be active, until it is sinchronously cleared
+always@(posedge delete_clk_in or posedge reset_in)
+begin
+	if (reset_in)
+		del_bit <= 1'b0;
+	else
+	begin
+		if (!delayed_bckp_bit && sync_bckp_bit)
+			del_bit <= 1'b0;
+		else if (delete_in)
+			del_bit <= 1'b1;
+	end
+end
+assign	block_set_out = del_bit;
+
+// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
+synchronizer_flop	delete_sync
+(
+    .data_in        (del_bit),
+    .clk_out        (set_clk_in),
+    .sync_data_out  (meta_del_bit),
+    .async_reset    (reset_in)
+) ;
+
+// Final synchronization of del_bit signal to the set clock domain
+always@(posedge set_clk_in or posedge reset_in)
+begin
+	if (reset_in)
+		sync_del_bit <= 1'b0;
+	else
+		sync_del_bit <= meta_del_bit;
+end
+
+// Delayed sync_del_bit signal for one clock period pulse generation
+always@(posedge set_clk_in or posedge reset_in)
+begin
+	if (reset_in)
+		delayed_del_bit <= 1'b0;
+	else
+		delayed_del_bit <= sync_del_bit;
+end
+
+assign	delete_set_out = !delayed_del_bit && sync_del_bit;
+
+// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
+synchronizer_flop	clear_delete_sync
+(
+    .data_in        (sync_del_bit),
+    .clk_out        (delete_clk_in),
+    .sync_data_out  (meta_bckp_bit),
+    .async_reset    (reset_in)
+) ;
+
+// Final synchronization of sync_del_bit signal to the delete clock domain
+always@(posedge delete_clk_in or posedge reset_in)
+begin
+	if (reset_in)
+		sync_bckp_bit <= 1'b0;
+	else
+		sync_bckp_bit <= meta_bckp_bit;
+end
+
+// Delayed sync_bckp_bit signal for one clock period pulse generation
+always@(posedge delete_clk_in or posedge reset_in)
+begin
+	if (reset_in)
+		delayed_bckp_bit <= 1'b0;
+	else
+		delayed_bckp_bit <= sync_bckp_bit;
+end
 
 endmodule

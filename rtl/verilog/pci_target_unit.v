@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.11  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.10  2002/10/18 03:36:37  tadejm
 // Changed wrong signal name scanb_sen into scanb_en.
 //
@@ -83,7 +86,7 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module PCI_TARGET_UNIT
+module pci_target_unit
 (
     reset_in,
     wb_clock_in,
@@ -470,7 +473,7 @@ wire        wbm_sm_rty_in                           =   RTY_I ;
 wire        wbm_sm_err_in                           =   ERR_I ;
 
 // WISHBONE master interface instantiation
-WB_MASTER wishbone_master
+pci_wb_master wishbone_master
 (
     .wb_clock_in                    (wb_clock_in),
     .reset_in                       (reset_in),
@@ -530,7 +533,7 @@ wire        fifos_pcir_renable_in       =   pcit_if_pcir_fifo_renable_out ;
 wire        fifos_pcir_flush_in         =   pcit_if_pcir_fifo_flush_out ;
 
 // PCIW_FIFO and PCIR_FIFO instantiation
-PCIW_PCIR_FIFOS fifos
+pci_pciw_pcir_fifos fifos
 (
     .wb_clock_in                (wb_clock_in),
     .pci_clock_in               (pci_clock_in),
@@ -588,7 +591,7 @@ wire        del_sync_burst_in           =   pcit_if_burst_ok_out ;
 wire        del_sync_retry_expired_in   =   wbm_sm_read_rty_cnt_exp_out ;
 
 // delayed transaction logic instantiation
-DELAYED_SYNC                del_sync
+pci_delayed_sync del_sync
 (
     .reset_in               (reset_in),
     .req_clk_in             (pci_clock_in),
@@ -694,7 +697,7 @@ wire        pcit_if_addr_tran_en3_in                =   pciu_at_en_in[3] ;
 wire        pcit_if_addr_tran_en4_in                =   pciu_at_en_in[4] ;
 wire        pcit_if_addr_tran_en5_in                =   pciu_at_en_in[5] ;
 
-PCI_TARGET32_INTERFACE              pci_target_if
+pci_target32_interface pci_target_if
 (
     .clk_in                         (pci_clock_in),
     .reset_in                       (reset_in),
@@ -839,7 +842,7 @@ wire        pcit_sm_trdy_reg_in                 =   pciu_pciif_trdy_reg_in ;
 wire        pcit_sm_stop_reg_in                 =   pciu_pciif_stop_reg_in ;
 
 
-PCI_TARGET32_SM                 pci_target_sm
+pci_target32_sm pci_target_sm
 (
     .clk_in                             (pci_clock_in),
     .reset_in                           (reset_in),

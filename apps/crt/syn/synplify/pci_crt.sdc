@@ -230,25 +230,25 @@ define_attribute          {RGB14} xc_loc {P180}
 define_attribute          {RGB15} xc_loc {P181}
 define_attribute          {LED} xc_loc {P202}
 define_global_attribute          syn_useioff {1}
-define_attribute          {v:work.CBE_EN_CRIT} syn_hier {hard}
-define_attribute          {v:work.FRAME_CRIT} syn_hier {hard}
-define_attribute          {v:work.FRAME_EN_CRIT} syn_hier {hard}
-define_attribute          {v:work.FRAME_LOAD_CRIT} syn_hier {hard}
-define_attribute          {v:work.IRDY_OUT_CRIT} syn_hier {hard}
-define_attribute          {v:work.MAS_AD_EN_CRIT} syn_hier {hard}
-define_attribute          {v:work.MAS_AD_LOAD_CRIT} syn_hier {hard}
-define_attribute          {v:work.MAS_CH_STATE_CRIT} syn_hier {hard}
-define_attribute          {v:work.PAR_CRIT} syn_hier {hard}
-define_attribute          {v:work.PCI_IO_MUX_AD_EN_CRIT} syn_hier {hard}
-define_attribute          {v:work.PCI_IO_MUX_AD_LOAD_CRIT} syn_hier {hard}
-define_attribute          {v:work.PCI_TARGET32_CLK_EN} syn_hier {hard}
-define_attribute          {v:work.PCI_TARGET32_DEVS_CRIT} syn_hier {hard}
-define_attribute          {v:work.PCI_TARGET32_STOP_CRIT} syn_hier {hard}
-define_attribute          {v:work.PCI_TARGET32_TRDY_CRIT} syn_hier {hard}
-define_attribute          {v:work.PERR_CRIT} syn_hier {hard}
-define_attribute          {v:work.PERR_EN_CRIT} syn_hier {hard}
-define_attribute          {v:work.SERR_CRIT} syn_hier {hard}
-define_attribute          {v:work.SERR_EN_CRIT} syn_hier {hard}
+define_attribute          {v:work.pci_cbe_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_frame_crit} syn_hier {hard}
+define_attribute          {v:work.pci_frame_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_frame_load_crit} syn_hier {hard}
+define_attribute          {v:work.pci_irdy_out_crit} syn_hier {hard}
+define_attribute          {v:work.pci_mad_ad_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_mas_ad_load_crit} syn_hier {hard}
+define_attribute          {v:work.pci_mas_ch_state_crit} syn_hier {hard}
+define_attribute          {v:work.pci_par_crit} syn_hier {hard}
+define_attribute          {v:work.pci_io_mux_ad_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_io_mux_ad_load_crit} syn_hier {hard}
+define_attribute          {v:work.pci_target32_clk_en} syn_hier {hard}
+define_attribute          {v:work.pci_target32_devs_crit} syn_hier {hard}
+define_attribute          {v:work.pci_target32_stop_crit} syn_hier {hard}
+define_attribute          {v:work.pci_target32_trdy_crit} syn_hier {hard}
+define_attribute          {v:work.pci_perr_crit} syn_hier {hard}
+define_attribute          {v:work.pci_perr_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_serr_crit} syn_hier {hard}
+define_attribute          {v:work.pci_serr_en_crit} syn_hier {hard}
 
 #
 # Other Constraints

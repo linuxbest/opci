@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_in_reg.v,v $
+// Revision 1.4  2003/01/27 16:49:31  mihad
+// Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -59,7 +62,7 @@
 `include "pci_constants.v"
 // Module is used for registering PCI input signals
 // It provides data flip flops with reset
-module PCI_IN_REG
+module pci_in_reg
 (
     reset_in,
     clk_in,
