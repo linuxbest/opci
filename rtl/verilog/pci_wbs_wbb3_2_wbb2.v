@@ -40,6 +40,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbs_wbb3_2_wbb2.v,v $
+// Revision 1.2  2003/12/01 16:20:56  simons
+// ifdef - endif statements put in separate lines for flint compatibility.
+//
 // Revision 1.1  2003/08/12 13:58:19  mihad
 // Module that converts slave WISHBONE B3 accesses to
 // WISHBONE B2 accesses with CAB.
@@ -142,7 +145,11 @@ begin
         end_cycle[0] = wbs_err_i ;
     
         // 2nd condition - pci bridge is signaling a retry - that can be ignored via the defines
-        end_cycle[1] = wbs_rty_i `ifdef PCI_WBS_B3_RTY_DISABLE & 1'b0 `endif ;
+        end_cycle[1] = wbs_rty_i 
+            `ifdef PCI_WBS_B3_RTY_DISABLE 
+                & 1'b0 
+            `endif 
+                ;
 
         // 3rd condition - end non burst cycles as soon as pci bridge response is received
         end_cycle[2] = wbs_cyc_i & wbs_stb_i & wbs_ack_i & ~wbs_cab_o ;
@@ -152,7 +159,12 @@ begin
 
         if (wbs_dat_i_o_valid)
         begin
-            if (wbs_ack_i | wbs_err_i `ifdef PCI_WBS_B3_RTY_DISABLE `else | wbs_rty_i `endif)
+            if (wbs_ack_i | wbs_err_i 
+                `ifdef PCI_WBS_B3_RTY_DISABLE 
+                `else 
+                    | wbs_rty_i 
+                `endif
+                    )
                 wbs_dat_i_o_valid <= 1'b0 ;
         end
         else
