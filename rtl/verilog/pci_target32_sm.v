@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.6  2002/09/24 18:30:00  mihad
+// Changed state machine encoding to true one-hot
+//
 // Revision 1.5  2002/08/22 09:07:06  mihad
 // Fixed a bug and provided testcase for it. Target was responding to configuration cycle type 1 transactions.
 //
@@ -142,9 +145,9 @@ module PCI_TARGET32_SM
 /*----------------------------------------------------------------------------------------------------------------------
 Various parameters needed for state machine and other stuff
 ----------------------------------------------------------------------------------------------------------------------*/
-parameter       S_IDLE          = `P_FSM_BITS'h0 ;
-parameter       S_WAIT          = `P_FSM_BITS'h1 ;
-parameter       S_TRANSFERE     = `P_FSM_BITS'h2 ;
+parameter       S_IDLE          = 3'b001 ;
+parameter       S_WAIT          = 3'b010 ;
+parameter       S_TRANSFERE     = 3'b100 ;
 
 
 /*==================================================================================================================
