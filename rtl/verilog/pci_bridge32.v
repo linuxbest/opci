@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.14  2003/12/09 09:33:57  simons
+// Some warning cleanup.
+//
 // Revision 1.13  2003/10/17 09:11:52  markom
 // mbist signals updated according to newest convention
 //
@@ -325,10 +328,6 @@ BIST debug chain port signals
 input   mbist_si_i;       // bist scan serial in
 output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
-
-// internal wires for serial chain connection
-wire SO_internal ;
-wire SI_internal = SO_internal ;
 `endif
 
 // declare clock and reset wires
