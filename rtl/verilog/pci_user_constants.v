@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.7  2003/01/27 17:05:50  mihad
+// Updated.
+//
 // Revision 1.6  2003/01/27 16:51:19  mihad
 // Old files with wrong names removed.
 //
@@ -106,7 +109,7 @@
 
 // HOST/GUEST implementation selection - see design document and specification for description of each implementation
 // only one can be defined at same time
-//`define GUEST
+//`define HOST
 `define GUEST
 
 // if NO_CNF_IMAGE is commented out, then READ-ONLY access to configuration space is ENABLED:
