@@ -9,15 +9,15 @@
 `ifdef REGRESSION 
 `else // Following DEFINES are used only without regression testing (together with pci_user_constants) !!!
     // wishbone frequncy in GHz
-    `define WB_FREQ 0.025
+    `define WB_FREQ 0.05
     
     // values of image registers of PCI bridge device - valid are only upper 20 bits, others must be ZERO !
     `define TAR0_BASE_ADDR_0	32'h1000_0000
     `define TAR0_BASE_ADDR_1  	32'h2000_0000
-    `define TAR0_BASE_ADDR_2  	32'h3000_0000
-    `define TAR0_BASE_ADDR_3  	32'h4000_0000
-    `define TAR0_BASE_ADDR_4  	32'h5000_0000
-    `define TAR0_BASE_ADDR_5  	32'h6000_0000
+    `define TAR0_BASE_ADDR_2  	32'h4000_0000
+    `define TAR0_BASE_ADDR_3  	32'h6000_0000
+    `define TAR0_BASE_ADDR_4  	32'h8000_0000
+    `define TAR0_BASE_ADDR_5  	32'hA000_0000
     
     `define TAR0_ADDR_MASK_0	32'hFFFF_F000 // when BA0 is used to access configuration space, this is NOT important!
     `define TAR0_ADDR_MASK_1  	32'hFFFF_F000
@@ -26,23 +26,23 @@
     `define TAR0_ADDR_MASK_4  	32'hFFFF_F000
     `define TAR0_ADDR_MASK_5  	32'hFFFF_F000
     
-    `define TAR0_TRAN_ADDR_0	32'h5000_0000 // when BA0 is used to access configuration space, this is NOT important!
-    `define TAR0_TRAN_ADDR_1  	32'h4000_0000
-    `define TAR0_TRAN_ADDR_2  	32'h3000_0000
-    `define TAR0_TRAN_ADDR_3  	32'h2000_0000
-    `define TAR0_TRAN_ADDR_4  	32'h1000_0000
-    `define TAR0_TRAN_ADDR_5  	32'h0000_0000
+    `define TAR0_TRAN_ADDR_0	32'hC000_0000 // when BA0 is used to access configuration space, this is NOT important!
+    `define TAR0_TRAN_ADDR_1  	32'hA000_0000
+    `define TAR0_TRAN_ADDR_2  	32'h8000_0000
+    `define TAR0_TRAN_ADDR_3  	32'h6000_0000
+    `define TAR0_TRAN_ADDR_4  	32'h4000_0000
+    `define TAR0_TRAN_ADDR_5  	32'h2000_0000
     
     // values of image registers of PCI behavioral target devices !
-    `define BEH_TAR1_MEM_START 32'h7000_0000
-    `define BEH_TAR1_MEM_END   32'h7000_0FFF
-    `define BEH_TAR1_IO_START  32'h8000_0001
-    `define BEH_TAR1_IO_END    32'h8000_0FFF
+    `define BEH_TAR1_MEM_START 32'hC000_0000
+    `define BEH_TAR1_MEM_END   32'hC000_0FFF
+    `define BEH_TAR1_IO_START  32'hD000_0001
+    `define BEH_TAR1_IO_END    32'hD000_0FFF
     
-    `define BEH_TAR2_MEM_START 32'h9000_0000
-    `define BEH_TAR2_MEM_END   32'h9000_0FFF
-    `define BEH_TAR2_IO_START  32'hA000_0001
-    `define BEH_TAR2_IO_END    32'hA000_0FFF
+    `define BEH_TAR2_MEM_START 32'hE000_0000
+    `define BEH_TAR2_MEM_END   32'hE000_0FFF
+    `define BEH_TAR2_IO_START  32'hF000_0001
+    `define BEH_TAR2_IO_END    32'hF000_0FFF
 `endif
 
 //===================================================================================
@@ -50,17 +50,17 @@
 //===================================================================================
 
 // setup and hold time definitions for WISHBONE - used in BFMs for signal generation
-`define Tsetup 2
-`define Thold  2
+`define Tsetup 0.5
+`define Thold  0.5
 
 // how many clock cycles should model wait for design's response - integer 32 bit value
 `define WAIT_FOR_RESPONSE 6
 
 // maximum number of transactions allowed in single call to block or cab transfer routines
-`define MAX_BLK_SIZE  1024
+`define MAX_BLK_SIZE  512
 
 // maximum retry terminations allows for WISHBONE master to repeat an access
-`define WB_TB_MAX_RTY 1000
+`define WB_TB_MAX_RTY 10000
 
 
 // some common types and defines

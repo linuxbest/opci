@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.2  2002/02/19 16:32:29  mihad
+// Modified testbench and fixed some bugs
+//
 // Revision 1.1  2002/02/01 13:39:43  mihad
 // Initial testbench import. Still under development
 //
@@ -177,10 +180,10 @@
         `endif
     `else
     `ifdef REGR_FIFO_LARGE_GENERIC // without any parameters only (generic)
-        `define WBW_ADDR_LENGTH 10
-        `define WBR_ADDR_LENGTH 10
-        `define PCIW_ADDR_LENGTH 10
-        `define PCIR_ADDR_LENGTH 10
+        `define WBW_ADDR_LENGTH 9
+        `define WBR_ADDR_LENGTH 9
+        `define PCIW_ADDR_LENGTH 9
+        `define PCIR_ADDR_LENGTH 9
         
         //`define FPGA
         //`define XILINX
@@ -198,8 +201,8 @@
                 //`define WB_XILINX_DIST_RAM
             `endif
         `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 11      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 11       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+            `define PCI_FIFO_RAM_ADDR_LENGTH 10      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+            `define WB_FIFO_RAM_ADDR_LENGTH 10       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
             //`define WB_ARTISAN_SDP
             //`define PCI_ARTISAN_SDP
         `endif
@@ -255,7 +258,7 @@
     // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
     // smaller the number here, faster the decoder operation
     `ifdef WB_DECODE_MIN
-    	`define WB_NUM_OF_DEC_ADDR_LINES 3
+    	`define WB_NUM_OF_DEC_ADDR_LINES 4
     `else
      `ifdef WB_DECODE_MED
      	`define WB_NUM_OF_DEC_ADDR_LINES 12
@@ -270,7 +273,7 @@
     `ifdef WB_CNF_BASE_ZERO
     	`define WB_CONFIGURATION_BASE 20'h0000_0
     `else
-    	`define WB_CONFIGURATION_BASE 20'hF000_0
+    	`define WB_CONFIGURATION_BASE 20'hB000_0
     `endif
     
     /*-----------------------------------------------------------------------------------------------------------
@@ -285,11 +288,7 @@
     
     // MAX Retry counter value for WISHBONE Master state-machine
     // 	This value is 8-bit because of 8-bit retry counter !!!
-    `ifdef WB_RETRY_MAX
-    	`define WB_RTY_CNT_MAX			8'hff
-	`else
-    	`define WB_RTY_CNT_MAX			8'h1c
-    `endif
+    `define WB_RTY_CNT_MAX			8'hff
     
 /////////////////////////////////////////////////////////////////////////////////
 //// ======================================================================= ////
@@ -307,8 +306,8 @@
      `ifdef WB_CLK66
     	`define WB_FREQ 0.066
      `else
-      `ifdef WB_CLK100
-    	`define WB_FREQ 0.1
+      `ifdef WB_CLK220
+    	`define WB_FREQ 0.22
       `endif
      `endif
     `endif
@@ -316,10 +315,10 @@
     // values of image registers of PCI bridge device - valid are only upper 20 bits, others must be ZERO !
     `define TAR0_BASE_ADDR_0	32'h1000_0000
     `define TAR0_BASE_ADDR_1  	32'h2000_0000
-    `define TAR0_BASE_ADDR_2  	32'h3000_0000
-    `define TAR0_BASE_ADDR_3  	32'h4000_0000
-    `define TAR0_BASE_ADDR_4  	32'h5000_0000
-    `define TAR0_BASE_ADDR_5  	32'h6000_0000
+    `define TAR0_BASE_ADDR_2  	32'h4000_0000
+    `define TAR0_BASE_ADDR_3  	32'h6000_0000
+    `define TAR0_BASE_ADDR_4  	32'h8000_0000
+    `define TAR0_BASE_ADDR_5  	32'hA000_0000
     
     `define TAR0_ADDR_MASK_0	32'hFFFF_F000 // when BA0 is used to access configuration space, this is NOT important!
     `define TAR0_ADDR_MASK_1  	32'hFFFF_F000
@@ -328,23 +327,23 @@
     `define TAR0_ADDR_MASK_4  	32'hFFFF_F000
     `define TAR0_ADDR_MASK_5  	32'hFFFF_F000
     
-    `define TAR0_TRAN_ADDR_0	32'h5000_0000 // when BA0 is used to access configuration space, this is NOT important!
-    `define TAR0_TRAN_ADDR_1  	32'h4000_0000
-    `define TAR0_TRAN_ADDR_2  	32'h3000_0000
-    `define TAR0_TRAN_ADDR_3  	32'h2000_0000
-    `define TAR0_TRAN_ADDR_4  	32'h1000_0000
-    `define TAR0_TRAN_ADDR_5  	32'h0000_0000
+    `define TAR0_TRAN_ADDR_0	32'hC000_0000 // when BA0 is used to access configuration space, this is NOT important!
+    `define TAR0_TRAN_ADDR_1  	32'hA000_0000
+    `define TAR0_TRAN_ADDR_2  	32'h8000_0000
+    `define TAR0_TRAN_ADDR_3  	32'h6000_0000
+    `define TAR0_TRAN_ADDR_4  	32'h4000_0000
+    `define TAR0_TRAN_ADDR_5  	32'h2000_0000
     
     // values of image registers of PCI behavioral target devices !
-    `define BEH_TAR1_MEM_START 32'h7000_0000
-    `define BEH_TAR1_MEM_END   32'h7000_0FFF
-    `define BEH_TAR1_IO_START  32'h8000_0001
-    `define BEH_TAR1_IO_END    32'h8000_0FFF
+    `define BEH_TAR1_MEM_START 32'hC000_0000
+    `define BEH_TAR1_MEM_END   32'hC000_0FFF
+    `define BEH_TAR1_IO_START  32'hD000_0001
+    `define BEH_TAR1_IO_END    32'hD000_0FFF
     
-    `define BEH_TAR2_MEM_START 32'h9000_0000
-    `define BEH_TAR2_MEM_END   32'h9000_0FFF
-    `define BEH_TAR2_IO_START  32'hA000_0001
-    `define BEH_TAR2_IO_END    32'hA000_0FFF
+    `define BEH_TAR2_MEM_START 32'hE000_0000
+    `define BEH_TAR2_MEM_END   32'hE000_0FFF
+    `define BEH_TAR2_IO_START  32'hF000_0001
+    `define BEH_TAR2_IO_END    32'hF000_0FFF
 
 /*=======================================================================================
   Following defines are used in a script file for regression testing !!!

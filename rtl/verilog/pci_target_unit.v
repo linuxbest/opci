@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.4  2002/02/19 16:32:37  mihad
+// Modified testbench and fixed some bugs
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -336,6 +339,7 @@ assign  pciu_conf_data_out      =   pcit_if_conf_data_out ;
 
 // wishbone master state machine outputs
 wire        wbm_sm_wb_read_done ;
+wire		wbm_sm_write_attempt ;
 wire        wbm_sm_pcir_fifo_wenable_out ;
 wire [31:0] wbm_sm_pcir_fifo_data_out ;
 wire  [3:0] wbm_sm_pcir_fifo_be_out ;
@@ -383,14 +387,12 @@ wire        fifos_pciw_almost_empty_out ;
 wire        fifos_pciw_empty_out ;
 wire        fifos_pciw_transaction_ready_out ;
 
-assign  pciu_pciw_fifo_empty_out = fifos_pciw_empty_out ;
+assign  pciu_pciw_fifo_empty_out = !wbm_sm_write_attempt;
 
 // pcir_fifo_outputs
 wire [31:0] fifos_pcir_data_out ;
 wire [3:0]  fifos_pcir_be_out ;
 wire [3:0]  fifos_pcir_control_out ;
-wire        fifos_pcir_almost_full_out ;
-wire        fifos_pcir_full_out ;
 wire        fifos_pcir_almost_empty_out ;
 wire        fifos_pcir_empty_out ;
 
@@ -417,8 +419,6 @@ wire  [3:0] wbm_sm_pci_tar_be                       =   del_sync_be_out ;
 wire        wbm_sm_pci_tar_burst_ok                 =   del_sync_burst_out ;
 wire  [7:0] wbm_sm_pci_cache_line_size              =   pciu_cache_line_size_in ;
 wire        wbm_sm_cache_lsize_not_zero_in          =   pciu_cache_lsize_not_zero_in ;
-wire        wbm_sm_pcir_fifo_almost_full_in         =   fifos_pcir_almost_full_out ;
-wire        wbm_sm_pcir_fifo_full_in                =   fifos_pcir_full_out ;
 wire [31:0] wbm_sm_pciw_fifo_addr_data_in           =   fifos_pciw_addr_data_out ;
 wire  [3:0] wbm_sm_pciw_fifo_cbe_in                 =   fifos_pciw_cbe_out ;
 wire  [3:0] wbm_sm_pciw_fifo_control_in             =   fifos_pciw_control_out ;
@@ -443,12 +443,11 @@ WB_MASTER wishbone_master
     .pci_cache_line_size            (wbm_sm_pci_cache_line_size),   //in
     .cache_lsize_not_zero           (wbm_sm_cache_lsize_not_zero_in),
     .wb_read_done_out               (wbm_sm_wb_read_done),          //out
+    .w_attempt						(wbm_sm_write_attempt),			//out
     .pcir_fifo_wenable_out          (wbm_sm_pcir_fifo_wenable_out),
     .pcir_fifo_data_out             (wbm_sm_pcir_fifo_data_out),
     .pcir_fifo_be_out               (wbm_sm_pcir_fifo_be_out),
     .pcir_fifo_control_out          (wbm_sm_pcir_fifo_control_out),
-    .pcir_fifo_almost_full_in       (wbm_sm_pcir_fifo_almost_full_in),
-    .pcir_fifo_full_in              (wbm_sm_pcir_fifo_full_in),
     .pciw_fifo_renable_out          (wbm_sm_pciw_fifo_renable_out),
     .pciw_fifo_addr_data_in         (wbm_sm_pciw_fifo_addr_data_in),
     .pciw_fifo_cbe_in               (wbm_sm_pciw_fifo_cbe_in),
@@ -521,8 +520,8 @@ PCIW_PCIR_FIFOS fifos
     .pcir_be_out                (fifos_pcir_be_out),          //for PCI Target !!!
     .pcir_control_out           (fifos_pcir_control_out),     //for PCI Target !!!
     .pcir_flush_in              (fifos_pcir_flush_in),        //for PCI Target !!!
-    .pcir_almost_full_out       (fifos_pcir_almost_full_out),
-    .pcir_full_out              (fifos_pcir_full_out),
+    .pcir_almost_full_out       (),
+    .pcir_full_out              (),
     .pcir_almost_empty_out      (fifos_pcir_almost_empty_out), //for PCI Target !!!
     .pcir_empty_out             (fifos_pcir_empty_out),        //for PCI Target !!!
     .pcir_transaction_ready_out ()

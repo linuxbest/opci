@@ -1,4 +1,4 @@
 rm ../bin/INCA_libs/worklib/*
 rm ../bin/INCA_libs/worklib/.*
 rm ../log/*.log
-rm -R ../out/*
+rm -rf ../out/*.shm

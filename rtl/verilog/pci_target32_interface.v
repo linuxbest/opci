@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.4  2002/02/19 16:32:37  mihad
+// Modified testbench and fixed some bugs
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -678,7 +681,7 @@ begin
 			target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
 		else if (same_read_reg && bckp_devsel_in && !bckp_stop_in)
 			target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
-		else if (!same_read_reg)
+		else if ((!same_read_reg) || (last_reg_in && target_rd))
 			target_rd	<= #`FF_DELAY 1'b0 ;// Signal indicates when target ready is deaserted on PCI bus
 	end
 end
@@ -748,13 +751,13 @@ begin
 	`else
 		2'b11 :
 		begin
-			calc_target_abort <= 1'b1 ;
+			calc_target_abort <= 1'b0 ;
 		end
 	`endif
 `else
 		2'b11 :
 		begin
-			calc_target_abort <= 1'b1 ;
+			calc_target_abort <= 1'b0 ;
 		end
 `endif
 		default :
@@ -790,26 +793,7 @@ begin
 	`BC_MEM_READ_LN,
 	`BC_MEM_READ_MUL :
 	begin
-		case ({hit0_in, hit0_conf})
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-	`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-	`endif
-`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-`endif
-		default :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-		endcase
+		calc_target_abort <= 1'b0 ;
 	end
 	// WRITE COMMANDS
 	`BC_IO_WRITE :
@@ -820,13 +804,13 @@ begin
 	`else
 		2'b11 :
 		begin
-			calc_target_abort <= 1'b1 ;
+			calc_target_abort <= 1'b0 ;
 		end
 	`endif
 `else
 		2'b11 :
 		begin
-			calc_target_abort <= 1'b1 ;
+			calc_target_abort <= 1'b0 ;
 		end
 `endif
 		default :
@@ -861,26 +845,7 @@ begin
 	end
 	`BC_MEM_WRITE_INVAL :
 	begin
-		case ({hit0_in, hit0_conf})
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-	`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-	`endif
-`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-`endif
-		default :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-		endcase
+		calc_target_abort <= 1'b0 ;
 	end
 	default :
 	begin

@@ -5,7 +5,6 @@
 -messages
 -INCDIR ../../../bench/verilog
 -INCDIR ../../../rtl/verilog
--DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE WB_RETRY_MAX -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2
 ../../../rtl/verilog/pci_parity_check.v
 ../../../rtl/verilog/pci_target_unit.v
 ../../../rtl/verilog/wb_addr_mux.v
@@ -71,3 +70,6 @@
 ../../../bench/verilog/wb_bus_mon.v
 ../../../bench/verilog/pci_behavioral_iack_target.v
 ../../../bench/verilog/pci_unsupported_commands_master.v
+../../../../../../lib/xilinx/lib/glbl/glbl.v
+../../../../../../lib/xilinx/lib/unisims/RAMB4_S16_S16.v
+../../../../../../lib/xilinx/lib/unisims/RAM16X1D.v

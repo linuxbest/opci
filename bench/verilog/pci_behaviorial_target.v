@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.1 2002/02/01 15:07:51 mihad Exp $
+// $Id: pci_behaviorial_target.v,v 1.2 2002/02/19 16:32:29 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -404,20 +404,22 @@ endtask
   end
 
 // Tasks to manage the small SRAM visible in Memory Space
-  reg    [PCI_BUS_DATA_RANGE:0] Test_Device_Mem [0:255];  // address limits, not bits in address
+  reg    [PCI_BUS_DATA_RANGE:0] Test_Device_Mem [0:1023];  // address limits, not bits in address
 // Tasks can't have local storage!  have to be module global
-  reg    [7:0] sram_addr;
+  reg    [9:0] sram_addr;
 task Init_Test_Device_SRAM;
   begin
-    for (sram_addr = 8'h00; sram_addr < 8'hFF; sram_addr = sram_addr + 8'h01)
+    for (sram_addr = 10'h000; sram_addr < 10'h3FF; sram_addr = sram_addr + 10'h001)
     begin
       Test_Device_Mem[sram_addr] = `BUS_IMPOSSIBLE_VALUE;
     end
+    sram_addr = 10'h3FF; // maximum value must also be written!
+    Test_Device_Mem[sram_addr] = `BUS_IMPOSSIBLE_VALUE; 
   end
 endtask
 
 task Read_Test_Device_SRAM;
-  input  [9:2] sram_address;
+  input  [11:2] sram_address;
   input  [PCI_BUS_CBE_RANGE:0] byte_sel ;
   output [PCI_BUS_DATA_RANGE:0] target_read_data;
   reg    [PCI_BUS_DATA_RANGE:0] temp_val ;
@@ -433,7 +435,7 @@ endtask
 // Tasks can't have local storage!  have to be module global
   reg    [PCI_BUS_DATA_RANGE:0] sram_temp;
 task Write_Test_Device_SRAM;
-  input  [9:2] sram_address;
+  input  [11:2] sram_address;
   input  [PCI_BUS_DATA_RANGE:0] master_write_data;
   input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
@@ -581,9 +583,9 @@ task Capture_SRAM_Data_From_AD_Bus;
   input  [PCI_BUS_DATA_RANGE:0] master_write_data;
   input  [PCI_BUS_CBE_RANGE:0] master_mask_l;
   begin
-    Write_Test_Device_SRAM (hold_target_address[9:2],
+    Write_Test_Device_SRAM (hold_target_address[11:2],
                             master_write_data[PCI_BUS_DATA_RANGE:0], master_mask_l[PCI_BUS_CBE_RANGE:0]);
-    hold_target_address[9:2] = hold_target_address[9:2] + 8'h01;  // addr++
+    hold_target_address[11:2] = hold_target_address[11:2] + 10'h001;  // addr++
   end
 endtask
 
@@ -591,8 +593,8 @@ endtask
 task Fetch_SRAM_Data_For_Read_Onto_AD_Bus;
   output [PCI_BUS_DATA_RANGE:0] target_read_data;
   begin
-    Read_Test_Device_SRAM (hold_target_address[9:2], ~cbe_l_now, target_read_data[PCI_BUS_DATA_RANGE:0]);
-    hold_target_address[9:2] = hold_target_address[9:2] + 8'h01;  // addr++
+    Read_Test_Device_SRAM (hold_target_address[11:2], ~cbe_l_now, target_read_data[PCI_BUS_DATA_RANGE:0]);
+    hold_target_address[11:2] = hold_target_address[11:2] + 10'h001;  // addr++
   end
 endtask
 

@@ -1,11 +1,6 @@
-//
-// ncsim.args: Arguments passed to the NC-Verilog simulator.
-// Created by ncprep on Tue Jan 29 18:18:34 2002
-
-// Turn on informative messages.
--MESSAGES
-// -NOCOPYRIGHT
-
-// Uncomment the following line to generate a named log file
-// -LOGFILE ncsim.log
-
+-cdslib ../bin/cds.lib
+-hdlvar ../bin/hdl.var
+-logfile ../log/ncsim.log
+-messages
+-input ../bin/ncsim_waves.rc
+worklib.bridge32:fun

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.4  2002/02/19 16:32:37  mihad
+// Modified testbench and fixed some bugs
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -707,7 +710,7 @@ begin
     if ( reset_in )
         master_will_request_read <= #`FF_DELAY 1'b0 ;
     else
-        master_will_request_read <= #`FF_DELAY (state_wait || state_backoff) && ~cnf_progress && ~norm_access_to_conf_reg && ~rw_cbe0 && rd_request && ~target_abort_in ;
+        master_will_request_read <= #`FF_DELAY ((state_wait && ~target_abort_in) || (state_backoff && ~target_abort_set_out)) && ~cnf_progress && ~norm_access_to_conf_reg && ~rw_cbe0 && rd_request ;
 end
 // MORE OPTIMIZED READS, but not easy to control in a testbench!
 //assign  req_out = master_will_request_read ; 

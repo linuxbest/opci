@@ -702,7 +702,9 @@ begin
     for( temp_index = 0; temp_index <=1023; temp_index = temp_index + 1 )
     begin
         wmem_data[temp_index[9:0]] = $random ;
+        # 1;
         wio_data[temp_index[9:0]]  = $random ;
+        # 1;
     end
     // fill WB slave behavioral MEMORY
     for( temp_index = 0; temp_index <=65535; temp_index = temp_index + 1 )
@@ -4328,6 +4330,8 @@ begin:main
     // interrupt should also be present
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
 
         if ( INT_O !== 1 )
@@ -4340,7 +4344,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -4430,6 +4436,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
 
         if ( INT_O !== 0 )
@@ -4442,7 +4450,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -4503,6 +4513,8 @@ begin:main
     // interrupts should not be present
     `ifdef HOST
         repeat( 4 )
+            @(posedge pci_clock) ;
+        repeat( 4 )
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
         begin
@@ -4514,6 +4526,8 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
+        repeat( 4 )
+            @(posedge wb_clock) ;
         repeat( 4 )
             @(posedge pci_clock) ;
         if ( INTA !== 1 )
@@ -4894,6 +4908,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
         begin
@@ -4905,7 +4921,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5018,6 +5036,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 1 )
         begin
@@ -5029,7 +5049,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5152,6 +5174,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 1 )
         begin
@@ -5163,7 +5187,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5286,6 +5312,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 1 )
         begin
@@ -5297,7 +5325,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5420,6 +5450,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 1 )
         begin
@@ -5431,7 +5463,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5553,6 +5587,8 @@ begin:main
 
     test_name = "INTERRUPT REQUEST AFTER ADDR. PARITY ERROR WITH PERR RESPONSE DISABLED" ;
     `ifdef HOST
+        repeat (4)
+            @(posedge pci_clock) ;
         repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
@@ -5565,7 +5601,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat ( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat (4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5775,6 +5813,8 @@ begin:main
 
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
         begin
@@ -5786,7 +5826,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -5870,6 +5912,8 @@ begin:main
 
     test_name = "INTERRUPT REQUESTS AFTER NORMAL EXTERNAL MASTER WRITE" ;
     `ifdef HOST
+        repeat( 4 )
+            @(posedge pci_clock) ;
         repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
@@ -5882,7 +5926,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -6031,6 +6077,8 @@ begin:main
 
     test_name = "INTERRUPT REQUESTS AFTER TARGET WRITE REFERENCE PARITY ERROR" ;
     `ifdef HOST
+        repeat (4)
+            @(posedge pci_clock) ;
         repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
@@ -6043,7 +6091,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat ( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat (4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -6193,6 +6243,8 @@ begin:main
     test_name = "INTERRUPT REQUESTS AFTER PERR ON READ REFERENCE THROUGH BRIDGE'S TARGET" ;
     `ifdef HOST
         repeat(4)
+            @(posedge pci_clock) ;
+        repeat(4)
             @(posedge wb_clock) ;
         if ( INT_O !== 0 )
         begin
@@ -6204,7 +6256,9 @@ begin:main
             test_ok ;
     `else
     `ifdef GUEST
-        repeat( 4 )
+        repeat(4)
+            @(posedge wb_clock) ;
+        repeat(4)
             @(posedge pci_clock) ;
 
         if ( INTA !== 1 )
@@ -7857,8 +7911,9 @@ begin:main
         end
         else
         begin
-            while ( FRAME !== 1 || IRDY !== 1 )
-                @(posedge pci_clock) ;
+            pci_transaction_progress_monitor( wb_target_address + 12, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+//            while ( FRAME === 0 || IRDY === 0 )
+//                @(posedge pci_clock) ;
 
             // enable response in PCI target
             test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
@@ -8005,8 +8060,9 @@ begin:main
         end
         else
         begin
-            while ( FRAME !== 1 || IRDY !== 1 )
-                @(posedge pci_clock) ;
+        	pci_transaction_progress_monitor( wb_target_address, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+//            while ( FRAME === 0 || IRDY === 0 )
+//                @(posedge pci_clock) ;
 
             // enable response in PCI target
             test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
@@ -8216,9 +8272,9 @@ begin:main
             ok = 0 ;
         end
 
-        @(posedge pci_clock) ;
-        while ( FRAME !== 1 || IRDY !== 1 )
-            @(posedge pci_clock) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b1, ok ) ;
+//        while ( FRAME === 0 || IRDY === 0 )
+//            @(posedge pci_clock) ;
 
         // set the target to normal completion
         test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
@@ -8451,9 +8507,10 @@ begin:main
          do_pause( 1 ) ;
 
         // wait for current cycle to finish on WB
-        @(posedge wb_clock) ;
-        while( CYC_O === 1 )
-            @(posedge wb_clock) ;
+        wb_transaction_progress_monitor( pci_image_base + 12, 1'b1, 0, 1'b1, ok ) ;
+//        @(posedge wb_clock) ;
+//        while( CYC_O === 1 )
+//            @(posedge wb_clock) ;
 
         // set slave response to acknowledge
         wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
@@ -8632,7 +8689,10 @@ begin:main
         begin
             while ( (FRAME !== 1) && (deadlock_counter < deadlock_max_val) )
             begin
-                deadlock_counter = deadlock_counter + 1 ;
+                if ( (IRDY == 0) && ((TRDY == 0) || (STOP == 0)) )
+                    deadlock_counter = 0 ;
+                else
+                    deadlock_counter = deadlock_counter + 1 ;
                 @(posedge pci_clock) ;
             end
             if ( FRAME !== 1 )
@@ -8831,7 +8891,10 @@ begin:main
         @(posedge wb_clock) ;
         while ( (CYC_O !== 0 && CYC_O_previous !== 0) && (deadlock_counter < deadlock_max_val) )
         begin
-            deadlock_counter = deadlock_counter + 1 ;
+        	if ((!STB_O) || (!ACK_I && !RTY_I && !ERR_I))
+            	deadlock_counter = deadlock_counter + 1 ;
+            else
+            	deadlock_counter = 0;
             @(posedge wb_clock) ;
         end
         if ( CYC_O !== 0 && CYC_O_previous !== 0)
@@ -8960,7 +9023,10 @@ begin:main
         @(posedge wb_clock) ;
         while ( (CYC_O !== 0) && (deadlock_counter < deadlock_max_val) )
         begin
-            deadlock_counter = deadlock_counter + 1 ;
+        	if ((!STB_O) || (!ACK_I && !RTY_I && !ERR_I))
+            	deadlock_counter = deadlock_counter + 1 ;
+            else
+            	deadlock_counter = 0;
             @(posedge wb_clock) ;
         end
         if ( CYC_O !== 0 )
@@ -11390,6 +11456,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+            
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -11491,6 +11562,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -11596,6 +11672,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -11705,6 +11786,11 @@ begin:main
         if ( ok )
             test_ok ;
 
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
+
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
         config_read(addr_offset, 4'hF, read_data) ;
@@ -11813,6 +11899,11 @@ begin:main
         if ( ok )
             test_ok ;
 
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
+
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
         config_read(addr_offset, 4'hF, read_data) ;
@@ -11918,6 +12009,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -12025,6 +12121,11 @@ begin:main
         if ( ok )
             test_ok ;
 
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
+
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
         config_read(addr_offset, 4'hF, read_data) ;
@@ -12130,6 +12231,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
 
@@ -12461,6 +12567,11 @@ begin:main
 
         if ( ok )
             test_ok ;
+
+        @(posedge pci_clock) ;
+        @(posedge pci_clock) ;
+        @(posedge wb_clock) ;
+        @(posedge wb_clock) ;
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -14084,6 +14195,11 @@ begin:main
                         if ( ok !== 1 )
                             test_fail("unexpected transaction was detected on PCI when FastB2B read was repeated") ;
                     end
+                end
+                begin
+           		    wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, `PCIW_DEPTH - 2, 1'b1, ok) ;
+       		        if ( ok !== 1 )
+   		                test_fail("WISHBONE master did invalid transaction or none at all on WISHBONE bus") ;
                 end
                 join
             end
@@ -15770,6 +15886,10 @@ begin:main
     in_use = 1 ;
 
 `ifdef HOST
+    repeat(4)
+        @(posedge pci_clock) ;
+    repeat(4)
+        @(posedge wb_clock) ;
     read_flags                    = 0 ;
     read_flags`INIT_WAITS         = tb_init_waits ;
     read_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
@@ -15791,6 +15911,10 @@ begin:main
     data = read_status`READ_DATA ;
 `else
   `ifdef GUEST
+    repeat(4)
+        @(posedge wb_clock) ;
+    repeat(4)
+        @(posedge pci_clock) ;
     master_check_data_prev = master2_check_received_data ;
     master2_check_received_data = 0 ;
 
