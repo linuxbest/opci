@@ -1,1 +1,0 @@
-Herein verilog source files for verification suite will be stored.
