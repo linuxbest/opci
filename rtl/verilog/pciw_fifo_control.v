@@ -422,7 +422,8 @@ wire comb_empty         = rgrey_addr == wgrey_addr ;
 wire comb_two_used      = rgrey_next == wgrey_minus1 ;
 
 // combinatorial input for registered emty FlipFlop
-wire reg_empty = (rallow && comb_almost_empty) || comb_empty ;
+//wire reg_empty = (rallow && comb_almost_empty) || comb_empty ;
+wire reg_empty = (rallow && almost_empty) || comb_empty ;
 
 meta_flop #(1) i_meta_flop_empty
 (

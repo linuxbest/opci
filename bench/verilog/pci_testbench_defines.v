@@ -67,7 +67,7 @@
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 
-    `define DISABLE_COMPLETION_EXPIRED_TESTS
+    //`define DISABLE_COMPLETION_EXPIRED_TESTS
 `endif
 
 //===================================================================================
