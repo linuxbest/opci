@@ -860,6 +860,8 @@ begin
             $display("PCI target images' tests finished!") ;
 
             transaction_ordering ;
+
+            target_completion_expiration ;
             $display(" ") ;
             $display("PCI transaction ordering tests finished!") ;
         end
@@ -15687,11 +15689,15 @@ task target_completion_expiration ;
     reg [31:0] temp_val1 ;
     reg [31:0] temp_val2 ;
     reg        ok   ;
+    reg        ok_wb ;
+    reg        ok_pci ;
 
     reg [31:0] pci_image_base ;
     integer i ;
-
+    integer clocks_after_completion ;
     reg     error_monitor_done ;
+    reg     test_mem ;
+
 begin:main
     pci_ctrl_offset        = {4'h1, `P_IMG_CTRL1_ADDR, 2'b00} ;
     pci_ba_offset          = {4'h1, `P_BA1_ADDR, 2'b00} ;
@@ -15703,7 +15709,13 @@ begin:main
     lat_tim_cls_offset = 12'hC ;
     pci_device_ctrl_offset    = 12'h4 ;
 
-    pci_image_base = Target_Base_Addr_R[1] ;
+    `ifdef HOST
+        test_mem = 1'b1 ;
+        pci_image_base = Target_Base_Addr_R[1] & 32'hFFFF_FFFE ;
+    `else
+        test_mem = !`PCI_BA1_MEM_IO ;
+        pci_image_base = Target_Base_Addr_R[1] ;
+    `endif
 
     // enable master & target operation
     test_name = "BRIDGE CONFIGURATION FOR DELAYED COMPLETION EXPIRATION TEST" ;
@@ -15716,7 +15728,7 @@ begin:main
     end
 
     // prepare image control register
-    config_write( pci_ctrl_offset, 32'h0000_0001, 4'hF, ok) ;
+    config_write( pci_ctrl_offset, 32'h0000_0002, 4'hF, ok) ;
     if ( ok !== 1 )
     begin
         $display("Target completion expiration testing failed! Failed to write P_IMG_CTRL1 register! Time %t ", $time) ;
@@ -15751,8 +15763,7 @@ begin:main
         disable main ;
     end
 
-    // carefull - first value here is 7, because bit 31 of ICR is software reset!
-    config_write( icr_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
+    config_write( icr_offset, 32'h0000_0000, 4'hF, ok ) ;
     if ( ok !== 1 )
     begin
         $display("Target completion expiration testing failed! Failed to write IC register! Time %t ", $time) ;
@@ -15772,9 +15783,603 @@ begin:main
     pci_image_base[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
     wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
-    test_name = "FLUSH OF DELAYED READ NOT COMPLETED IN 2^^16 CYCLES FROM PCI TARGET UNIT" ;
+    test_name = "FLUSH OF DELAYED READ UNCOMPLETED IN 2^^16 CYCLES FROM PCI TARGET UNIT" ;
+    master1_check_received_data = 0 ;
 
+    ok_pci = 1 ;
+    // start a delayed read request
+    fork
+    begin
+        if ( test_mem )
+        
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base, 32'h1234_5678,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Retry_On);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base, 32'h1234_5678, 4'h0, 1, `Test_Target_Retry_On ) ;
+  
+        do_pause( 1 ) ;
+    end
+    begin:error_monitor1
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ; 
+    end
+    begin
+        if ( test_mem )
+            wb_transaction_progress_monitor( pci_image_base, 1'b0, 4, 1'b1, ok_wb ) ;
+        else
+            wb_transaction_progress_monitor( pci_image_base, 1'b0, 1, 1'b1, ok_wb ) ;
 
+        if ( ok_wb !== 1 )
+        begin
+            test_fail("Bridge failed to process Target Memory read correctly") ;
+            disable main ;
+        end 
+        
+        if ( ok_pci )
+            disable error_monitor1 ;
+    end
+    join
+
+    clocks_after_completion = 0 ;
+    // now do another - different transaction
+    fork
+    begin
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base + 4, 32'h1234_5678,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Retry_On);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 1, `Test_Target_Retry_On ) ;
+
+        while ( clocks_after_completion < 32'h0000_FFF0 )
+        begin
+            @(posedge pci_clock) ;
+            clocks_after_completion = clocks_after_completion + 1 ;
+        end
+
+        do_pause('hFF) ;
+
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base + 4, 32'h1234_5678,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Retry_On);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 1, `Test_Target_Retry_On ) ;
+
+        do_pause( 1 ) ;
+    end
+    begin:error_monitor2
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+    end
+    begin
+        wait ( clocks_after_completion === 32'h0000_FFF0 ) ;
+        repeat( 'hFF )
+            @(posedge pci_clock) ;
+
+        if ( test_mem )
+            wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 4, 1'b1, ok_wb ) ;
+        else
+            wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 1, 1'b1, ok_wb ) ;
+
+        if ( ok_wb !== 1 )
+        begin
+            test_fail("Bridge failed to process Target Memory read correctly") ;
+            disable main ;
+        end
+
+        repeat(4)
+            @(posedge pci_clock) ;
+
+        fork
+        begin
+            if ( test_mem )
+                PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                              pci_image_base + 4, 32'h1234_5678,
+                              4, 8'h7_0, `Test_One_Zero_Target_WS,
+                             `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            else
+                PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 1, `Test_Target_Normal_Completion ) ;
+
+            do_pause(1) ;
+        end
+        begin
+           pci_transaction_progress_monitor( pci_image_base + 4, test_mem ? `BC_MEM_READ : `BC_IO_READ, test_mem ? 4 : 1, 0, 1'b1, 1'b0, 0, ok ) ; 
+           if ( ok_pci )
+               disable error_monitor2 ;
+        end
+        join
+    end
+    join
+
+    if ( ok && ok_pci && ok_wb )
+        test_ok ;
+
+    if ( ok !== 1 )
+    begin
+        $display("Target completion expiration testing failed! Failed to write P_AM1 register! Time %t ", $time) ;
+        test_fail("write to PCI Address Mask register failed") ;
+        disable main ;
+    end
+
+    // check statuses after this situation - none should be set
+    test_name = "PCI DEVICE ERROR STATUS BITS' STATES AFTER COMPLETION EXPIRED IN PCI TARGET UNIT" ;
+    config_read( pci_device_ctrl_offset, 4'hC, temp_val1 ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Target completion expiration testing failed! Failed to read pci device status register! Time %t ", $time) ;
+        test_fail("read from pci device status register failed") ;
+        disable main ;
+    end
+
+    if ( temp_val1[31] )
+    begin
+        $display("Target completion expiration testing failed! Detected parity error bit set for no reason! Time %t ", $time) ;
+        test_fail("detected parity error bit was set for no reason") ;
+    end
+
+    if ( temp_val1[30] )
+    begin
+        $display("Target completion expiration testing failed! Signaled system error bit set for no reason! Time %t ", $time) ;
+        test_fail("signaled system error bit was set for no reason") ;
+    end
+
+    if ( temp_val1[29] )
+    begin
+        $display("Target completion expiration testing failed! Received master abort bit set for no reason! Time %t ", $time) ;
+        test_fail("received master abort bit was set for no reason") ;
+    end
+
+    if ( temp_val1[28] )
+    begin
+        $display("Target completion expiration testing failed! Received Target abort bit set for no reason! Time %t ", $time) ;
+        test_fail("received target abort bit was set for no reason") ;
+    end
+
+    if ( temp_val1[27] )
+    begin
+        $display("Target completion expiration testing failed! Signaled Target abort bit set for no reason! Time %t ", $time) ;
+        test_fail("signaled target abort bit was set for no reason") ;
+    end
+
+    if ( temp_val1[24] )
+    begin
+        $display("Target completion expiration testing failed! Master Data parity error bit set for no reason! Time %t ", $time) ;
+        test_fail("Master Data parity error bit was set for no reason") ;
+    end
+
+    test_name = "PCI TARGET UNIT ERROR REPORTING REGISTER VALUE AFTER COMPLETION EXPIRED" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 0 )
+    begin
+        $display("Target completion expiration testing failed! Error status bit in PCI error reporting register set for no reason! Time %t ", $time) ;
+        test_fail("Error status bit in PCI error reporting register was set for no reason") ;
+    end
+    // test target retry counter expiration
+    // set wb slave to retry response
+    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'd255);
+    test_name = "RETRY COUNTER EXPIRATION DURING WRITE THROUGH PCI TARGET UNIT" ;
+    ok_pci = 1 ;
+
+    fork
+    begin
+        if ( test_mem == 1 )
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
+                        pci_image_base, 32'hDEAD_BEAF, 4'hA,
+                        1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                        `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hDEAD_BEAF, 4'hA, 1, `Test_Target_Normal_Completion) ;
+
+        do_pause(1) ;
+
+        // do another write with same address and different data
+        if ( test_mem == 1 )
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
+                        pci_image_base, 32'h8765_4321, 4'h0,
+                        1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                        `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'h8765_4321, 4'h0, 1, `Test_Target_Normal_Completion) ;
+ 
+        do_pause(1) ;
+    end
+    begin
+        for ( i = 0 ; i < `WB_RTY_CNT_MAX ; i = i + 1 )
+        begin
+            wb_transaction_progress_monitor( pci_image_base, 1'b1, 0, 1'b1, ok_wb ) ;
+            if ( ok_wb !== 1 )
+            begin
+                $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+                test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+                disable main ;
+            end
+        end
+
+        // set WB slave to normal completion
+        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        
+        wb_transaction_progress_monitor( pci_image_base, 1'b1, 1, 1'b1, ok_wb ) ; 
+        if ( ok_wb !== 1 )
+        begin
+            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+            disable main ;
+        end
+ 
+        if ( ok_pci )
+            disable error_monitor3 ;
+    end
+    begin:error_monitor3
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+    end
+    join
+
+    if ( ok_wb && ok_pci )
+    begin
+        test_ok ;
+    end
+
+    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER RETRY COUNTER EXPIRED" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 1'b1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should signal an error when retry counter expires during a write! Time %t", $time) ;
+        test_fail("error wasn't reported, when retry counter expired during posted write through PCI Target unit") ;
+    end    
+
+    if ( temp_val1[9] !== 1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should set Error Source bit when retry counter expires during a write! Time %t", $time) ;
+        test_fail("error source bit wasn't set, when retry counter expired during posted write through PCI Target unit") ;
+    end
+
+    if ( temp_val1[10] !== 1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should set Retry Expired bit when retry counter expires during a write! Time %t", $time) ;
+        test_fail("retry expired bit wasn't set, when retry counter expired during posted write through PCI Target unit") ;
+    end
+
+    if ( temp_val1[27:24] !== (test_mem ? `BC_MEM_WRITE : `BC_IO_WRITE) )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in bus command field in error control and status register when retry counter expired during a write! Time %t", $time) ;
+        test_fail("bus command field in error control and status register was wrong when retry counter expired during posted write through PCI Target unit") ;
+    end
+    
+    if ( temp_val1[31:28] !== 4'hA )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in byte enable field in error control and status register when retry counter expired during a write! Time %t", $time) ;
+        test_fail("byte enable field in error control and status register was wrong when retry counter expired during posted write through PCI Target unit") ;
+    end
+
+    // clear error status register
+    config_write( pci_err_cs_offset, temp_val1, 4'h2, ok ) ;
+    
+    test_name = "ERROR ADDRESS REGISTER VALUE CHECK AFTER RETRY COUNTER EXPIRED" ;
+    config_read( pci_err_cs_offset + 4, 4'hF, temp_val1 ) ;
+    if ( temp_val1 !== pci_image_base )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error address register when retry counter expired during a write! Time %t", $time) ;
+        test_fail("value in error address register was wrong when retry counter expired during posted write through PCI Target unit") ;
+    end
+
+    test_name = "ERROR DATA REGISTER VALUE CHECK AFTER RETRY COUNTER EXPIRED" ;
+    config_read( pci_err_cs_offset + 8, 4'hF, temp_val1 ) ;
+    if ( temp_val1 !== 32'hDEAD_BEAF )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error data register when retry counter expired during a write! Time %t", $time) ;
+        test_fail("value in error data register was wrong when retry counter expired during posted write through PCI Target unit") ;
+    end
+
+    test_name = "RETRY COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
+    ok_pci = 1 ;
+    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'd255);
+    
+    i = 0 ;
+    fork
+    begin
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base + 4, 32'h1234_5678,
+                          2, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Retry_Before);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 2, `Test_Target_Retry_Before ) ;
+ 
+        do_pause( 1 ) ;
+
+    end
+    begin
+        for ( i = 0 ; i < `WB_RTY_CNT_MAX ; i = i + 1 )
+        begin
+            wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 0, 1'b1, ok_wb ) ;
+            if ( ok_wb !== 1 )
+            begin
+                $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+                test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+                disable main ;
+            end
+        end
+ 
+        // set WB slave to normal completion
+        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+
+        fork
+        begin
+            repeat(4)
+                @(posedge pci_clock) ;
+ 
+            if ( test_mem )
+                PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                              pci_image_base, 32'h8765_4321,
+                              1, 8'h7_0, `Test_One_Zero_Target_WS,
+                             `Test_Devsel_Medium, `Test_Target_Retry_On);
+            else
+                PCIU_IO_READ( `Test_Master_1, pci_image_base, 32'h8765_4321, 4'h0, 1, `Test_Target_Retry_On ) ;
+
+            do_pause(1) ;
+        end
+        begin
+
+            wb_transaction_progress_monitor( pci_image_base, 1'b0, test_mem ? 4 : 1, 1'b1, ok_wb ) ;
+            if ( ok_wb !== 1 )
+            begin
+                $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+                test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+                disable main ;
+            end
+        end
+        join
+
+        repeat( 4 )
+            @(posedge pci_clock) ;
+
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base, 32'h8765_4321,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base, 32'h8765_4321, 4'h0, 1, `Test_Target_Normal_Completion ) ;
+ 
+        do_pause(1) ;
+
+        if ( ok_pci )
+            disable error_monitor4 ;
+    end
+    begin:error_monitor4
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+    end
+    join
+
+    if ( ok_wb && ok_pci )
+        test_ok ;
+
+    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER RETRY COUNTER EXPIRED DURING READ" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 1'b0 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master shouldn't signal an error when retry counter expires during a read! Time %t", $time) ;
+        test_fail("error shouldn't be reported, when retry counter expires during read through PCI Target unit") ;
+    end
+    
+    test_name = "NO RESPONSE COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
+    ok_pci = 1 ;
+    wishbone_slave.cycle_response(3'b000, tb_subseq_waits, 8'd255);
+ 
+    fork
+    begin
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base + 4, 32'h1234_5678,
+                          2, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Retry_Before);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 2, `Test_Target_Retry_Before ) ;
+ 
+        do_pause( 1 ) ;
+ 
+    end
+    begin
+        wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 0, 1'b1, ok_wb ) ;
+        if ( ok_wb !== 1 )
+        begin
+            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+            disable main ;
+        end
+ 
+        repeat(4)
+            @(posedge pci_clock) ;
+        
+        fork
+        begin
+ 
+            if ( test_mem )
+                PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                              pci_image_base + 4, 32'h8765_4321,
+                              1, 8'h7_0, `Test_One_Zero_Target_WS,
+                             `Test_Devsel_Medium, `Test_Target_Abort_On);
+            else
+                PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h8765_4321, 4'h0, 1, `Test_Target_Abort_On ) ;
+
+            do_pause(1) ;
+ 
+        end
+        begin
+           
+            pci_transaction_progress_monitor( pci_image_base + 4, test_mem ? `BC_MEM_READ : `BC_IO_READ, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+            if ( ok !== 1 )
+            begin
+                $display("WISHBONE Master Retry Counter expiration test failed! PCI transaction progress monitor detected invalid transaction or none at all on PCI bus! Time %t", $time) ;
+                test_fail("PCI transaction progress monitor detected invalid transaction or none at all on PCI bus") ;
+                disable main ;
+            end
+        end
+        join
+ 
+        if ( ok_pci )
+            disable error_monitor5 ;
+    end
+    begin:error_monitor5
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+    end
+    join
+ 
+    if ( ok_wb && ok_pci )
+        test_ok ;
+
+    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 1'b0 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master shouldn't signal an error when retry counter expires during a read! Time %t", $time) ;
+        test_fail("error shouldn't be reported, when retry counter expires during read through PCI Target unit") ;
+    end 
+
+    test_name = "PCI DEVICE STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
+    config_read( pci_device_ctrl_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[25] !== 1'b1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Signaled Target Abort bit not set when PCI Target terminated with target abort! Time %t", $time) ;
+        test_fail("Signaled Target Abort bit was not set when PCI Target terminated with target abort") ;
+    end
+ 
+    config_write( pci_device_ctrl_offset, temp_val1, 4'hF, ok ) ;
+
+    test_name = "NO RESPONSE COUNTER EXPIRATION DURING WRITE THROUGH PCI TARGET UNIT" ;
+    ok_pci = 1 ;
+    wishbone_slave.cycle_response(3'b000, tb_subseq_waits, 8'd255);
+
+    fork
+    begin
+        if ( test_mem == 1 )
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
+                        pci_image_base, 32'hBEAF_DEAD, 4'h0,
+                        1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                        `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hBEAF_DEAD, 4'h0, 1, `Test_Target_Normal_Completion) ;
+ 
+        do_pause(1) ;
+ 
+        // do another write with same address and different data
+        if ( test_mem == 1 )
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
+                        pci_image_base, 32'h8765_6789, 4'h0,
+                        3, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                        `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'h8765_6789, 4'h0, 1, `Test_Target_Normal_Completion) ;
+
+        do_pause(1) ;
+        
+        $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
+        $fdisplay(pciu_mon_log_file_desc,
+        "********************************************  Monitor will complain in following section for a few times - testbench is intentionally causing no response  *********************************************") ;
+    end 
+    begin
+        wb_transaction_progress_monitor( pci_image_base, 1'b1, 0, 1'b1, ok_wb ) ;
+        if ( ok_wb !== 1 )
+        begin
+            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+            disable main ;
+        end    
+
+        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'd255);
+        
+        if ( test_mem )
+            wb_transaction_progress_monitor( pci_image_base, 1'b1, 3, 1'b1, ok_wb ) ;
+        else
+            wb_transaction_progress_monitor( pci_image_base, 1'b1, 1, 1'b1, ok_wb ) ;
+
+        if ( ok_wb !== 1 )
+        begin
+            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+            disable main ;
+        end
+
+        if ( ok_pci )
+            disable error_monitor6 ;
+    end
+    begin:error_monitor6
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+    end 
+    join
+
+    $display("PCIU monitor (WB bus) should NOT complain any more!") ;
+    $fdisplay(pciu_mon_log_file_desc,
+    "********************************************  Monitor should NOT complain any more  ********************************************************************************************************************") ;
+
+    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING TARGET WRITE" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 1'b1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should signal an error when no response counter expires during a write! Time %t", $time) ;
+        test_fail("error wasn't reported, when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    if ( temp_val1[9] !== 0 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should not set Error Source bit when no response counter expires during a write! Time %t", $time) ;
+        test_fail("error source bit was set, when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    if ( temp_val1[10] !== 1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master should set Retry Expired bit when no response counter expires during a write! Time %t", $time) ;
+        test_fail("retry expired bit wasn't set, when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    if ( temp_val1[27:24] !== (test_mem ? `BC_MEM_WRITE : `BC_IO_WRITE) )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in bus command field in error control and status register when no response counter expired during a write! Time %t", $time) ;
+        test_fail("bus command field in error control and status register was wrong when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    if ( temp_val1[31:28] !== 4'h0 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in byte enable field in error control and status register when no response counter expired during a write! Time %t", $time) ;
+        test_fail("byte enable field in error control and status register was wrong when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    // clear error status register
+    config_write( pci_err_cs_offset, temp_val1, 4'h2, ok ) ; 
+
+    test_name = "ERROR ADDRESS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED" ;
+    config_read( pci_err_cs_offset + 4, 4'hF, temp_val1 ) ;
+    if ( temp_val1 !== pci_image_base )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error address register when no response counter expired during a write! Time %t", $time) ;
+        test_fail("value in error address register was wrong when no response counter expired during posted write through PCI Target unit") ;
+    end
+ 
+    test_name = "ERROR DATA REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED" ;
+    config_read( pci_err_cs_offset + 8, 4'hF, temp_val1 ) ;
+    if ( temp_val1 !== 32'hBEAF_DEAD )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error data register when no response counter expired during a write! Time %t", $time) ;
+        test_fail("value in error data register was wrong when no response counter expired during posted write through PCI Target unit") ;
+    end
+    
+    // disable current image - write address mask register
+    config_write( pci_am_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
 end
 endtask // target_completion_expired
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.5  2002/03/05 11:53:47  mihad
+// Added some testcases, removed un-needed fifo signals
+//
 // Revision 1.4  2002/02/19 16:32:37  mihad
 // Modified testbench and fixed some bugs
 //
@@ -520,7 +523,6 @@ PCIW_PCIR_FIFOS fifos
     .pcir_be_out                (fifos_pcir_be_out),          //for PCI Target !!!
     .pcir_control_out           (fifos_pcir_control_out),     //for PCI Target !!!
     .pcir_flush_in              (fifos_pcir_flush_in),        //for PCI Target !!!
-    .pcir_almost_full_out       (),
     .pcir_full_out              (),
     .pcir_almost_empty_out      (fifos_pcir_almost_empty_out), //for PCI Target !!!
     .pcir_empty_out             (fifos_pcir_empty_out),        //for PCI Target !!!

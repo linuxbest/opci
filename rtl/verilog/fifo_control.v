@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: fifo_control.v,v $
+// Revision 1.4  2002/03/05 11:53:47  mihad
+// Added some testcases, removed un-needed fifo signals
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -70,7 +73,6 @@ module FIFO_CONTROL
     wenable_in,
     reset_in,
     flush_in,
-    almost_full_out,
     full_out,
     almost_empty_out,
     empty_out,
@@ -96,8 +98,8 @@ input  reset_in;
 // flush input
 input flush_in ;
 
-// almost full and empy status outputs
-output almost_full_out, almost_empty_out;
+// almost empy status output
+output almost_empty_out;
 
 // full and empty status outputs
 output full_out, empty_out;
@@ -125,7 +127,6 @@ reg [(ADDR_LENGTH - 1):0] wgrey_next ; // next grey coded write address
 wire [(ADDR_LENGTH - 2):0] calc_wgrey_next  = waddr[(ADDR_LENGTH - 1):1] ^ waddr[(ADDR_LENGTH - 2):0] ;
 
 // grey code pipeline for read address
-reg [(ADDR_LENGTH - 1):0] rgrey_minus2 ; // two before current
 reg [(ADDR_LENGTH - 1):0] rgrey_minus1 ; // one before current
 reg [(ADDR_LENGTH - 1):0] rgrey_addr ; // current
 reg [(ADDR_LENGTH - 1):0] rgrey_next ; // next
@@ -137,9 +138,8 @@ wire [(ADDR_LENGTH - 2):0] calc_rgrey_next  = raddr[(ADDR_LENGTH - 1):1] ^ raddr
 reg empty ;
 reg full ;
 
-// almost_empty and almost_full tag - implemented as latches
+// almost_empty tag
 reg almost_empty ;
-reg almost_full ;
 
 // write allow wire - writes are allowed when fifo is not full
 wire wallow = wenable_in && ~full ;
@@ -152,9 +152,6 @@ wire rallow ;
 
 // full output assignment
 assign full_out  = full ;
-
-// almost full output assignment
-assign almost_full_out  = almost_full && ~full ;
 
 // clear generation for FFs and registers
 wire clear = reset_in || flush_in ;
@@ -202,8 +199,8 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 5 - one more than initial value of read address
-        raddr_plus_one <= #`FF_DELAY 5 ;
+        // initial value is 4 - one more than initial value of read address
+        raddr_plus_one <= #`FF_DELAY 4 ;
     end
     else if (rallow)
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
@@ -213,8 +210,8 @@ end
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-        // initial value is 4
-        raddr <= #`FF_DELAY 4 ;
+        // initial value is 3
+        raddr <= #`FF_DELAY 3 ;
     else if (rallow)
         raddr <= #`FF_DELAY raddr_plus_one ;
 end
@@ -222,31 +219,18 @@ end
 /*-----------------------------------------------------------------------------------------------
 Read address control consists of Read address counter and Grey Address pipeline
 There are 4 Grey addresses:
-    - rgrey_minus2 is Grey Code of address two before current address
     - rgrey_minus1 is Grey Code of address one before current address
     - rgrey_addr is Grey Code of current read address
     - rgrey_next is Grey Code of next read address
 --------------------------------------------------------------------------------------------------*/
-// grey code register for two before read address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 0
-        rgrey_minus2 <= #`FF_DELAY 0 ;
-    end
-    else
-    if (rallow)
-        rgrey_minus2 <= #`FF_DELAY rgrey_minus1 ;
-end
 
 // grey code register for one before read address
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 1
-        rgrey_minus1 <= #`FF_DELAY 1 ;
+        // initial value is 0
+        rgrey_minus1 <= #`FF_DELAY 0 ;
     end
     else
     if (rallow)
@@ -258,8 +242,8 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 3
-        rgrey_addr <= #`FF_DELAY 3 ;
+        // initial value is 1
+        rgrey_addr <= #`FF_DELAY 1 ;
     end
     else
     if (rallow)
@@ -271,8 +255,8 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 2
-        rgrey_next <= #`FF_DELAY 2 ;
+        // initial value is 3
+        rgrey_next <= #`FF_DELAY 3 ;
     end
     else
     if (rallow)
@@ -290,8 +274,8 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 1
-        wgrey_minus1 <= #`FF_DELAY 1 ;
+        // initial value is 0
+        wgrey_minus1 <= #`FF_DELAY 0 ;
     end
     else
     if (wallow)
@@ -303,8 +287,8 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 3
-        wgrey_addr <= #`FF_DELAY 3 ;
+        // initial value is 1
+        wgrey_addr <= #`FF_DELAY 1 ;
     end
     else
     if (wallow)
@@ -316,8 +300,8 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 2
-        wgrey_next <= #`FF_DELAY 2 ;
+        // initial value is 3
+        wgrey_next <= #`FF_DELAY 3 ;
     end
     else
     if (wallow)
@@ -328,8 +312,8 @@ end
 always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
-        // initial value 4
-        waddr <= #`FF_DELAY 4 ;
+        // initial value 3
+        waddr <= #`FF_DELAY 3 ;
     else
     if (wallow)
         waddr <= #`FF_DELAY waddr + 1'b1 ;
@@ -345,8 +329,7 @@ Almost full flag is set on rising write clock edge whenever two free locations a
 It remains set if nothing is read/written from/to fifo. All operations are synchronized on write clock.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire comb_full          = wgrey_next == rgrey_addr ;
-wire comb_almost_full   = wgrey_addr == rgrey_minus2 ;
-wire comb_two_left      = wgrey_next == rgrey_minus2 ;
+wire comb_almost_full   = wgrey_next == rgrey_minus1 ;
 
 //combinatorial input to Registered full FlipFlop
 wire reg_full = (wallow && comb_almost_full) || (comb_full) ;
@@ -357,17 +340,6 @@ begin
         full <= #`FF_DELAY 1'b0 ;
     else
         full <= #`FF_DELAY reg_full ;
-end
-
-// input for almost full flip flop
-wire reg_almost_full_in = wallow && comb_two_left || comb_almost_full ;
-
-always@(posedge clear or posedge wclock_in)
-begin
-    if (clear)
-        almost_full <= #`FF_DELAY 1'b0 ;
-    else
-        almost_full <= #`FF_DELAY reg_almost_full_in ;
 end
 
 /*------------------------------------------------------------------------------------------------------------------------------

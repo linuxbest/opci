@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
+// Revision 1.4  2002/03/05 11:53:47  mihad
+// Added some testcases, removed un-needed fifo signals
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -88,7 +91,6 @@ module PCIW_PCIR_FIFOS
     pcir_be_out,
     pcir_control_out,
     pcir_flush_in,
-    pcir_almost_full_out,
     pcir_full_out,
     pcir_almost_empty_out,
     pcir_empty_out,
@@ -177,7 +179,6 @@ pcir_control_out = control output - encoded control bus output
 
 status signals - monitored by various resources in the core
 pcir_flush_in = flush signal input for PCIR_FIFO - when asserted, fifo is flushed(emptied)
-pcir_almost_full_out = almost full output from PCIR_FIFO
 pcir full_out = full output from PCIR_FIFO
 pcir_almost_empty_out = almost empty output from PCIR_FIFO
 pcir_empty_out = empty output from PCIR_FIFO
@@ -199,7 +200,6 @@ output [3:0]  pcir_control_out ;
 input pcir_flush_in ;
 
 // status outputs
-output pcir_almost_full_out ;
 output pcir_full_out ;
 output pcir_almost_empty_out ;
 output pcir_empty_out ;
@@ -460,7 +460,6 @@ FIFO_CONTROL #(PCIR_ADDR_LENGTH) pcir_fifo_ctrl
     .wenable_in(pcir_wenable_in),
     .reset_in(reset_in),
     .flush_in(pcir_flush_in),
-    .almost_full_out(pcir_almost_full_out),
     .full_out(pcir_full_out),
     .almost_empty_out(pcir_almost_empty_out),
     .empty_out(pcir_empty),

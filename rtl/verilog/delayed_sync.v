@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: delayed_sync.v,v $
+// Revision 1.4  2002/03/05 11:53:47  mihad
+// Added some testcases, removed un-needed fifo signals
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -397,7 +400,7 @@ end
 
 synchronizer_flop rty_exp_back_prop_sync
 (
-    .data_in        (req_rty_exp_reg),
+    .data_in        (req_rty_exp_reg && req_rty_exp_clr),
     .clk_out        (comp_clk_in),
     .sync_data_out  (sync_comp_rty_exp_clr),
     .async_reset    (reset_in)

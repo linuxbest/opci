@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.2  2002/03/05 11:53:47  mihad
+// Added some testcases, removed un-needed fifo signals
+//
 // Revision 1.1  2002/02/01 14:43:31  mihad
 // *** empty log message ***
 //
@@ -57,11 +60,11 @@
 
 `define WBW_ADDR_LENGTH 6
 `define WBR_ADDR_LENGTH 4
-`define PCIW_ADDR_LENGTH 6
+`define PCIW_ADDR_LENGTH 3
 `define PCIR_ADDR_LENGTH 3
 
-`define FPGA
-`define XILINX
+//`define FPGA
+//`define XILINX
 
 //`define WB_RAM_DONT_SHARE
 //`define PCI_RAM_DONT_SHARE
@@ -76,10 +79,10 @@
         //`define WB_XILINX_DIST_RAM
     `endif
 `else
-    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-    `define WB_ARTISAN_SDP
-    `define PCI_ARTISAN_SDP
+    `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 7       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+//    `define WB_ARTISAN_SDP
+//    `define PCI_ARTISAN_SDP
 `endif
 
 // these two defines allow user to select active high or low output enables on PCI bus signals, depending on
@@ -182,7 +185,7 @@
 // Turn registered WISHBONE slave outputs on or off
 // all outputs from WB Slave state machine are registered, if this is defined - WB bus outputs as well as
 // outputs to internals of the core.
-`define REGISTER_WBS_OUTPUTS
+//`define REGISTER_WBS_OUTPUTS
 
 /*-----------------------------------------------------------------------------------------------------------
 Core speed definition - used for simulation and 66MHz Capable bit value in status register indicating 66MHz
@@ -204,7 +207,7 @@ capable device
 // Turn registered WISHBONE master outputs on or off
 // all outputs from WB Master state machine are registered, if this is defined - WB bus outputs as well as
 // outputs to internals of the core.
-//`define REGISTER_WBM_OUTPUTS
+`define REGISTER_WBM_OUTPUTS
 
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
