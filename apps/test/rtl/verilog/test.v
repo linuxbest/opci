@@ -2,6 +2,8 @@
 `include "timescale.v"
 // synopsys translate_on
 
+`include "pci_user_constants.v"
+
 module test
 (
     pci_clk_i,
@@ -10,7 +12,18 @@ module test
     
     wbm_cyc_o,
     wbm_stb_o,
+
+`ifdef PCI_WB_REV_B3
+
+    wbm_cti_o,
+    wbm_bte_o,
+
+`else
+
     wbm_cab_o,
+
+`endif
+
     wbm_we_o,
     wbm_adr_o,
     wbm_sel_o,
@@ -22,7 +35,8 @@ module test
 
     wbs_cyc_i,
     wbs_stb_i,
-    wbs_cab_i,
+    wbs_cti_i,
+    wbs_bte_i,
     wbs_we_i,
     wbs_adr_i,
     wbs_sel_i,
@@ -45,8 +59,20 @@ input           pci_clk_i,
     
 output          wbm_cyc_o,
                 wbm_stb_o,
-                wbm_cab_o,
                 wbm_we_o ;
+
+`ifdef PCI_WB_REV_B3
+
+output [ 2: 0]  wbm_cti_o   ;
+output [ 1: 0]  wbm_bte_o   ;
+
+assign wbm_bte_o = 2'b00 ;
+
+`else
+
+output  wbm_cab_o   ;
+
+`endif
 
 output  [31:0]  wbm_adr_o ;
 output  [3:0]   wbm_sel_o ;
@@ -59,8 +85,10 @@ input           wbm_ack_i,
 
 input           wbs_cyc_i,
                 wbs_stb_i,
-                wbs_cab_i,
                 wbs_we_i ;
+
+input   [ 2: 0] wbs_cti_i   ;
+input   [ 1: 0] wbs_bte_i   ;
 
 input   [31:0]  wbs_adr_i ;
 input   [3:0]   wbs_sel_i ;
@@ -328,7 +356,7 @@ begin
 
         if (sel_target_burst_transaction_count & wbs_write & sel_registers)
             target_burst_transaction_count <= 0 ;
-        else if (wbs_cyc_i & ~wbs_cyc_i_previous & wbs_cab_i)
+        else if (wbs_cyc_i & ~wbs_cyc_i_previous & (wbs_cti_i == 3'b010) & (wbs_bte_i == 2'b00))
             target_burst_transaction_count <= target_burst_transaction_count + 1 ;
 
         if (sel_target_test_size & wbs_write & sel_registers)
@@ -538,7 +566,11 @@ assign wbs_ack_o = wbs_we_i ? (wbs_cyc_i & wbs_stb_i) : delayed_ack_for_reads ;
 assign wbs_err_o = 1'b0 ;
 assign wbs_rty_o = 1'b0 ;
 
-reg wbm_cyc_o, wbm_cab_o, wbm_stb_o;
+reg wbm_cyc_o, wbm_stb_o;
+
+reg    [ 2: 0]  wbm_cti_o   ;
+reg             wbm_cab_o   ; 
+
 reg [31:0]  wbm_adr_o ;
 reg [31:0]  wbm_next_adr_o ;
 
@@ -551,6 +583,7 @@ begin
     begin
         wbm_cyc_o                       <= 1'b0 ;
         wbm_cab_o                       <= 1'b0 ;
+        wbm_cti_o                       <= 3'h7 ;
         wbm_stb_o                       <= 1'b0 ;
         wbm_adr_o                       <= 32'h0 ;
         master_current_transaction_size <= 11'h0 ;
@@ -573,6 +606,7 @@ begin
         begin
             wbm_cyc_o                       <= 1'b1 ;
             wbm_cab_o                       <= (master_transaction_size != 11'h1) ;
+            wbm_cti_o                       <= (master_transaction_size != 11'h1) ? 3'b010 : 3'b111 ;
             wbm_stb_o                       <= 1'b1 ;
             master_current_transaction_size <= master_transaction_size ;
         end
@@ -580,15 +614,19 @@ begin
         begin
             if (wbm_end_cycle)
             begin
-                wbm_cyc_o                       <= 1'b0 ;
-                wbm_stb_o                       <= 1'b0 ;
-                wbm_cab_o                       <= 1'b0 ;
+                wbm_cyc_o   <= 1'b0     ;
+                wbm_stb_o   <= 1'b0     ;
+                wbm_cab_o   <= 1'b0     ;
+                wbm_cti_o   <= 3'b111   ;
             end
             else
             begin
                 if (wbm_stb_o & wbm_ack_i)
                 begin
                     master_current_transaction_size <= master_current_transaction_size - 1'b1 ;
+                    
+                    if (master_current_transaction_size == 2)
+                        wbm_cti_o <= 3'b111 ;
                 end
             end
         end

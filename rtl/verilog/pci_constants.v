@@ -43,6 +43,12 @@
 // CVS Revision History
 //
 // $Log: pci_constants.v,v $
+// Revision 1.2  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.1  2002/02/01 14:43:31  mihad
 // *** empty log message ***
 //
@@ -90,6 +96,7 @@
 // This does not include address offsets of PCI Header registers - they starts at offset 0 (see PCI spec.)
 //   ALL VALUES are without 2 LSBits AND there is required that address bit [8] is set while
 //   accessing this registers, otherwise the configuration header will be accessed !!!
+`define PCI_CAP_PTR_VAL         8'h80
 `define P_IMG_CTRL0_ADDR		6'h00	//	Address offset = h 100
 `define P_BA0_ADDR				6'h01	//	Address offset = h 104
 `define P_AM0_ADDR				6'h02   //	Address offset = h 108

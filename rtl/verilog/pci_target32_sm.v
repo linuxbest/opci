@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.11  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.10  2003/08/08 16:36:33  tadejm
 // Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
 //
@@ -135,7 +141,6 @@ module pci_target32_sm
     load_medium_reg_out,
     sel_fifo_mreg_out,
     sel_conf_fifo_out,
-    fetch_conf_out,
     load_to_pciw_fifo_out,
     load_to_conf_out,
     same_read_in,
@@ -230,7 +235,6 @@ output          fetch_pcir_fifo_out ;// Read enable for PCIR_FIFO when when read
 output          load_medium_reg_out ;// Load data from PCIR_FIFO to medium register (first data must be prepared on time)
 output          sel_fifo_mreg_out ; // Read data selection between PCIR_FIFO and medium register
 output          sel_conf_fifo_out ; // Read data selection between Configuration registers and "FIFO"
-output          fetch_conf_out ;    // Read enable for configuration space registers
 output          load_to_pciw_fifo_out ;// Write enable to PCIW_FIFO
 output          load_to_conf_out ;  // Write enable to Configuration space registers
 
@@ -272,7 +276,7 @@ always@(posedge clk_in or posedge reset_in)
 begin
     if (reset_in)
     begin
-        previous_frame <= #`FF_DELAY 1'b1 ;
+        previous_frame <= #`FF_DELAY 1'b0 ;
         read_completed_reg <= #`FF_DELAY 1'b0 ;
     end
     else
@@ -691,10 +695,6 @@ assign  sel_fifo_mreg_out = (~pci_irdy_reg_in && ~bckp_trdy_reg) ;
 `else
             assign  sel_conf_fifo_out = (cnf_progress || norm_access_to_conf_reg) ;
 `endif
-
-// NOT USED NOW, SINCE READ IS ASYNCHRONOUS
-//assign    fetch_conf_out = ((cnf_progress || norm_access_to_conf_reg) && ~rw_cbe0 && ~bckp_devsel_in) ;
-assign  fetch_conf_out = 1'b0 ;
 
 // Write control signals assignments
 assign

@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_in_reg.v,v $
+// Revision 1.5  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.4  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -63,9 +69,10 @@
 // Module is used for registering PCI input signals
 // It provides data flip flops with reset
 module pci_in_reg
-(
+(    
     reset_in,
     clk_in,
+    init_complete_in,
 
     pci_gnt_in,
     pci_frame_in,
@@ -89,7 +96,7 @@ module pci_in_reg
 
 );
 
-input			reset_in, clk_in ;
+input			reset_in, clk_in, init_complete_in  ;
 
 input           pci_gnt_in ;
 input           pci_frame_in ;
@@ -127,7 +134,7 @@ begin
     if ( reset_in )
     begin
 		pci_gnt_reg_out		<= #`FF_DELAY 1'b1 ;
-		pci_frame_reg_out	<= #`FF_DELAY 1'b1 ;
+		pci_frame_reg_out	<= #`FF_DELAY 1'b0 ;
 		pci_irdy_reg_out	<= #`FF_DELAY 1'b1 ;
 		pci_trdy_reg_out	<= #`FF_DELAY 1'b1 ;
 		pci_stop_reg_out	<= #`FF_DELAY 1'b1 ;
@@ -136,7 +143,7 @@ begin
 		pci_ad_reg_out      <= #`FF_DELAY 32'h0000_0000 ;
 		pci_cbe_reg_out     <= #`FF_DELAY 4'h0 ;
     end
-    else
+    else if (init_complete_in)
 	begin
 		pci_gnt_reg_out		<= #`FF_DELAY pci_gnt_in ;
 		pci_frame_reg_out	<= #`FF_DELAY pci_frame_in ;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_master.v,v 1.3 2003/08/08 16:29:00 tadejm Exp $
+// $Id: pci_behaviorial_master.v,v 1.4 2003/12/19 11:11:28 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -177,6 +177,16 @@ module pci_behaviorial_master (
   reg     [PCI_BUS_DATA_RANGE:0] master_received_data ;
   reg                            master_received_data_valid ;
 
+  // MihaD - added an option to keep the byte enables the same through complete
+  // transfer
+  reg keep_master_mask ;
+  reg keep_master_data ;
+  initial 
+  begin
+    keep_master_mask = 1'b0 ;
+    keep_master_data = 1'b0 ;
+  end
+
 // Let test commander know when this PCI Master has accepted the command.
   reg     test_accepted_next, test_accepted_int;
 // Display on negative edge so easy to see
@@ -322,8 +332,16 @@ task Update_Write_Data;
     up_temp[15: 8] = master_write_data[15: 8] + 8'h01;
     up_temp[ 7: 0] = master_write_data[ 7: 0] + 8'h01;
 // Wrap adds so that things repeat in the 256 Byte (64 Word) Target SRAM
-    master_write_data_next[PCI_BUS_DATA_RANGE:0] = up_temp[PCI_BUS_DATA_RANGE:0];// & 32'h3F3F3F3F; commented by Tadej M. on 07.12.2001
-    master_mask_l_next[PCI_BUS_CBE_RANGE:0] = {master_mask_l[2:0], master_mask_l[3]};
+    if (~keep_master_data)
+        master_write_data_next[PCI_BUS_DATA_RANGE:0] = up_temp[PCI_BUS_DATA_RANGE:0];// & 32'h3F3F3F3F; commented by Tadej M. on 07.12.2001
+    else
+        master_write_data_next = master_write_data ;
+
+    // MihaD - added an option to keep byte enables the same through complete transfer
+    if (~keep_master_mask)
+        master_mask_l_next[PCI_BUS_CBE_RANGE:0] = {master_mask_l[2:0], master_mask_l[3]};
+    else
+        master_mask_l_next = master_mask_l ;
   end
 endtask
 

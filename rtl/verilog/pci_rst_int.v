@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_rst_int.v,v $
+// Revision 1.3  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.2  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -73,12 +79,11 @@ module pci_rst_int
 	pci_intan_in,
 	conf_int_in,
 	int_i,
-	out_bckp_perr_en_in,
-	out_bckp_serr_en_in,
 	pci_intan_out,
 	pci_intan_en_out,
 	int_o,
-	conf_isr_int_prop_out
+	conf_isr_int_prop_out,
+    init_complete_in
 );
 
 input	clk_in;
@@ -95,12 +100,12 @@ output	rst_o;
 input	pci_intan_in;
 input	conf_int_in;
 input	int_i;
-input	out_bckp_perr_en_in;
-input	out_bckp_serr_en_in;
 output	pci_intan_out;
 output	pci_intan_en_out;
 output	int_o;
 output	conf_isr_int_prop_out;
+
+input   init_complete_in ;
 
 /*--------------------------------------------------------------------------------------------------------
 RESET logic
@@ -150,7 +155,7 @@ assign pci_intan_out = 1'b0 ;
         .reset_in     ( reset ),
         .clk_in       ( clk_in) ,
         .dat_en_in    ( 1'b1 ),
-        .en_en_in     ( 1'b1 ),
+        .en_en_in     ( init_complete_in ),
         .dat_in       ( 1'b0 ) , // active low
         .en_in        ( conf_int_in ) ,
         .en_out       ( interrupt_a_en ),

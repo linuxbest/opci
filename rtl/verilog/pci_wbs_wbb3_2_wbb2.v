@@ -40,6 +40,12 @@
 // CVS Revision History
 //
 // $Log: pci_wbs_wbb3_2_wbb2.v,v $
+// Revision 1.3  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.2  2003/12/01 16:20:56  simons
 // ifdef - endif statements put in separate lines for flint compatibility.
 //
@@ -129,6 +135,7 @@ begin
         wbs_sel_o           <= 4'h0  ;
         wbs_we_o            <= 1'b0  ;
         wbs_dat_i_o_valid   <= 1'b0  ;
+        wbs_cab_o           <= 1'b0  ;
     end
     else
     begin:transfer_and_transfer_adr_ctrl_blk
@@ -189,19 +196,19 @@ begin
                             wbs_cab_o <= 1'b1 ; 
                         end
                 2'b01:  begin
-                            if (wbs_adr_i[3:0] == 4'b0000)
+                            if (wbs_adr_i[3:2] == 2'b00)
                                 wbs_cab_o <= 1'b1 ;
                             else
                                 wbs_cab_o <= 1'b0 ;
                         end
                 2'b10:  begin
-                            if (wbs_adr_i[4:0] == 5'b00000)
+                            if (wbs_adr_i[4:2] == 3'b000)
                                 wbs_cab_o <= 1'b1 ;
                             else
                                 wbs_cab_o <= 1'b0 ;
                         end
                 2'b11:  begin
-                            if (wbs_adr_i[5:0] == 6'b000000)
+                            if (wbs_adr_i[5:2] == 4'b0000)
                                 wbs_cab_o <= 1'b1 ;
                             else
                                 wbs_cab_o <= 1'b0 ;

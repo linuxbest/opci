@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_io_mux.v,v $
+// Revision 1.5  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.4  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -130,7 +136,9 @@ module pci_io_mux
     pci_trdy_in,
     pci_irdy_in,
     pci_frame_in,
-    pci_stop_in
+    pci_stop_in,
+
+    init_complete_in
 );
 
 input reset_in, clk_in ;
@@ -202,6 +210,8 @@ input           pci_trdy_in,
 
 input           master_load_on_transfer_in ;
 input           target_load_on_transfer_in ;
+
+input           init_complete_in    ;
 
 wire   [31:0]   temp_ad = tar_ad_en_reg_in ? tar_ad_in : mas_ad_in ;
 
@@ -837,7 +847,7 @@ pci_out_reg req_iob
     .dat_en_in    ( 1'b1 ),
     .en_en_in     ( 1'b1 ),
     .dat_in       ( req_in ) ,
-    .en_in        ( 1'b1 ) ,
+    .en_in        ( init_complete_in ) ,
     .en_out       ( req_en_out ),
     .dat_out      ( req_out )
 );

@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_wbr_fifos.v,v $
+// Revision 1.6  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.5  2003/10/17 09:11:52  markom
 // mbist signals updated according to newest convention
 //
@@ -530,11 +536,11 @@ always@(posedge wb_clock_in or posedge wbw_clear)
 begin
     if (wbw_clear)
     begin
-        inGreyCount <= #`FF_DELAY 0 ;
+        inGreyCount <= #3 0 ;
     end
     else
     if (in_count_en)
-        inGreyCount <= #`FF_DELAY inNextGreyCount ;
+        inGreyCount <= #3 inNextGreyCount ;
 end
 
 wire [(WBW_ADDR_LENGTH-2):0] pci_clk_sync_inGreyCount ;

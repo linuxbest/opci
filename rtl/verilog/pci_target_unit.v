@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.15  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.14  2003/10/17 09:11:52  markom
 // mbist signals updated according to newest convention
 //
@@ -180,7 +186,6 @@ module pci_target_unit
     pciu_conf_wenable_out,
     pciu_conf_be_out,
     pciu_conf_data_out,
-    pciu_conf_select_out,
     pciu_pci_drcomp_pending_out,
     pciu_pciw_fifo_empty_out
 
@@ -280,7 +285,6 @@ output          pciu_err_signal_out ;
 output          pciu_err_source_out ;
 output          pciu_err_rty_exp_out ;
 
-output          pciu_conf_select_out ;
 output  [11:0]  pciu_conf_offset_out ;
 output          pciu_conf_renable_out ;
 output          pciu_conf_wenable_out ;
@@ -329,7 +333,6 @@ wire        pcit_sm_fetch_pcir_fifo_out ;
 wire        pcit_sm_load_medium_reg_out ;
 wire        pcit_sm_sel_fifo_mreg_out ;
 wire        pcit_sm_sel_conf_fifo_out ;
-wire        pcit_sm_fetch_conf_out ;
 wire        pcit_sm_load_to_pciw_fifo_out ;
 wire        pcit_sm_load_to_conf_out ;
 
@@ -374,7 +377,6 @@ wire        pcit_if_pciw_fifo_wenable_out ;
 wire [31:0] pcit_if_pciw_fifo_addr_data_out ;
 wire  [3:0] pcit_if_pciw_fifo_cbe_out ;
 wire  [3:0] pcit_if_pciw_fifo_control_out ;
-wire        pcit_if_conf_hit_out ;
 wire [11:0] pcit_if_conf_addr_out ;
 wire [31:0] pcit_if_conf_data_out ;
 wire  [3:0] pcit_if_conf_be_out ;
@@ -383,7 +385,6 @@ wire        pcit_if_conf_re_out ;
 
 // pci target state machine outputs
 // pci interface signals
-assign  pciu_conf_select_out    =   pcit_if_conf_hit_out ;
 assign  pciu_conf_offset_out    =   pcit_if_conf_addr_out ;
 assign  pciu_conf_renable_out   =   pcit_if_conf_re_out ;
 assign  pciu_conf_wenable_out   =   pcit_if_conf_we_out ;
@@ -653,7 +654,6 @@ wire        pcit_if_fetch_pcir_fifo_in              =   pcit_sm_fetch_pcir_fifo_
 wire        pcit_if_load_medium_reg_in              =   pcit_sm_load_medium_reg_out ;
 wire        pcit_if_sel_fifo_mreg_in                =   pcit_sm_sel_fifo_mreg_out ;
 wire        pcit_if_sel_conf_fifo_in                =   pcit_sm_sel_conf_fifo_out ;
-wire        pcit_if_fetch_conf_in                   =   pcit_sm_fetch_conf_out ;
 wire        pcit_if_load_to_pciw_fifo_in            =   pcit_sm_load_to_pciw_fifo_out ;
 wire        pcit_if_load_to_conf_in                 =   pcit_sm_load_to_conf_out ;
 wire        pcit_if_req_req_pending_in              =   del_sync_req_req_pending_out ;
@@ -737,7 +737,6 @@ pci_target32_interface pci_target_if
     .load_medium_reg_in             (pcit_if_load_medium_reg_in),
     .sel_fifo_mreg_in               (pcit_if_sel_fifo_mreg_in),
     .sel_conf_fifo_in               (pcit_if_sel_conf_fifo_in),
-    .fetch_conf_in                  (pcit_if_fetch_conf_in),
     .load_to_pciw_fifo_in           (pcit_if_load_to_pciw_fifo_in),
     .load_to_conf_in                (pcit_if_load_to_conf_in),
     .same_read_out                  (pcit_if_same_read_out),
@@ -782,7 +781,6 @@ pci_target32_interface pci_target_if
     .pciw_fifo_full_in              (pcit_if_pciw_fifo_full_in),
     .wbw_fifo_empty_in              (pcit_if_wbw_fifo_empty_in),
     .wbu_del_read_comp_pending_in	(pcit_if_wbu_del_read_comp_pending_in),
-    .conf_hit_out                   (pcit_if_conf_hit_out),
     .conf_addr_out                  (pcit_if_conf_addr_out),
     .conf_data_out                  (pcit_if_conf_data_out),
     .conf_data_in                   (pcit_if_conf_data_in),
@@ -910,7 +908,6 @@ pci_target32_sm pci_target_sm
     .load_medium_reg_out                (pcit_sm_load_medium_reg_out),
     .sel_fifo_mreg_out                  (pcit_sm_sel_fifo_mreg_out),
     .sel_conf_fifo_out                  (pcit_sm_sel_conf_fifo_out),
-    .fetch_conf_out                     (pcit_sm_fetch_conf_out),
     .load_to_pciw_fifo_out              (pcit_sm_load_to_pciw_fifo_out),
     .load_to_conf_out                   (pcit_sm_load_to_conf_out),
     .same_read_in                       (pcit_sm_same_read_in),

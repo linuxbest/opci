@@ -43,6 +43,12 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.16  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.15  2003/12/10 12:02:54  mihad
 // The wbs B3 to B2 translation logic had wrong reset wire connected!
 //
@@ -442,7 +448,6 @@ wire    [3:0]   pciu_err_be_out ;
 wire            pciu_err_signal_out ;
 wire            pciu_err_source_out ;
 wire            pciu_err_rty_exp_out ;
-wire            pciu_conf_select_out ;
 wire    [11:0]  pciu_conf_offset_out ;
 wire            pciu_conf_renable_out ;
 wire            pciu_conf_wenable_out ;
@@ -542,6 +547,7 @@ wire    [2:0]   conf_wb_img_ctrl5_out ;
 wire    [23:0]  conf_ccyc_addr_out ;
 wire            conf_soft_res_out ;
 wire            conf_int_out ;
+wire            conf_init_complete_out ;
 
 // PCI IO MUX OUTPUTS
 wire        pci_mux_frame_out ;
@@ -657,8 +663,7 @@ wire    pci_resi_conf_soft_res_in       = conf_soft_res_out ;
 wire    pci_inti_pci_intan_in           = pci_inta_i ;
 wire    pci_inti_conf_int_in            = conf_int_out ;
 wire    pci_inti_int_i                  = wb_int_i ;
-wire    pci_inti_out_bckp_perr_en_in    = out_bckp_perr_en_out ;
-wire    pci_inti_out_bckp_serr_en_in    = out_bckp_serr_en_out ;
+wire    pci_into_init_complete_in       = conf_init_complete_out ;
 
 pci_rst_int pci_resets_and_interrupts
 (
@@ -673,12 +678,11 @@ pci_rst_int pci_resets_and_interrupts
     .pci_intan_in           (pci_inti_pci_intan_in),
     .conf_int_in            (pci_inti_conf_int_in),
     .int_i                  (pci_inti_int_i),
-    .out_bckp_perr_en_in    (pci_inti_out_bckp_perr_en_in),
-    .out_bckp_serr_en_in    (pci_inti_out_bckp_serr_en_in),
     .pci_intan_out          (pci_into_pci_intan_out),
     .pci_intan_en_out       (pci_into_pci_intan_en_out),
     .int_o                  (pci_into_int_o),
-    .conf_isr_int_prop_out  (pci_into_conf_isr_int_prop_out)
+    .conf_isr_int_prop_out  (pci_into_conf_isr_int_prop_out),
+    .init_complete_in       (pci_into_init_complete_in)
 );
 
 
@@ -1124,7 +1128,6 @@ pci_target_unit pci_target_unit
     .pciu_conf_wenable_out          (pciu_conf_wenable_out),
     .pciu_conf_be_out               (pciu_conf_be_out),
     .pciu_conf_data_out             (pciu_conf_data_out),
-    .pciu_conf_select_out           (pciu_conf_select_out),
     .pciu_pci_drcomp_pending_out    (pciu_pci_drcomp_pending_out),
     .pciu_pciw_fifo_empty_out       (pciu_pciw_fifo_empty_out)
 
@@ -1301,7 +1304,9 @@ pci_conf_space configuration(
                                 .int_out                    (conf_int_out),
                                 .isr_int_prop               (conf_isr_int_prop_in),
                                 .isr_par_err_int            (conf_par_err_int_in),
-                                .isr_sys_err_int            (conf_sys_err_int_in)
+                                .isr_sys_err_int            (conf_sys_err_int_in),
+
+                                .init_complete              (conf_init_complete_out)
 
                             `ifdef PCI_CPCI_HS_IMPLEMENT
                                 ,
@@ -1350,6 +1355,8 @@ wire            pci_mux_pci_irdy_in         =   pci_irdy_i ;
 wire            pci_mux_pci_trdy_in         =   pci_trdy_i ;
 wire            pci_mux_pci_frame_in        =   pci_frame_i ;
 wire            pci_mux_pci_stop_in         =   pci_stop_i ;
+
+wire            pci_mux_init_complete_in    =   conf_init_complete_out ;
 
 pci_io_mux pci_io_mux
 (
@@ -1416,7 +1423,9 @@ pci_io_mux pci_io_mux
     .pci_trdy_in                (pci_mux_pci_trdy_in),
     .pci_frame_in               (pci_mux_pci_frame_in),
     .pci_stop_in                (pci_mux_pci_stop_in),
-    .ad_en_unregistered_out     (pci_mux_ad_en_unregistered_out)
+    .ad_en_unregistered_out     (pci_mux_ad_en_unregistered_out),
+
+    .init_complete_in           (pci_mux_init_complete_in)
 );
 
 pci_cur_out_reg output_backup
@@ -1549,8 +1558,9 @@ wire    [3:0]   in_reg_cbe_in    = pci_cbe_i ;
 
 pci_in_reg input_register
 (
-    .reset_in       (reset),
-    .clk_in         (pci_clk),
+    .reset_in           (reset),
+    .clk_in             (pci_clk),
+    .init_complete_in   (conf_init_complete_out),
 
     .pci_gnt_in     (in_reg_gnt_in),
     .pci_frame_in   (in_reg_frame_in),

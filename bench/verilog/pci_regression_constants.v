@@ -39,6 +39,12 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.5  2003/12/19 11:11:28  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.4  2003/07/29 08:19:46  mihad
 // Found and simulated the problem in the synchronization logic.
 // Repaired the synchronization logic in the FIFOs.
@@ -347,6 +353,11 @@
     `define TAR0_IDSEL_ADDR     (32'h0000_0001 << `TAR0_IDSEL_INDEX)
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
+
+`ifdef GUEST
+    // if guest implementation - test compact pci hot swap
+    `define PCI_CPCI_HS_IMPLEMENT
+`endif
 /*=======================================================================================
   Following defines are used in a script file for regression testing !!!
 =========================================================================================

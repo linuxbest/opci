@@ -14,10 +14,10 @@
     // they are used to generate both clocks with same period and phase shift of define's value in nano seconds
 
     //`define PCI_CLOCK_FOLLOWS_WB_CLOCK 2
-    `define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
+    //`define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
     
     // wishbone period in ns
-    `define WB_PERIOD 30.0
+    `define WB_PERIOD 10.0
     
     // values of image registers of PCI bridge device - valid are only upper 20 bits, others must be ZERO !
     `define TAR0_BASE_ADDR_0	32'h1000_0000

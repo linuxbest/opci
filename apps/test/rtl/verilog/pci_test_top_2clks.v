@@ -1,3 +1,5 @@
+`include "pci_user_constants.v"
+
 module pci_test_top
 (
     pci_clk_pad_i,
@@ -116,6 +118,9 @@ wire wbm_test_wbs_pci_cyc,
      wbm_test_wbs_pci_we,
      wbs_pci_wbm_test_ack ;
 
+wire    [ 2: 0] wbm_test_wbs_pci_cti    ;
+wire    [ 1: 0] wbm_test_wbs_pci_bte    ;
+
 wire [31:0] wbm_test_wbs_pci_adr,
             wbm_test_wbs_pci_dat,
             wbs_pci_wbm_test_dat ;
@@ -125,9 +130,11 @@ wire [3:0]  wbm_test_wbs_pci_sel ;
 // wires for test slave to pci master connections
 wire wbm_pci_wbs_test_cyc,
      wbm_pci_wbs_test_stb,
-     wbm_pci_wbs_test_cab,
      wbm_pci_wbs_test_we,
      wbs_test_wbm_pci_ack ;
+
+wire    [ 2: 0] wbm_pci_wbs_test_cti    ;
+wire    [ 1: 0] wbm_pci_wbs_test_bte    ;
 
 wire [31:0] wbm_pci_wbs_test_adr,
             wbm_pci_wbs_test_dat,
@@ -242,7 +249,13 @@ test i_test
 
     .wbm_cyc_o (wbm_test_wbs_pci_cyc),
     .wbm_stb_o (wbm_test_wbs_pci_stb),
+
+`ifdef PCI_WB_REV_B3
+    .wbm_cti_o (wbm_test_wbs_pci_cti),
+    .wbm_bte_o (wbm_test_wbs_pci_bte),
+`else
     .wbm_cab_o (wbm_test_wbs_pci_cab),
+`endif
     .wbm_we_o  (wbm_test_wbs_pci_we),
     .wbm_adr_o (wbm_test_wbs_pci_adr),
     .wbm_sel_o (wbm_test_wbs_pci_sel),
@@ -254,7 +267,8 @@ test i_test
 
     .wbs_cyc_i (test_wbs_cyc),
     .wbs_stb_i (wbm_pci_wbs_test_stb),
-    .wbs_cab_i (wbm_pci_wbs_test_cab),
+    .wbs_cti_i (wbm_pci_wbs_test_cti),
+    .wbs_bte_i (wbm_pci_wbs_test_bte),
     .wbs_we_i  (wbm_pci_wbs_test_we),
     .wbs_adr_i (wbm_pci_wbs_test_adr),
     .wbs_sel_i (wbm_pci_wbs_test_sel),
@@ -427,7 +441,13 @@ pci_bridge32 i_pci_bridge32
     .wbs_cyc_i(pci_wbs_cyc),
     .wbs_stb_i(wbm_test_wbs_pci_stb),
     .wbs_we_i (wbm_test_wbs_pci_we),
+
+`ifdef PCI_WB_REV_B3
+    .wbs_cti_i (wbm_test_wbs_pci_cti),
+    .wbs_bte_i (wbm_test_wbs_pci_bte),
+`else
     .wbs_cab_i(wbm_test_wbs_pci_cab),
+`endif
     .wbs_ack_o(wbs_pci_wbm_test_ack),
     .wbs_rty_o(),
     .wbs_err_o(),
@@ -440,7 +460,8 @@ pci_bridge32 i_pci_bridge32
     .wbm_cyc_o(wbm_pci_wbs_test_cyc),
     .wbm_stb_o(wbm_pci_wbs_test_stb),
     .wbm_we_o (wbm_pci_wbs_test_we),
-    .wbm_cab_o(wbm_pci_wbs_test_cab),
+    .wbm_cti_o(wbm_pci_wbs_test_cti),
+    .wbm_bte_o(wbm_pci_wbs_test_bte),
     .wbm_ack_i(wbs_test_wbm_pci_ack),
     .wbm_rty_i(1'b0),
     .wbm_err_i(1'b0),
@@ -506,10 +527,10 @@ pci_bridge32 i_pci_bridge32
     .pci_serr_o     (pci_serr_o),
     .pci_serr_oe_o  (pci_serr_oe),
 
-    // debug
-    .trdy_reg_o    (pci_trdy_reg),
-    .irdy_o        (pci_irdy_out),
-    .irdy_en_o     (pci_irdy_en),
-    .pci_ad_bckp_o (pci_ad_bckp)
+    .trdy_reg_o     (pci_trdy_reg),
+    .irdy_o         (pci_irdy_out),
+    .irdy_en_o      (pci_irdy_en),
+    .pci_ad_bckp_o  (pci_ad_bckp)
 );
+
 endmodule // pci_test_top

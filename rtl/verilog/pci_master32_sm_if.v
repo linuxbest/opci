@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
+// Revision 1.6  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.5  2003/06/12 10:12:22  mihad
 // Changed one critical PCI bus signal logic.
 //
@@ -396,11 +402,45 @@ begin
         current_byte_address <= #`FF_DELAY new_address[1:0] ;
 end
 
-// address output to PCI master state machine assignement
-assign address_out  = { current_dword_address, current_byte_address } ;
+// byte address generation logic
+reg [ 1: 0] generated_byte_adr ;
+reg [ 1: 0] pci_byte_adr       ;
+
+always@(be_out)
+begin
+    casex(be_out)
+    4'bxxx0:generated_byte_adr = 2'b00 ;
+    4'bxx01:generated_byte_adr = 2'b01 ;
+    4'bx011:generated_byte_adr = 2'b10 ;
+    4'b0111:generated_byte_adr = 2'b11 ;
+    4'b1111:generated_byte_adr = 2'b00 ;
+    endcase
+end
+
+always@(generated_byte_adr or bc_out or current_byte_address)
+begin
+    // for memory access commands, set lower 2 address bits to 0
+    if ((bc_out == `BC_MEM_READ) | (bc_out == `BC_MEM_WRITE) | 
+        (bc_out == `BC_MEM_READ_MUL) | (bc_out == `BC_MEM_READ_LN) | 
+        (bc_out == `BC_MEM_WRITE_INVAL))
+    begin
+        pci_byte_adr = 2'b00 ;
+    end
+    else if ((bc_out == `BC_IO_WRITE) | (bc_out == `BC_IO_READ))
+    begin
+        pci_byte_adr = generated_byte_adr ;
+    end
+    else
+    begin
+        pci_byte_adr = current_byte_address ;
+    end
+end
+
+// address output to PCI master state machine assignment
+assign address_out  = { current_dword_address, pci_byte_adr } ;
 
 // the same for erroneous address assignement
-assign err_addr_out = { current_dword_address, current_byte_address } ;
+assign err_addr_out = { current_dword_address, pci_byte_adr } ;
 
 // cacheline size counter - for read transaction length control
 // cache line count is enabled during burst reads when data is actually transfered

@@ -39,6 +39,12 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.21  2003/12/19 11:11:28  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.20  2003/10/17 09:11:51  markom
 // mbist signals updated according to newest convention
 //
@@ -204,6 +210,20 @@ reg  mbist_en_i ;
 reg  mbist_clk ;
 `endif
 
+`ifdef PCI_CPCI_HS_IMPLEMENT
+wire ENUM   ;
+wire LED    ;
+reg  ES     ;
+reg  LOCAL_PCI_RST ;
+reg  LOCAL_PCI_GNT ;
+initial
+begin
+    ES = 1'b0 ;
+    LOCAL_PCI_RST = 1'b1 ;
+    LOCAL_PCI_GNT = 1'b1 ;
+end
+`endif
+
 wire RST ;
 `ifdef GUEST
     assign  RST = ~reset ;
@@ -223,10 +243,15 @@ TOP `PCI_BRIDGE_INSTANCE
     .CLK    ( pci_clock),
     .AD     ( AD ),
     .CBE    ( CBE ),
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    .RST    ( RST & LOCAL_PCI_RST ),
+    .GNT    ( (MAS0_GNT & LOCAL_PCI_GNT) | tc_gnt_allow),
+`else
     .RST    ( RST ),
+    .GNT    ( MAS0_GNT | tc_gnt_allow),
+`endif
     .INTA   ( INTA ),
     .REQ    ( MAS0_REQ ),
-    .GNT    ( MAS0_GNT | tc_gnt_allow),
     .FRAME  ( FRAME ),
     .IRDY   ( IRDY ),
     .IDSEL  ( TAR0_IDSEL),
@@ -238,7 +263,11 @@ TOP `PCI_BRIDGE_INSTANCE
     .SERR   ( SERR ),
 
     .CLK_I  ( wb_clock ),
+`ifdef HOST
     .RST_I  ( reset ),
+`else
+    .RST_I  ( 1'bx  ),
+`endif
     .RST_O  ( RST_O ),
     .INT_I  ( INT_I ),
     .INT_O  ( INT_O ),
@@ -279,6 +308,14 @@ TOP `PCI_BRIDGE_INSTANCE
     .mbist_so_o   (mbist_so_o),
     .mbist_ctrl_i   ({mbist_en_i, mbist_clk, mbist_rst})
 `endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    ,
+    .ENUM   (ENUM)  ,
+    .LED    (LED)   ,
+    .ES     (ES)
+`endif
+
 ) ;
 
 WB_MASTER_BEHAVIORAL wishbone_master
@@ -915,7 +952,13 @@ begin
     run_bist_test ;
     mbist_rst <= #1 1'b1 ;
 `endif
+
     test_initial_conf_values ;
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    test_insertion_during_active_bus ;
+    test_insert_extract_interface    ;
+`endif
 
     next_test_name[79:0] <= "Initing...";
     test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
@@ -1128,6 +1171,7 @@ end
 endtask // run_tests
 
 task do_reset; //wb_b3_ok
+fork
 begin
     next_test_name[79:0] <= "Reset.....";
 
@@ -1151,6 +1195,129 @@ begin
     `endif
     `endif
 
+end
+begin:monitor_pci_oes_for_reset_duration
+    reg error ;
+
+    wait(RST === 1'b0) ;
+    
+    @(posedge pci_clock) ;
+
+    fork
+    begin:monitor_pci_oes
+
+        while (RST === 1'b0)
+        begin
+            @(
+                `PCI_BRIDGE_INSTANCE.INTA_en    or 
+                `PCI_BRIDGE_INSTANCE.REQ_en     or 
+                `PCI_BRIDGE_INSTANCE.FRAME_en   or
+                `PCI_BRIDGE_INSTANCE.IRDY_en    or
+                `PCI_BRIDGE_INSTANCE.DEVSEL_en  or
+                `PCI_BRIDGE_INSTANCE.TRDY_en    or
+                `PCI_BRIDGE_INSTANCE.STOP_en    or
+                `PCI_BRIDGE_INSTANCE.AD_en      or
+                `PCI_BRIDGE_INSTANCE.CBE_en     or
+                `PCI_BRIDGE_INSTANCE.PAR_en     or
+                `PCI_BRIDGE_INSTANCE.PERR_en    or
+                `PCI_BRIDGE_INSTANCE.SERR_en
+            `ifdef PCI_CPCI_HS_IMPLEMENT
+                        or
+                LED     or
+                ENUM
+            `endif
+             ) ;
+
+            check_pci_oes_during_reset(error) ;
+
+            if (error)
+            begin
+                $display("At Time %t", $time) ;
+                $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+            end
+        end
+    end
+    begin:wait_reset_end
+        if (RST === 1'b0)
+            @(posedge RST) ;
+
+        disable monitor_pci_oes ;
+    end
+    join
+
+    check_pci_oes_during_reset(error) ;
+
+    if (error)
+    begin
+        $display("At Time %t", $time) ;
+        $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+        test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+    end
+end
+join
+endtask
+
+task check_pci_oes_during_reset ;
+    output error ;
+
+    reg oe_inactive_val ;
+begin
+
+`ifdef ACTIVE_LOW_OE
+    oe_inactive_val = 1'b1 ;
+`endif
+
+`ifdef ACTIVE_HIGH_OE
+    oe_inactive_val = 1'b0 ;
+`endif
+
+           
+    error = 1'b0 ;
+
+    if (`PCI_BRIDGE_INSTANCE.INTA_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.REQ_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.FRAME_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.IRDY_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.DEVSEL_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.TRDY_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.STOP_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.AD_en !== {32{oe_inactive_val}})
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.CBE_en !== {4{oe_inactive_val}})
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.PAR_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.PERR_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+    if (`PCI_BRIDGE_INSTANCE.SERR_en !== oe_inactive_val)
+        error = 1'b1 ;
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    if (LED !== 1'b0)
+        error = 1'b1 ;
+
+    if (ENUM !== 1'bz)
+        error = 1'b1 ;
+`endif
 end
 endtask
 
@@ -1220,6 +1387,7 @@ task test_wb_image ; //wb_b3_ok
     reg [31:0] translation_address ;
     integer    i ;
     integer    j ;
+    reg byte_ofs ;
 begin:main
     pci_ctrl_offset = 12'h4 ;
     err_cs_offset   = {4'h1, `W_ERR_CS_ADDR, 2'b00} ;
@@ -1329,7 +1497,7 @@ begin:main
 
     fork
     begin
-        write_data`WRITE_ADDRESS = target_address ;
+        write_data`WRITE_ADDRESS = target_address + ({$random} % 4) ;
         write_data`WRITE_DATA    = wmem_data[0] ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -1346,7 +1514,7 @@ begin:main
         end
 
         // read written data back
-        read_data`READ_ADDRESS  = target_address ;
+        read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
         write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
         wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
@@ -1382,6 +1550,64 @@ begin:main
         end
     end
     join
+
+    test_name = "MULTIPLE NON-CONSECUTIVE SINGLE MEMORY WRITES THROUGH WISHBONE SLAVE UNIT" ;
+    begin:non_consecutive_single_writes_test_blk
+        integer cur_num_of_writes ;
+
+        write_data`WRITE_SEL             = 4'hF           ;
+        write_flags`WB_TRANSFER_AUTO_RTY = 1'b1           ;
+        write_flags`WB_TRANSFER_CAB      = 1'b0           ;
+
+        for (cur_num_of_writes = 1 ; cur_num_of_writes <= (2 * `WBW_DEPTH) ; cur_num_of_writes = cur_num_of_writes * 3)
+        begin
+            fork
+            begin:wb_write_gen_blk
+                integer cur_write ;
+                reg     [31:0] cur_wb_adr ;
+        
+                write_flags`WB_FAST_B2B = 1'b0 ;
+
+                for (cur_write = 0 ; cur_write < cur_num_of_writes ; cur_write = cur_write + 1'b1)
+                begin
+                    cur_wb_adr               = (cur_write % 2) ? (target_address + 8 * `WBW_DEPTH - 4 * cur_write) : (target_address + 4 * cur_write) ;
+                    write_data`WRITE_ADDRESS = cur_wb_adr + ({$random} % 4) ;
+                    write_data`WRITE_DATA    = wmem_data[cur_wb_adr % 1024] ;
+                    wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
+                    if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+                    begin
+                        $display("Image testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
+                        test_fail("WB Slave state machine failed to post single memory write");
+                        ok = 0 ;
+                        disable non_consecutive_single_writes_test_blk ;
+                    end
+
+                    write_flags`WB_FAST_B2B = 1'b1 ;
+
+                end
+            end
+            begin:pci_write_chk_blk
+                integer cur_write ;
+                reg [31:0] cur_pci_adr ;
+                for (cur_write = 0 ; cur_write < cur_num_of_writes ; cur_write = cur_write + 1'b1)
+                begin
+                    cur_pci_adr = (cur_write % 2) ? (target_address + 8 * `WBW_DEPTH - 4 * cur_write) : (target_address + 4 * cur_write) ;
+                    pci_transaction_progress_monitor( cur_pci_adr, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok ) ;
+                    if ( ok !== 1 )
+                    begin
+                        test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+                        disable non_consecutive_single_writes_test_blk ;
+                    end
+                end
+            end
+            join
+        end
+    end
+
+    if (ok === 1)
+        test_ok ;
+
+    write_flags`WB_FAST_B2B = 1'b0 ;
 
     // if address translation is implemented - try it out
     translation_address = image_base ;
@@ -1428,7 +1654,7 @@ begin:main
 
     fork
     begin
-        write_data`WRITE_ADDRESS  = target_address + 4 ;
+        write_data`WRITE_ADDRESS  = target_address + 4 + ({$random} % 4) ;
         write_data`WRITE_DATA     = wmem_data[1] ;
         write_data`WRITE_SEL      = 4'hF ;
 
@@ -1449,7 +1675,7 @@ begin:main
         end
 
         // read written data back
-        read_data`READ_ADDRESS  = target_address + 4 ;
+        read_data`READ_ADDRESS  = target_address + 4  + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
 
         write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
@@ -1490,11 +1716,11 @@ begin:main
 
     // now do one burst write - length of 6 - minimum depth of fifo is 8, one loc. is always free and one is taken up by address entry
     // prepare write data
-
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 6 ; i = i + 1 )
     begin
         write_data`WRITE_DATA    = wmem_data[2 + i] ;
-        write_data`WRITE_ADDRESS = target_address + 8 + 4*i ;
+        write_data`WRITE_ADDRESS = target_address + 8 + 4*i + byte_ofs ;
         write_data`WRITE_SEL     = 4'hF ;
         wishbone_master.blk_write_data[i] = write_data ;
     end
@@ -1532,10 +1758,12 @@ begin:main
     write_flags`WB_TRANSFER_CAB    = 1 ;
     write_flags`WB_TRANSFER_SIZE   = 4 ;
 
+    byte_ofs = ({$random} % 4) ;
+
     // prepare read data
     for ( i = 0 ; i < 4 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 8 + 4*i ;
+        read_data`READ_ADDRESS = target_address + 8 + 4*i + byte_ofs ;
         read_data`READ_SEL     = 4'hF ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -1631,7 +1859,7 @@ begin:main
     end
     join
 
-    read_data`READ_ADDRESS  = target_address ;
+    read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     test_name = "SINGLE MEMORY READ THROUGH WB IMAGE WITH READ BURSTING ENABLED" ;
@@ -1700,7 +1928,7 @@ begin:main
     end
     join
 
-    read_data`READ_ADDRESS  = target_address + 4 ;
+    read_data`READ_ADDRESS  = target_address + 4  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     test_name = "SINGLE MEMORY READ THROUGH WB IMAGE WITH READ BURSTING ENABLED" ;
@@ -1769,7 +1997,7 @@ begin:main
     end
     join
 
-    read_data`READ_ADDRESS  = target_address + 8 ;
+    read_data`READ_ADDRESS  = target_address + 8  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     test_name = "SINGLE MEMORY READ THROUGH WB IMAGE WITH READ BURSTING ENABLED" ;
@@ -1808,14 +2036,14 @@ begin:main
         disable main ;
     end
 
-    write_data`WRITE_ADDRESS = target_address ;
+    write_data`WRITE_ADDRESS = target_address + 1 ;
     write_data`WRITE_DATA    = wmem_data[11] ;
     write_data`WRITE_SEL     = 4'hF ;
 
     // don't handle retries from now on
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
-    test_name   = "I/O WRITE TRANSACTION FROM WB TO PCI TEST" ;
+    test_name   = "I/O WRITE TRANSACTION FROM WB TO PCI" ;
     fork
     begin
         wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
@@ -1836,7 +2064,7 @@ begin:main
     end
     join
 
-    read_data`READ_ADDRESS  = target_address ;
+    read_data`READ_ADDRESS  = target_address  + 2 ;
     read_data`READ_SEL      = 4'hF ;
 
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
@@ -1863,7 +2091,7 @@ begin:main
     join
 
     // test byte addressing
-    read_data`READ_ADDRESS  = target_address + 2 ;
+    read_data`READ_ADDRESS  = target_address ;
     read_data`READ_SEL      = 4'b1100 ;
 
     fork
@@ -1908,7 +2136,7 @@ begin:main
         disable main ;
     end
 
-    write_data`WRITE_ADDRESS  = {target_address[31], 31'h7FFF_FFFF} ;
+    write_data`WRITE_ADDRESS  = {target_address[31], 31'h7FFF_FFFC} ;
     write_data`WRITE_DATA     = wmem_data[11] ;
     write_data`WRITE_SEL      = 4'b1000 ;
 
@@ -1927,7 +2155,7 @@ begin:main
     end
     begin
         // currently IO commands not supported in behavioral models - master abort
-        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_IO_WRITE, 0, 0, 1'b0, 1'b0, 0, ok ) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS + 3, `BC_IO_WRITE, 0, 0, 1'b0, 1'b0, 0, ok ) ;
         if ( ok !== 1 )
             test_fail( "single I/O write didn't engage expected transaction on PCI bus" ) ;
         else
@@ -1935,8 +2163,8 @@ begin:main
     end
     join
 
-    read_data`READ_ADDRESS  = write_data`WRITE_ADDRESS ;
-    read_data`READ_SEL      = write_data`WRITE_SEL ;
+    read_data`READ_ADDRESS  = write_data`WRITE_ADDRESS + 3 ;
+    read_data`READ_SEL      = 4'b0001 ;
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
 
     fork
@@ -1952,7 +2180,7 @@ begin:main
         else test_ok ;
     end
     begin
-        pci_transaction_progress_monitor( read_data`READ_ADDRESS, `BC_IO_READ, 0, 0, 1'b0, 1'b0, 0, ok ) ;
+        pci_transaction_progress_monitor( read_data`READ_ADDRESS - 3, `BC_IO_READ, 0, 0, 1'b0, 1'b0, 0, ok ) ;
         if ( ok !== 1 )
             test_fail( "single I/O read didn't engage expected transaction on PCI bus" ) ;
     end
@@ -2073,6 +2301,7 @@ begin:main
 
     skip = 0 ;
 
+/* Commented out, because non alligned access is now allowed
     // memory mapped image - access is erroneous when address is not alligned
     write_data`WRITE_ADDRESS = target_address + 1 ;
     write_data`WRITE_DATA    = wmem_data[0] ;
@@ -2164,7 +2393,6 @@ begin:main
     end
 
     // prepare read data
-
     for ( i = 0 ; i < 6 ; i = i + 1 )
     begin
         read_data`READ_ADDRESS = target_address + 4*i + 3 ;
@@ -2186,6 +2414,7 @@ begin:main
     test_ok ;
 
     $display("************************* DONE testing WISHBONE Slave's response to erroneous memory accesses **************************") ;
+*/
     $display("***************************** Testing WISHBONE Slave's response to erroneous IO accesses ******************************") ;
 
     // map image to IO space
@@ -2205,6 +2434,7 @@ begin:main
 
     skip = 0 ;
 
+/*
     write_data`WRITE_ADDRESS  = target_address ;
     write_data`WRITE_DATA     = wmem_data[0] ;
     write_data`WRITE_SEL      = 4'b1010 ;
@@ -2324,6 +2554,7 @@ begin:main
     end
 
     test_ok ;
+*/
 
     test_name = "CAB I/O WRITE TO WB SLAVE" ;
 
@@ -2404,81 +2635,6 @@ begin:main
 
     `endif
     
-    `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS
-    `else
-
-        if (do_write_test)
-        begin
-            
-            write_data`WRITE_ADDRESS  = target_address + 1 ;
-            write_data`WRITE_DATA     = wmem_data[0] ;
-            write_data`WRITE_SEL      = 4'hF ;
-    
-            // don't handle retries
-            write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
-
-            test_name = "ERRONEOUS WB CONFIGURATION WRITE ACCESS" ;
-            wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
-            if ( (write_status`CYC_ACTUAL_TRANSFER !== 0) || (write_status`CYC_ERR !== 1) )
-            begin
-                $display("WISHBONE slave error termination testing failed! WB Slave didn't signal error on access to non-alligned configuration address! Time %t ", $time) ;
-                $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
-                test_fail("WB Slave state machine didn't reject erroneous Configuration write as expected") ;
-                disable no_transaction ;
-                disable main ;
-            end
-        
-            // try write to configuration cycle address register with non alligned address
-            write_data`WRITE_ADDRESS  = target_address + {4'h1, `CNF_ADDR_ADDR, 2'b10} ;
-
-            wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
-            if ( (write_status`CYC_ACTUAL_TRANSFER !== 0) || (write_status`CYC_ERR !== 1) )
-            begin
-                $display("WISHBONE slave error termination testing failed! WB Slave didn't signal error on access to non-alligned configuration address! Time %t ", $time) ;
-                $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
-                test_fail("WB Slave state machine didn't reject erroneous Configuration write as expected") ;
-                disable no_transaction ;
-                disable main ;
-            end
-        
-            write_data`WRITE_ADDRESS = target_address + {4'h1, `CNF_DATA_ADDR, 2'b11} ;
-
-            // try write to configuration cycle data register with non alligned address
-            wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
-            if ( (write_status`CYC_ACTUAL_TRANSFER !== 0) || (write_status`CYC_ERR !== 1) )
-            begin
-                $display("WISHBONE slave error termination testing failed! WB Slave didn't signal error on access to non-alligned configuration address! Time %t ", $time) ;
-                $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
-                test_fail("WB Slave state machine didn't reject erroneous Configuration write as expected") ;
-                disable no_transaction ;
-                disable main ;
-            end
-        
-            test_ok ;
-        end
-
-        if (do_read_test)
-        begin
-            test_name = "ERRONEOUS WB CONFIGURATION READ ACCESS" ;
-            // try read from configuration cycle data register with non alligned address
-            read_data`READ_ADDRESS  = target_address + {4'h1, `CNF_DATA_ADDR, 2'b01} ;
-            read_data`READ_SEL      = 4'hF ;
-        
-            wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
-            if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
-            begin
-                $display("WISHBONE slave error termination testing failed! WB Slave didn't signal error on access to non-alligned configuration address! Time %t ", $time) ;
-                $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
-                test_fail("WB Slave state machine didn't reject erroneous Configuration read as expected") ;
-                disable no_transaction ;
-                disable main ;
-            end
-        
-            test_ok ;
-        end
-
-    `endif
-
         if (do_write_test)
         begin
             // prepare write data
@@ -2597,6 +2753,7 @@ task wb_to_pci_error_handling ;
     integer    num_of_trans ;
     integer    current ;
     integer    i ;
+    reg [ 1: 0] byte_ofs ;
 begin:main
 
     $display("************************** Testing handling of PCI bus errors *******************************************") ;
@@ -2681,7 +2838,7 @@ begin:main
     // perform two writes - one to error address and one to OK address
     // prepare write buffer
 
-    write_data`WRITE_ADDRESS  = target_address ;
+    write_data`WRITE_ADDRESS  = target_address  + ({$random} % 4) ;
     write_data`WRITE_DATA     = wmem_data[100] ;
     write_data`WRITE_SEL      = 4'hF ;
 
@@ -2734,16 +2891,25 @@ begin:main
 
     // read data from second write
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
-    read_data`READ_ADDRESS = target_address ;
+    read_data`READ_ADDRESS = target_address  + ({$random} % 4) ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
 
+    if ((read_status`CYC_ACTUAL_TRANSFER !== 0) | (read_status`CYC_ERR !== 1'b1))
+    begin
+        $display("PCI bus error handling testing failed! WB slave didn't respond with error on Master Aborted single read! Time %t ", $time) ;
+        $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", read_status`CYC_ACK, read_status`CYC_RTY, read_status`CYC_ERR) ;
+        test_fail("WB Slave Unit didn't process the Master Abort error during single read properly");
+        disable main ;
+    end
+
+/*
     if ( read_status`READ_DATA !== wmem_data[101] )
     begin
         display_warning( target_address, wmem_data[101], read_status`READ_DATA ) ;
     end
-
+*/
     // read error status register - no errors should be reported since reporting was disabled
     test_name = "CHECKING ERROR REPORTING FUNCTIONS AFTER MASTER ABORT ERROR" ;
 
@@ -2821,9 +2987,10 @@ begin:main
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     // prepare data for erroneous write
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + 4*i ;
+        write_data`WRITE_ADDRESS = target_address + 4*i + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[110 + i] ;
         write_data`WRITE_SEL     = 4'hF ;
         wishbone_master.blk_write_data[i] = write_data ;
@@ -3031,9 +3198,10 @@ begin:main
                               32'h0000_0007             // data
                              ) ;
     // prepare data for ok write
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + 4*i ;
+        write_data`WRITE_ADDRESS = target_address + 4*i + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[113 + i] ;
         write_data`WRITE_SEL     = 4'hF ;
         wishbone_master.blk_write_data[i] = write_data ;
@@ -3050,9 +3218,10 @@ begin:main
     end
 
     // do a read
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 4*i ;
+        read_data`READ_ADDRESS = target_address + 4*i  + byte_ofs ;
         read_data`READ_SEL     = 4'hF ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -3092,7 +3261,7 @@ begin:main
                               32'h0000_0000             // data
                              ) ;
     // set read data
-    read_data`READ_ADDRESS  = target_address ;
+    read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     // enable automatic retry handling
@@ -3150,7 +3319,7 @@ begin:main
                              ) ;
 
     test_name = "CHECK NORMAL READ AFTER MASTER ABORT TERMINATED READ" ;
-    read_data`READ_ADDRESS  = target_address ;
+    read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     wishbone_master.wb_single_read(read_data, write_flags, read_status) ;
@@ -3209,9 +3378,10 @@ begin:main
                              ) ;
 
 
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 4*i ;
+        read_data`READ_ADDRESS = target_address + 4*i + byte_ofs ;
         read_data`READ_SEL     = 4'hF ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -3304,13 +3474,15 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Abort ;
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-    write_data`WRITE_ADDRESS = target_address ;
+    byte_ofs = ({$random} % 4) ;
+
+    write_data`WRITE_ADDRESS = target_address + byte_ofs ;
     write_data`WRITE_DATA    = wmem_data[0] ;
     write_data`WRITE_SEL     = 4'hF ;
 
     wishbone_master.blk_write_data[0] = write_data ;
 
-    write_data`WRITE_ADDRESS = target_address + 4;
+    write_data`WRITE_ADDRESS = target_address + 4 + byte_ofs ;
     write_data`WRITE_DATA    = wmem_data[1] ;
     write_data`WRITE_SEL     = 4'hF ;
 
@@ -3337,7 +3509,7 @@ begin:main
         end
 
         // read data back to see, if it was written OK
-        read_data`READ_ADDRESS         = target_address + 4;
+        read_data`READ_ADDRESS         = target_address + 4  + ({$random} % 4) ;
         read_data`READ_SEL             = 4'hF ;
         write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
         wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
@@ -3451,9 +3623,10 @@ begin:main
         disable main ;
     end
 
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + 8 + 4*i ;
+        write_data`WRITE_ADDRESS = target_address + 8 + 4*i + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[120 + i] ;
         write_data`WRITE_SEL     = 4'b1010 ;
         wishbone_master.blk_write_data[i] = write_data ;
@@ -3781,7 +3954,7 @@ begin:main
 
     $display("Introducing Target Abort error to single read!") ;
     // set read data
-    read_data`READ_ADDRESS = target_address + 8 ;
+    read_data`READ_ADDRESS = target_address + 8  + ({$random} % 4) ;
     read_data`READ_SEL     = 4'hF ;
 
     // enable automatic retry handling
@@ -3856,9 +4029,11 @@ begin:main
     $display("Introducing Target Abort error to CAB read!") ;
     test_name = "TARGET ABORT ERROR DURING SECOND DATAPHASE OF BURST READ" ;
 
+    byte_ofs = ({$random} % 4) ;
+
     for ( i = 0 ; i < 4 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 8 + 4*i ;
+        read_data`READ_ADDRESS = target_address + 8 + 4*i  + byte_ofs ;
         read_data`READ_SEL     = 4'b1010 ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -3922,9 +4097,10 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 0 ;
 
     test_name = "CHECK NORMAL BURST READ AFTER TARGET ABORT TERMINATED BURST READ" ;
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 4*i ;
+        read_data`READ_ADDRESS = target_address + 4*i + byte_ofs ;
         read_data`READ_SEL     = 4'b1111 ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -3945,9 +4121,10 @@ begin:main
 
     test_name = "TARGET ABORT ERROR DURING LAST DATAPHASE OF BURST READ" ;
 
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 8 + 4*i ;
+        read_data`READ_ADDRESS = target_address + 8 + 4*i + byte_ofs ;
         read_data`READ_SEL     = 4'b1111 ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -4017,9 +4194,11 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 0 ;
 
     test_name = "CHECK NORMAL BURST READ AFTER TARGET ABORT TERMINATED BURST READ" ;
+    byte_ofs = ({$random} % 4) ;
+
     for ( i = 0 ; i < 3 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + 4*i ;
+        read_data`READ_ADDRESS = target_address + 4*i  + byte_ofs ;
         read_data`READ_SEL     = 4'b1111 ;
         wishbone_master.blk_read_data_in[i] = read_data ;
     end
@@ -4042,7 +4221,7 @@ begin:main
     // change base address
     config_write( ba_offset, image_base + 1, 4'hF, ok ) ;
     write_data`WRITE_SEL     = 4'b0101 ;
-    write_data`WRITE_ADDRESS = target_address ;
+    write_data`WRITE_ADDRESS = target_address  + ({$random} % 4) ;
     write_data`WRITE_DATA    = 32'hAAAA_AAAA ;
 
     write_flags`WB_TRANSFER_CAB    = 0 ;
@@ -4285,7 +4464,7 @@ begin:main
         disable main ;
     end
 
-    write_data`WRITE_ADDRESS = target_address ;
+    write_data`WRITE_ADDRESS = target_address  + ({$random} % 4) ;
     write_data`WRITE_DATA    = wmem_data[0] ;
     write_data`WRITE_SEL     = 4'b1111 ;
 
@@ -4559,7 +4738,7 @@ begin:main
     $display(" Introducing Parity Errors to Master reads ! " ) ;
 
     read_data = 0 ;
-    read_data`READ_ADDRESS  = target_address ;
+    read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
     read_data`READ_SEL      = 4'hF ;
 
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
@@ -6701,7 +6880,7 @@ task wb_to_pci_transactions ;
     integer i ;
     integer required_reads ;
     integer writes_left ;
-
+    reg [ 1: 0] byte_ofs ;
 begin:main
     ctrl_offset        = {4'h1, `W_IMG_CTRL1_ADDR, 2'b00} ;
     ba_offset          = {4'h1, `W_BA1_ADDR, 2'b00} ;
@@ -6789,7 +6968,7 @@ begin:main
     end
 
     $display("Testing single write transaction progress from WB to PCI!") ;
-    write_data`WRITE_ADDRESS = target_address ;
+    write_data`WRITE_ADDRESS = target_address  + ({$random} % 4) ;
     write_data`WRITE_DATA    = wmem_data[0] ;
     write_data`WRITE_SEL     = 4'hF ;
 
@@ -6837,13 +7016,14 @@ begin:main
     join
 
     $display("Testing burst write transaction progress from WB to PCI!") ;
-    write_data`WRITE_ADDRESS = target_address ;
+    byte_ofs = ({$random} % 4) ;
+    write_data`WRITE_ADDRESS = target_address + byte_ofs ;
     write_data`WRITE_DATA    = wmem_data[0] ;
     write_data`WRITE_SEL     = 4'hF ;
 
     wishbone_master.blk_write_data[0] = write_data ;
 
-    write_data`WRITE_ADDRESS = target_address + 4 ;
+    write_data`WRITE_ADDRESS = target_address + 4 + byte_ofs ;
     write_data`WRITE_DATA    = wmem_data[1] ;
     write_data`WRITE_SEL     = 4'hF ;
 
@@ -6960,7 +7140,7 @@ begin:main
     join
 
     // do the same thing with burst length of 3
-    write_data`WRITE_ADDRESS = target_address + 8 ;
+    write_data`WRITE_ADDRESS = target_address + 8 + byte_ofs ;
     write_data`WRITE_DATA    = wmem_data[2] ;
     write_data`WRITE_SEL     = 4'hF ;
 
@@ -7066,9 +7246,10 @@ begin:main
     join
 
     // prepare data to fill whole write FIFO + 1 - in parallel prepare read data!
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < `WBW_DEPTH - 1 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + i*4 ;
+        write_data`WRITE_ADDRESS = target_address + i*4 + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[i] ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -7189,7 +7370,7 @@ begin:main
         test_ok ;
 
     $display("Testing single read transaction progress from WB to PCI!") ;
-    read_data`READ_ADDRESS = target_address + 8 ;
+    read_data`READ_ADDRESS = target_address + 8  + ({$random} % 4) ;
     read_data`READ_SEL     = 4'hF ;
 
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
@@ -7242,9 +7423,10 @@ begin:main
 
     test_name = "FILL TARGET MEMORY WITH DATA" ;
     // first fill target's memory with enough data to fill WBR_FIFO
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < `WBR_DEPTH ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + i*4 ;
+        write_data`WRITE_ADDRESS = target_address + i*4 + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[i] ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -7267,7 +7449,8 @@ begin:main
 
     test_name = "SINGLE READ TO PUSH WRITE DATA FROM FIFO" ;
     // perform single read to force write data to pci
-    read_data`READ_ADDRESS = target_address + 8;
+    byte_ofs = ({$random} % 4) ;
+    read_data`READ_ADDRESS = target_address + 8 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
@@ -7282,12 +7465,12 @@ begin:main
 
     wishbone_master.blk_read_data_in[0] = read_data ;
 
-    read_data`READ_ADDRESS = target_address + 12 ;
+    read_data`READ_ADDRESS = target_address + 12 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.blk_read_data_in[1] = read_data ;
 
-    read_data`READ_ADDRESS = target_address + 16 ;
+    read_data`READ_ADDRESS = target_address + 16 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.blk_read_data_in[2] = read_data ;
@@ -7405,12 +7588,13 @@ begin:main
     join
 
     // now try burst read with normal termination
-    read_data`READ_ADDRESS = target_address + 12 ;
+    byte_ofs = ({$random} % 4) ;
+    read_data`READ_ADDRESS = target_address + 12 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.blk_read_data_in[0] = read_data ;
 
-    read_data`READ_ADDRESS = target_address + 16 ;
+    read_data`READ_ADDRESS = target_address + 16 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.blk_read_data_in[1] = read_data ;
@@ -7479,10 +7663,10 @@ begin:main
     write_flags`WB_TRANSFER_CAB = 1 ;
 
     test_name = "NORMAL BURST READ WITH NORMAL COMPLETION, MEMORY READ LINE DISABLED, PREFETCH ENABLED, BURST SIZE 4" ;
-
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 4 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + i*4 ;
+        read_data`READ_ADDRESS = target_address + i*4 + byte_ofs ;
         read_data`READ_SEL     = 4'b1010 ;
 
         wishbone_master.blk_read_data_in[i] = read_data ;
@@ -7524,7 +7708,7 @@ begin:main
         test_ok ;
 
     // do one single read with different byte enables
-    read_data`READ_ADDRESS = target_address + 4 ;
+    read_data`READ_ADDRESS = target_address + 4 + ({$random} % 4) ;
     read_data`READ_SEL     = 4'b1010 ;
 
     test_name = "SINGLE READ WITH FUNNY BYTE ENABLE COMBINATION" ;
@@ -7574,9 +7758,10 @@ begin:main
     end
 
     test_name = "BURST READ WITH NORMAL COMPLETION FILLING FULL FIFO - MRL AND PREFETCH BOTH ENABLED" ;
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < `WBR_DEPTH ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + i*4 ;
+        read_data`READ_ADDRESS = target_address + i*4 + byte_ofs ;
         read_data`READ_SEL     = 4'b1111 ;
 
         wishbone_master.blk_read_data_in[i] = read_data ;
@@ -7614,7 +7799,7 @@ begin:main
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
     write_flags`WB_TRANSFER_CAB = 1 ;
 
-    read_data`READ_ADDRESS = target_address + (`WBR_DEPTH - 1) * 4 ;
+    read_data`READ_ADDRESS = target_address + (`WBR_DEPTH - 1) * 4 + byte_ofs ;
     read_data`READ_SEL     = 4'hF ;
 
     wishbone_master.blk_read_data_in[0] = read_data ;
@@ -7635,7 +7820,7 @@ begin:main
     // write unsupported value to cache line size register
     config_write( lat_tim_cls_offset, 32'h0000_04_05, 4'b0011, ok ) ;
 
-    read_data`READ_ADDRESS = target_address ;
+    read_data`READ_ADDRESS = target_address + ({$random} % 4) ;
     read_data`READ_SEL     = 4'hF ;
     wishbone_master.blk_read_data_in[0] = read_data ;
 
@@ -7719,9 +7904,10 @@ begin:main
     $display("Testing Master's latency timer operation!") ;
     $display("Testing Latency timer during Master Writes!") ;
 
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 6 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = target_address + i*4 ;
+        write_data`WRITE_ADDRESS = target_address + i*4 + byte_ofs ;
         write_data`WRITE_SEL     = 4'b1111 ;
         write_data`WRITE_DATA    = wmem_data[1023 - i] ;
 
@@ -7825,9 +8011,10 @@ begin:main
     join
 
     // perform a read to check data
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 6 ; i = i + 1 )
     begin
-        read_data`READ_ADDRESS = target_address + i*4 ;
+        read_data`READ_ADDRESS = target_address + i*4 + byte_ofs ;
         read_data`READ_SEL     = 4'b1111 ;
 
         wishbone_master.blk_read_data_in[i] = read_data ;
@@ -7999,7 +8186,7 @@ begin
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS = temp_var + { 4'h1, `INT_ACK_ADDR, 2'b00 } ;
+    read_data`READ_ADDRESS = temp_var + { 4'h1, `INT_ACK_ADDR, 2'b00 } + ({$random} % 4) ;
     read_data`READ_SEL     = 4'hF ;
 
     flags = 0 ;
@@ -8244,6 +8431,7 @@ task transaction_ordering ;
     integer i ;
 
     reg     error_monitor_done ;
+    reg [ 1: 0] byte_ofs ;
 begin:main
     write_flags`INIT_WAITS   = wb_init_waits ;
     write_flags`SUBSEQ_WAITS = wb_subseq_waits ;
@@ -8379,9 +8567,10 @@ begin:main
     test_name = "SIMULTANEOUS WRITE REFERENCE TO WB SLAVE AND PCI TARGET" ;
 
     // prepare wb_master write and read data
+    byte_ofs = ({$random} % 4) ;
     for ( i = 0 ; i < 4 ; i = i + 1 )
     begin
-        write_data`WRITE_ADDRESS = wb_target_address + i*4 ;
+        write_data`WRITE_ADDRESS = wb_target_address + i*4 + byte_ofs ;
         write_data`WRITE_DATA    = wmem_data[500 + i] ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -8818,7 +9007,7 @@ begin:main
             ok = 0 ;
         end
 
-        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b1, ok ) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b1, ok ) ;
 //        while ( FRAME === 0 || IRDY === 0 )
 //            @(posedge pci_clock) ;
 
@@ -8826,7 +9015,7 @@ begin:main
         test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
         test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b1, ok ) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b1, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Transaction ordering test failed! PCI Master started invalid transaction or none at all on PCI bus after single memory write was posted! Time %t ", $time) ;
@@ -8835,7 +9024,7 @@ begin:main
         end
 
         // now wait for delayed read to finish
-        pci_transaction_progress_monitor( read_data`READ_ADDRESS, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        pci_transaction_progress_monitor( read_data`READ_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Transaction ordering test failed! PCI Master started invalid transaction or none at all on PCI bus after single memory read was requested! Time %t ", $time) ;
@@ -8912,7 +9101,7 @@ begin:main
             ok = 0 ;
         end
 
-        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Transaction ordering test failed! PCI Master started invalid transaction or none at all on PCI bus after single memory write was posted! Time %t ", $time) ;
@@ -8995,7 +9184,7 @@ begin:main
         end
 
         // now wait for this read to finish on pci
-        pci_transaction_progress_monitor( read_data`READ_ADDRESS, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        pci_transaction_progress_monitor( read_data`READ_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Transaction ordering test failed! PCI Master started invalid transaction or none at all on PCI bus after single delayed read was requested! Time %t ", $time) ;
@@ -9025,7 +9214,7 @@ begin:main
         end
 
         // write must come through
-        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        pci_transaction_progress_monitor( write_data`WRITE_ADDRESS & 32'hFFFF_FFFC, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Transaction ordering test failed! PCI Master started invalid transaction or none at all on PCI bus after single memory write was posted! Time %t ", $time) ;
@@ -10548,12 +10737,10 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } + ({$random} % 4) ;
     write_data`WRITE_DATA     = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
 
-`ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS
-
-        write_data`WRITE_SEL = 4'b0001 ;
+    write_data`WRITE_SEL = 4'b0001 ;
     repeat(4)
     begin
         wishbone_master.wb_single_write(write_data, flags, write_status) ;
@@ -10566,29 +10753,13 @@ begin:main
             disable main ;
         end
 
-        write_data`WRITE_ADDRESS = write_data`WRITE_ADDRESS + 'h1 ;
         write_data`WRITE_SEL     = write_data`WRITE_SEL << 1 ;
     end
-
-`else
-    
-    write_data`WRITE_SEL      = 4'hF ;
-    wishbone_master.wb_single_write(write_data, flags, write_status) ;
-
-    // check if write succeeded
-    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
-    begin
-        $display("Configuration cycle generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
-        in_use = 0 ;
-        disable main ;
-    end
-
-`endif
 
     // setup flags for wb master to handle retries and read and write data
     flags`WB_TRANSFER_AUTO_RTY = 1 ;
 
-    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} + ({$random} % 4) ;
     write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
     read_data`READ_SEL          = byte_enables ;
     write_data`WRITE_SEL        = byte_enables ;
@@ -10598,8 +10769,6 @@ begin:main
 
     temp_var = 32'hxxxx_xxxx ;
 
-`ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS
-
     for (i = 0 ; i < 4 ; i = i + 1)
     begin
 
@@ -10607,13 +10776,6 @@ begin:main
         begin
             read_data`READ_SEL   = 4'h1 << i ;
             write_data`WRITE_SEL = read_data`READ_SEL ;
-
-`else
-
-    begin
-        begin
-
-`endif
 
             fork
             begin
@@ -10655,8 +10817,6 @@ begin:main
             end
             join
 
-        `ifdef PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS
-
             temp_var = read_status`READ_DATA ;
 
             if (read0_write1 === 0)
@@ -10668,17 +10828,14 @@ begin:main
                 4'b1000:data[31:24] = temp_var[31:24] ;
                 endcase
             end
-
-        `else
-
-            if (read0_write1 === 0)
-                data = read_status`READ_DATA ;
-
-        `endif
-
         end
-        read_data`READ_ADDRESS   = read_data`READ_ADDRESS   + 1'b1 ;
-        write_data`WRITE_ADDRESS = write_data`WRITE_ADDRESS + 1'b1 ;
+        read_data`READ_ADDRESS   = read_data`READ_ADDRESS >> 2 ;
+        read_data`READ_ADDRESS   = read_data`READ_ADDRESS << 2 ;
+        read_data`READ_ADDRESS   = read_data`READ_ADDRESS + ({$random} % 4) ;
+        
+        write_data`WRITE_ADDRESS   = write_data`WRITE_ADDRESS >> 2 ;
+        write_data`WRITE_ADDRESS   = write_data`WRITE_ADDRESS << 2 ;
+        write_data`WRITE_ADDRESS   = write_data`WRITE_ADDRESS + ({$random} % 4) ;
     end
 
     in_use = 0 ;
@@ -10723,7 +10880,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 }  + ({$random} % 4) ;
     temp_var                  = 0 ;
     temp_var[15:11]           = `TAR1_IDSEL_INDEX - 11 ; // device number field
     write_data`WRITE_DATA     = temp_var ;
@@ -10746,7 +10903,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} + ({$random} % 4) ;
     write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
     read_data`READ_SEL          = 4'hF ;
     write_data`WRITE_SEL        = 4'hF ;
@@ -10925,7 +11082,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 }  + ({$random} % 4) ;
     write_data`WRITE_DATA     = pci_address ;
     write_data`WRITE_SEL      = 4'hF ;
 
@@ -10946,7 +11103,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} + ({$random} % 4) ;
     write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
     read_data`READ_SEL          = 4'hF ;
     write_data`WRITE_SEL        = 4'hF ;
@@ -11085,7 +11242,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 }  + ({$random} % 4) ;
     write_data`WRITE_DATA     = pci_address ;
     write_data`WRITE_SEL      = 4'hF ;
 
@@ -11106,7 +11263,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} + ({$random} % 4) ;
     write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
     read_data`READ_SEL          = 4'hF ;
     write_data`WRITE_SEL        = 4'hF ;
@@ -11245,7 +11402,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 }  + ({$random} % 4) ;
     write_data`WRITE_DATA     = pci_address ;
     write_data`WRITE_SEL      = 4'hF ;
 
@@ -11266,7 +11423,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} + ({$random} % 4) ;
     write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
     read_data`READ_SEL          = 4'b0101 ;
     write_data`WRITE_SEL        = 4'b1010 ;
@@ -11498,7 +11655,7 @@ begin
     // test MEM/IO map bit initial value in each PCI BAR
     register_offset = {1'b1, `P_BA0_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11531,7 +11688,7 @@ begin
 
     register_offset = {1'b1, `P_BA1_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11556,7 +11713,7 @@ begin
     
     register_offset = {1'b1, `P_BA2_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11585,7 +11742,7 @@ begin
 
     register_offset = {1'b1, `P_BA3_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11614,7 +11771,7 @@ begin
 
     register_offset = {1'b1, `P_BA4_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11643,7 +11800,7 @@ begin
 
     register_offset = {1'b1, `P_BA5_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11673,7 +11830,7 @@ begin
     // test Address Mask initial values
     register_offset = {1'b1, `P_AM0_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11707,7 +11864,7 @@ begin
 
     register_offset = {1'b1, `P_AM1_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11731,7 +11888,7 @@ begin
 
     register_offset = {1'b1, `P_AM2_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11759,7 +11916,7 @@ begin
     
     register_offset = {1'b1, `P_AM3_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11787,7 +11944,7 @@ begin
 
     register_offset = {1'b1, `P_AM4_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -11815,7 +11972,7 @@ begin
 
     register_offset = {1'b1, `P_AM5_ADDR, 2'b00} ;
 
-    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} + ({$random} % 4) ;
 
     wishbone_master.wb_single_read(read_data, flags, read_status) ;
 
@@ -12244,11 +12401,2512 @@ begin
 end
 endtask
 
+`ifdef PCI_CPCI_HS_IMPLEMENT
+
+task test_insertion_during_active_bus ;
+    reg [31: 0] pci_address ;
+
+    reg error ;
+    reg pci_error_monitor_done ;
+begin
+    pci_error_monitor_done = 1'b0 ;
+    error = 1'b0 ;
+
+    test_name = "HOT SWAP LOCAL_PCI_RESET RELEASE IN MID TRANSACTION ON THE PCI BUS" ;
+    fork
+    begin
+    
+        // configure behavioral target 1
+        @(posedge pci_clock) ;
+    
+        configure_target(1) ;
+    
+        repeat(5)
+            @(posedge pci_clock);
+    
+        pci_address = `BEH_TAR1_MEM_START ;
+    
+        pci_behaviorial_device2.pci_behaviorial_master.keep_master_mask = 1'b1 ;
+        pci_behaviorial_device2.pci_behaviorial_master.keep_master_data = 1'b1 ;
+    
+        PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                       pci_address, 32'hFFFF_FF00, `BC_CONF_READ,
+                       256, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                       `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        do_pause( 10 ) ;        
+    
+        fork
+        begin
+            LOCAL_PCI_RST <= 1'b0 ;
+    
+            repeat (10)
+                @(posedge pci_clock) ;
+    
+            LOCAL_PCI_RST <= 1'b1    ;
+    
+            disable monitor_pci_bridge_oes ;
+        end
+        begin:monitor_pci_bridge_oes
+    
+            wait (LOCAL_PCI_RST === 1'b0) ;
+    
+            @(posedge pci_clock) ;
+    
+            while (LOCAL_PCI_RST === 1'b0)
+            begin
+                @(
+                    `PCI_BRIDGE_INSTANCE.INTA_en    or 
+                    `PCI_BRIDGE_INSTANCE.REQ_en     or 
+                    `PCI_BRIDGE_INSTANCE.FRAME_en   or
+                    `PCI_BRIDGE_INSTANCE.IRDY_en    or
+                    `PCI_BRIDGE_INSTANCE.DEVSEL_en  or
+                    `PCI_BRIDGE_INSTANCE.TRDY_en    or
+                    `PCI_BRIDGE_INSTANCE.STOP_en    or
+                    `PCI_BRIDGE_INSTANCE.AD_en      or
+                    `PCI_BRIDGE_INSTANCE.CBE_en     or
+                    `PCI_BRIDGE_INSTANCE.PAR_en     or
+                    `PCI_BRIDGE_INSTANCE.PERR_en    or
+                    `PCI_BRIDGE_INSTANCE.SERR_en
+                `ifdef PCI_CPCI_HS_IMPLEMENT
+                            or
+                    LED     or
+                    ENUM
+                `endif
+                 ) ;
+    
+                check_pci_oes_during_reset(error) ;
+    
+                if (error)
+                begin
+                    $display("At Time %t", $time) ;
+                    $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                    test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                end
+            end
+        end
+        join
+    
+        if (error === 1'b0)
+        begin
+            check_pci_oes_during_reset(error) ;
+        
+            if (error)
+            begin
+                $display("At Time %t", $time) ;
+                $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+            end
+        end
+    
+        do_pause(100) ;
+    
+        pci_behaviorial_device2.pci_behaviorial_master.keep_master_mask = 1'b0 ;
+        pci_behaviorial_device2.pci_behaviorial_master.keep_master_data = 1'b0 ;
+
+        if (~pci_error_monitor_done)
+        begin
+            @(posedge pci_clock) ;
+            while (FRAME === 1'b0)
+                @(posedge pci_clock) ;
+        end
+
+        repeat (5)
+            @(posedge pci_clock) ;
+
+        if (~pci_error_monitor_done)
+            disable pci_error_monitor ;
+
+        if (~pci_error_monitor_done & ~error)
+            test_ok ;
+    end
+    begin:pci_error_monitor
+        @(error_event_int) ;
+        test_fail("either PCI Monitor or PCI Master detected an error on the PCI bus during the test") ;
+        pci_error_monitor_done = 1'b1 ;
+    end
+    join
+end
+endtask // test_insertion_during_active_bus
+
+task test_insert_extract_interface ;
+    reg generate_pci_transfers ;
+    reg enum_monitor_done ;
+    reg pci_err_monitor_done ;
+    reg debounce_time_exp ;
+    integer debounce_period ;
+    reg [31: 0] read_data ;
+
+    reg [31: 0] pci_master_data ;
+    reg [31: 0] pci_master_addr ;
+    reg [31: 0] rnd_seed ;
+
+    reg error ;
+begin
+    error = 1'b0 ;
+    rnd_seed = 32'h01020_f0e0 ;
+
+    ES = 1'b0 ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    pci_err_monitor_done = 1'b0 ;
+    enum_monitor_done    = 1'b0 ;
+    debounce_time_exp    = 1'b0 ;
+
+`ifdef PCI_CPCI_SIM
+    `ifdef PCI66
+        debounce_period = 15 * 20 ;
+    `else
+        debounce_period = 30 * 20 ;
+    `endif
+`else
+    debounce_period = 2000000 ;
+`endif
+
+    debounce_time_exp <= #(debounce_period + debounce_period/4) 1'b1 ;
+
+    test_name = "HOT SWAP ENUM NOT ASSERTED AFTER INSERTION IF HANDLE SWITCH OPEN" ;
+    fork
+    begin
+        configuration_cycle_read 
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            6'h1,                           // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from device status register") ;
+            test_fail("INVALID Data value read from device status register") ;
+            error = 1'b1 ;
+        end
+
+        if (read_data[20] !== 1'b1)
+        begin
+            $display("At time %t", $time) ;
+            $display("Capabilities List bit in Device status register not set") ;
+            test_fail("Capabilities List bit in Device status register was not set") ;
+            error = 1'b1 ;
+        end
+
+        configuration_cycle_read 
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            6'hD,                           // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Capabilities Pointer register") ;
+            test_fail("INVALID Data value was read from Capabilities Pointer register") ;
+            error = 1'b1 ;
+        end
+
+        if (read_data !== {24'h0, `PCI_CAP_PTR_VAL})
+        begin
+            $display("At time %t", $time) ;
+            $display("Data value read from capabilities pointer register not as expected") ;
+            test_fail("Data value read from capabilities pointer register was not as expected") ;
+            error = 1'b1 ;
+        end
+
+        configuration_cycle_read 
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            read_data[7:0] >> 2,            // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+            test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+
+        if (read_data !== 32'h0000_0006)
+        begin
+            $display("At time %t", $time) ;
+            $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+            test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+            error = 1'b1 ;
+        end
+
+        while (generate_pci_transfers)
+        begin
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+
+            configuration_cycle_read 
+            ( 
+                8'h00,                          // bus number [7:0]
+                `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+                3'h0,                           // function number [2:0]
+                (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+                2'h0,                           // type [1:0]
+                4'hF,                           // byte enables [3:0]
+                read_data                       // data returned from configuration read [31:0]
+            ) ;
+            
+            if ((read_data ^ read_data) !== 'h0)
+            begin
+                $display("At time %t", $time) ;
+                $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+                test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data !== 32'h0000_0006)
+            begin
+                $display("At time %t", $time) ;
+                $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+                test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+                error = 1'b1 ;
+            end
+        end
+
+        disable ES_bounce_blk0 ;
+    end
+    begin:enum_monitor0
+        if (ENUM === 1'bz)
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after insertion and handle switch open") ;
+            test_fail("ENUM didn't stay in HighZ after insertion with Handle Switch open") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+        
+        if (pci_err_monitor_done !== 1'b1)
+            disable pci_err_monitor0 ;
+        else
+            error = 1'b1 ;
+    end
+    begin:pci_err_monitor0
+        @(error_event_int) ;
+        test_fail("either PCI Monitor or PCI Master detected an error on the PCI bus during the test") ;
+        pci_err_monitor_done = 1'b1 ;
+    end
+    begin:ES_bounce_blk0
+        forever
+        begin
+            ES = ~ES ;
+            #(debounce_period/4) ;
+        end
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after insertion and handle switch open") ;
+            test_fail("ENUM didn't stay in HighZ after insertion with Handle Switch open") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    ES = 1'b0 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    repeat(2)
+        @(posedge pci_clock) ;
+
+    test_name = "HOT SWAP ENUM ASSERTION AFTER INSERT AND HANDLE SWITCH CLOSED" ;
+
+    ES = 1'b1 ;
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    generate_pci_transfers = 1'b1 ;
+    
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after insertion and handle switch open") ;
+            test_fail("ENUM didn't stay in HighZ after insertion with Handle Switch open") ;
+            error = 1'b1 ;
+        end
+        else
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after insertion and handle switch closed") ;
+            test_fail("ENUM was not asserted after insertion with Handle Switch closed") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h0080_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    // the ENUM is de-asserted 2 clocks after the write to the register is complete
+    // start checking the states starting with the 3rd clock after the write
+    repeat(3)
+        @(posedge pci_clock) ;
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after clear of INS bit and handle switch closed") ;
+            test_fail("ENUM didn't go in HighZ after clear of INS bit with Handle Switch closed") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+    test_name = "HOT SWAP INS BIT CLEARED, ENUM DE-ASSERTED AS A RESULT, HANDLE SWITCH CLOSED" ;
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+            configuration_cycle_read 
+            ( 
+                8'h00,                          // bus number [7:0]
+                `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+                3'h0,                           // function number [2:0]
+                (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+                2'h0,                           // type [1:0]
+                4'hF,                           // byte enables [3:0]
+                read_data                       // data returned from configuration read [31:0]
+            ) ;
+            
+            if ((read_data ^ read_data) !== 'h0)
+            begin
+                $display("At time %t", $time) ;
+                $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+                test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data !== 32'h0000_0006)
+            begin
+                $display("At time %t", $time) ;
+                $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+                test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+                error = 1'b1 ;
+            end
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+
+        disable ES_bounce_blk1 ;
+    end
+    begin:enum_monitor1
+        if (ENUM === 1'bz)
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after INS bit cleared and handle switch closed") ;
+            test_fail("ENUM didn't stay in HighZ after INS bit has been cleared and Handle Switch remained closed") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+        
+        if (pci_err_monitor_done !== 1'b1)
+            disable pci_err_monitor1 ;
+        else
+            error = 1'b1 ;
+    end
+    begin:pci_err_monitor1
+        @(error_event_int) ;
+        test_fail("either PCI Monitor or PCI Master detected an error on the PCI bus during the test") ;
+        pci_err_monitor_done = 1'b1 ;
+    end
+    begin:ES_bounce_blk1
+        forever
+        begin
+            ES = ~ES ;
+            #(debounce_period/4) ;
+        end
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after clear of INS bit and handle switch closed") ;
+            test_fail("ENUM didn't stay in HighZ after clear of INS bit with Handle Switch remaining closed") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "HOT SWAP EXT BIT SET AND ENUM ASSERTION AFTER INS BIT CLEARED AND HANDLE SWITCH OPENED" ;
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    ES = 1'b0 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after INS bit cleared and handle switch closed") ;
+            test_fail("ENUM didn't stay in HighZ after INS bit cleared and Handle Switch remaining closed") ;
+            error = 1'b1 ;
+        end
+        else
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after INS bit cleared and handle switch opened") ;
+            test_fail("ENUM was not asserted after INS bit cleared and handle switch opened") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h0040_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+        error = 1'b1 ;
+    end
+
+    // turn on the led as well
+    read_data[19] = 1'b1 ;
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    repeat(3)
+        @(posedge pci_clock) ;
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after clear of EXT bit and handle switch opened") ;
+            test_fail("ENUM didn't go in HighZ after clear of EXT bit with Handle Switch opened") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not asserted when LOO bit set") ;
+            test_fail("LED output was not asserted when LOO bit was set") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "HOT SWAP EXT BIT CLEARED, ENUM DE-ASSERTED AS A RESULT, HANDLE SWITCH OPEN, LED ON" ;
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+            configuration_cycle_read 
+            ( 
+                8'h00,                          // bus number [7:0]
+                `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+                3'h0,                           // function number [2:0]
+                (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+                2'h0,                           // type [1:0]
+                4'hF,                           // byte enables [3:0]
+                read_data                       // data returned from configuration read [31:0]
+            ) ;
+            
+            if ((read_data ^ read_data) !== 'h0)
+            begin
+                $display("At time %t", $time) ;
+                $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+                test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data !== 32'h0008_0006)
+            begin
+                $display("At time %t", $time) ;
+                $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+                test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+                error = 1'b1 ;
+            end
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+
+        disable ES_bounce_blk2 ;
+    end
+    begin:enum_monitor2
+        if ((ENUM === 1'bz) & (LED === 1'b0))
+            @(ENUM or debounce_time_exp or LED) ;
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EXT bit cleared and handle switch opened") ;
+            test_fail("ENUM didn't stay in HighZ after EXT bit has been cleared and Handle Switch remained opened") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not asserted when LOO bit set") ;
+            test_fail("LED output was not asserted when LOO bit was set") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+        
+        if (pci_err_monitor_done !== 1'b1)
+            disable pci_err_monitor2 ;
+        else
+            error = 1'b1 ;
+    end
+    begin:pci_err_monitor2
+        @(error_event_int) ;
+        test_fail("either PCI Monitor or PCI Master detected an error on the PCI bus during the test") ;
+        pci_err_monitor_done = 1'b1 ;
+    end
+    begin:ES_bounce_blk2
+        forever
+        begin
+            ES = ~ES ;
+            #(debounce_period/4) ;
+        end
+    end
+    join
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0008_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+        error = 1'b1 ;
+    end
+
+    // turn off the led
+    read_data = 32'hffff_ffff ;
+    read_data[19] = 1'b0 ;
+    read_data[17] = 1'b0 ;
+
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0000_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Data value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Data value read from Hot Swap Control and Status Register was not as expected") ;
+        error = 1'b1 ;
+    end
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after clear of EXT bit and handle switch opened") ;
+            test_fail("ENUM didn't stay in HighZ after clear of EXT bit with Handle Switch opened") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "HOT SWAP INS BIT SET AFTER EXT BIT CLEARED AND HANDLE SWITCH CLOSED" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    ES = 1'b1 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EXT bit cleared and handle switch open") ;
+            test_fail("ENUM didn't stay in HighZ after EXT bit was cleared and Handle Switch remained open") ;
+            error = 1'b1 ;
+        end
+        else
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after EXT bit cleared and handle switch closed") ;
+            test_fail("ENUM was not asserted after EXT bit was cleared and Handle Switch was closed") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h0080_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM de-asserted when INS bit set and ENUM not masked") ;
+            test_fail("ENUM was de-asserted when INS bit was set and ENUM was not masked") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+    
+    error = 1'b0 ;
+
+    test_name = "AFTER HOT SWAP INS BIT SET, MASK ENUM, OPEN HANDLE SWITCH" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+
+    read_data[23] = 1'b0 ;
+    read_data[19] = 1'b0 ;
+
+    // mask enum, do not clear INS bit
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h0082_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    ES = 1'b0 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+
+            configuration_cycle_read 
+            ( 
+                8'h00,                          // bus number [7:0]
+                `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+                3'h0,                           // function number [2:0]
+                (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+                2'h0,                           // type [1:0]
+                4'hF,                           // byte enables [3:0]
+                read_data                       // data returned from configuration read [31:0]
+            ) ;
+            
+            if ((read_data ^ read_data) !== 'h0)
+            begin
+                $display("At time %t", $time) ;
+                $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+                test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data[23] !== 1'b1)
+            begin
+                $display("At time %t", $time) ;
+                $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+                test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data !== 32'h0082_0006)
+            begin
+                $display("At time %t", $time) ;
+                $display("Value read from Hot Swap Control and Status Register not as expected") ;
+                test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and INS bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and INS bit was asserted") ;
+            error = 1'b1 ;
+        end
+        else
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and INS bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and INS bit was asserted") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and INS bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and INS bit was asserted") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0082_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "CLEAR HOT SWAP INS BIT, UNMASK ENUM, HANDLE SWITCH OPENED" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+    read_data[23] = 1'b0 ;
+    read_data[19] = 1'b0 ;
+    read_data[17] = 1'b0 ;
+
+    configuration_cycle_write
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0080_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+
+        read_data = 32'hffff_ffff ;
+        read_data[19] = 1'b0 ;
+        read_data[17] = 1'b0 ;
+
+        configuration_cycle_write
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        configuration_cycle_read
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+        
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+            test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+        
+        if (read_data[22] !== 1'b1)
+        begin
+            $display("At time %t", $time) ;
+            $display("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+            test_fail("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+            error = 1'b1 ;
+        end
+        
+        if (read_data !== 32'h0040_0006)
+        begin
+            $display("At time %t", $time) ;
+            $display("Value read from Hot Swap Control and Status Register not as expected") ;
+            test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+
+        while (generate_pci_transfers)
+        begin
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted when INS bit set and ENUM mask unset") ;
+            test_fail("ENUM was not asserted when INS bit was set and ENUM mask was unset") ;
+            error = 1'b1 ;
+        end
+        else
+        begin
+            @(ENUM or debounce_time_exp) ;
+            if (ENUM !== 1'bz)
+            begin
+                $display("At time %t", $time) ;
+                $display("ENUM not de-asserted when INS bit cleared") ;
+                test_fail("ENUM was not de-asserted when INS bit was cleared") ;
+                error = 1'b1 ;
+            end
+            else
+            begin
+                repeat(2)
+                    @(posedge pci_clock) ;
+
+                if (ENUM !== 1'b0)
+                begin
+                    $display("At time %t", $time) ;
+                    $display("ENUM not asserted when INS cleared and Handle Switch opened") ;
+                    test_fail("ENUM was not asserted when INS bit was cleared and handle switch was opened") ;
+                    error = 1'b1 ;
+                end
+                else
+                begin
+                    @(ENUM or debounce_time_exp) ;
+                end
+            end
+        end
+
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after INS bit cleared and Handle Switch open") ;
+            test_fail("ENUM was not asserted after INS bit was cleared and Handle Switch was open") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after INS bit cleared and Handle Switch open") ;
+            test_fail("ENUM was not asserted after INS bit was cleared and Handle Switch was open") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0040_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "AFTER HOT SWAP EXT BIT SET, MASK ENUM, CLOSE HANDLE SWITCH" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+
+    read_data[22] = 1'b0 ;
+    read_data[19] = 1'b0 ;
+
+    // mask enum, do not clear EXT bit
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h0042_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    ES = 1'b1 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+
+            configuration_cycle_read 
+            ( 
+                8'h00,                          // bus number [7:0]
+                `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+                3'h0,                           // function number [2:0]
+                (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+                2'h0,                           // type [1:0]
+                4'hF,                           // byte enables [3:0]
+                read_data                       // data returned from configuration read [31:0]
+            ) ;
+            
+            if ((read_data ^ read_data) !== 'h0)
+            begin
+                $display("At time %t", $time) ;
+                $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+                test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data[22] !== 1'b1)
+            begin
+                $display("At time %t", $time) ;
+                $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+                test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+                error = 1'b1 ;
+            end
+            
+            if (read_data !== 32'h0042_0006)
+            begin
+                $display("At time %t", $time) ;
+                $display("Value read from Hot Swap Control and Status Register not as expected") ;
+                test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+                error = 1'b1 ;
+            end
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and EXT bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and EXT bit was asserted") ;
+            error = 1'b1 ;
+        end
+        else
+            @(ENUM or debounce_time_exp) ;
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and EXT bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and EXT bit was asserted") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not in HighZ after EIM and EXT bits both set") ;
+            test_fail("ENUM didn't go to HighZ after EIM bit was set and EXT bit was asserted") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0042_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "CLEAR HOT SWAP EXT BIT, UNMASK ENUM, HANDLE SWITCH CLOSED" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+    read_data[23] = 1'b0 ;
+    read_data[22] = 1'b0 ;
+    read_data[19] = 1'b0 ;
+    read_data[17] = 1'b0 ;
+
+    configuration_cycle_write
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("EXT bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0040_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+
+        read_data = 32'hffff_ffff ;
+        read_data[19] = 1'b0 ;
+        read_data[17] = 1'b0 ;
+
+        configuration_cycle_write
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        configuration_cycle_read
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+        
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+            test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+        
+        if (read_data[23] !== 1'b1)
+        begin
+            $display("At time %t", $time) ;
+            $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+            test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+            error = 1'b1 ;
+        end
+        
+        if (read_data !== 32'h0080_0006)
+        begin
+            $display("At time %t", $time) ;
+            $display("Value read from Hot Swap Control and Status Register not as expected") ;
+            test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+
+        while (generate_pci_transfers)
+        begin
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted when EXT bit set and ENUM mask unset") ;
+            test_fail("ENUM was not asserted when EXT bit was set and ENUM mask was unset") ;
+            error = 1'b1 ;
+        end
+        else
+        begin
+            @(ENUM or debounce_time_exp) ;
+            if (ENUM !== 1'bz)
+            begin
+                $display("At time %t", $time) ;
+                $display("ENUM not de-asserted when EXT bit cleared") ;
+                test_fail("ENUM was not de-asserted when EXT bit was cleared") ;
+                error = 1'b1 ;
+            end
+            else
+            begin
+                repeat(2)
+                    @(posedge pci_clock) ;
+
+                if (ENUM !== 1'b0)
+                begin
+                    $display("At time %t", $time) ;
+                    $display("ENUM not asserted when EXT cleared and Handle Switch closed") ;
+                    test_fail("ENUM was not asserted when EXT bit was cleared and handle switch was closed") ;
+                    error = 1'b1 ;
+                end
+                else
+                begin
+                    @(ENUM or debounce_time_exp) ;
+                end
+            end
+        end
+
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after EXT bit cleared and Handle Switch closed") ;
+            test_fail("ENUM was not asserted after EXT bit was cleared and Handle Switch was closed") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not asserted after EXT bit cleared and Handle Switch closed") ;
+            test_fail("ENUM was not asserted after EXT bit was cleared and Handle Switch was closed") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0080_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    error = 1'b0 ;
+
+    test_name = "MASK HOT SWAP ENUM WHEN INS BIT SET, ENUM DE-ASSERTION, CLEAR ENUM MASK AND INS AT THE SAME TIME" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+    read_data[23] = 1'b0 ;
+    read_data[22] = 1'b0 ;
+    read_data[19] = 1'b0 ;
+    read_data[17] = 1'b1 ;
+
+    configuration_cycle_write
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data[23] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        test_fail("INS bit in Hot Swap Control and Status Register not set when expected") ;
+        error = 1'b1 ;
+    end
+    
+    if (read_data !== 32'h0082_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+
+        read_data = 32'hffff_ffff ;
+        read_data[22] = 1'b0 ;
+        read_data[19] = 1'b0 ;
+        read_data[17] = 1'b0 ;
+
+        configuration_cycle_write
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+
+        configuration_cycle_read
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+        
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+            test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+                
+        if (read_data !== 32'h0000_0006)
+        begin
+            $display("At time %t", $time) ;
+            $display("Value read from Hot Swap Control and Status Register not as expected") ;
+            test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+
+        while (generate_pci_transfers)
+        begin
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM asserted when INS bit set and ENUM masked") ;
+            test_fail("ENUM was asserted when INS bit was set and ENUM was masked") ;
+            error = 1'b1 ;
+        end
+        else
+        begin
+            @(ENUM or debounce_time_exp) ;
+        end
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not de-asserted after INS bit cleared.") ;
+            test_fail("ENUM was not de-asserted after INS bit was cleared") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM not de-asserted after INS bit cleared") ;
+            test_fail("ENUM was not de-asserted after INS bit was cleared") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was unset") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+        
+    if (read_data !== 32'h0000_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+        error = 1'b0 ;
+
+    test_name = "OPEN HOT SWAP SWITCH AFTER INS CLEARED, MASK ENUM" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+
+    read_data = 32'hffff_ffff ;
+    read_data[23] = 1'b0 ;
+    read_data[22] = 1'b0 ;
+    read_data[19] = 1'b1 ;
+    read_data[17] = 1'b1 ;
+
+    configuration_cycle_write
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+        
+    if (read_data !== 32'h000A_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+    ES = 1'b0 ;
+
+    fork
+    begin
+        while (generate_pci_transfers)
+        begin
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if ((ENUM !== 1'bz) | (LED !== 1'b0))
+        begin
+            if (ENUM !== 1'bz)
+            begin
+                $display("At time %t", $time) ;
+                $display("ENUM asserted when INS and EXT bits cleared and ENUM masked") ;
+                test_fail("ENUM was asserted when INS and EXT bits were clear and ENUM was masked") ;
+                error = 1'b1 ;
+            end
+
+            if (LED !== 1'b0)
+            begin
+                $display("At time %t", $time) ;
+                $display("LED not asserted when LOO bit set in HS_CSR") ;
+                test_fail("LED was not asserted when LOO bit was set in HS_CSR") ;
+                error = 1'b1 ;
+            end
+        end
+        else
+        begin
+            @(ENUM or debounce_time_exp or LED) ;
+        end
+
+        if ((ENUM !== 1'bz) | (LED !== 1'b0))
+        begin
+            if (ENUM !== 1'bz)
+            begin
+                $display("At time %t", $time) ;
+                $display("ENUM asserted when INS and EXT bits cleared and ENUM masked") ;
+                test_fail("ENUM was asserted when INS and EXT bits were clear and ENUM was masked") ;
+                error = 1'b1 ;
+            end
+
+            if (LED !== 1'b0)
+            begin
+                $display("At time %t", $time) ;
+                $display("LED not asserted when LOO bit set in HS_CSR") ;
+                test_fail("LED was not asserted when LOO bit was set in HS_CSR") ;
+                error = 1'b1 ;
+            end
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM asserted when INS and EXT bits cleared and ENUM masked") ;
+            test_fail("ENUM was asserted when INS and EXT bits were clear and ENUM was masked") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'b0)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not asserted when LOO bit set") ;
+            test_fail("LED output was not asserted when LOO bit was set") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+        
+    if (read_data[22] !== 1'b1)
+    begin
+        $display("At time %t", $time) ;
+        $display("EXT bit is HS_CSR not set when expected") ;
+        test_fail("EXT bit is HS_CSR was not set when expected") ;
+        error = 1'b1 ;
+    end
+
+    if (read_data !== 32'h004A_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+
+    test_name = "CLEAR HOT SWAP EXT BIT AND UNMASK ENUM AT THE SAME TIME, ENUM IN HIGHZ ALL THE TIME" ;
+
+    generate_pci_transfers = 1'b1 ;
+
+    debounce_time_exp = 1'b0 ;
+    
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+        
+    if (read_data !== 32'h004A_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    debounce_time_exp <= #(debounce_period + debounce_period / 4) 1'b1 ;
+
+    fork
+    begin
+        read_data = 32'hffff_ffff ;
+        read_data[23] = 1'b0 ;
+        read_data[19] = 1'b0 ;
+        read_data[17] = 1'b0 ;
+        
+        configuration_cycle_write
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+        
+        configuration_cycle_read
+        ( 
+            8'h00,                          // bus number [7:0]
+            `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+            3'h0,                           // function number [2:0]
+            (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+            2'h0,                           // type [1:0]
+            4'hF,                           // byte enables [3:0]
+            read_data                       // data returned from configuration read [31:0]
+        ) ;
+        
+        if ((read_data ^ read_data) !== 'h0)
+        begin
+            $display("At time %t", $time) ;
+            $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+            test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+            
+        if (read_data !== 32'h0000_0006)
+        begin
+            $display("At time %t", $time) ;
+            $display("Value read from Hot Swap Control and Status Register not as expected") ;
+            test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+            error = 1'b1 ;
+        end
+
+        while (generate_pci_transfers)
+        begin
+
+            pci_master_data = $random(rnd_seed) ;
+            pci_master_addr = `BEH_TAR1_MEM_START + {$random(rnd_seed)} % 128 ;
+            pci_master_addr = pci_master_addr >> 2 ;
+            pci_master_addr = pci_master_addr << 2 ;
+
+            PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                            pci_master_addr, pci_master_data, `BC_CONF_READ,
+                            8, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            do_pause( 1 ) ;
+
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_2,
+                          pci_master_addr, pci_master_data,
+                          8, 8'h0_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+
+            do_pause( 1 ) ;
+        end
+    end
+    begin
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM asserted when INS and EXT bits cleared") ;
+            test_fail("ENUM was asserted when INS and EXT bits were clear") ;
+            error = 1'b1 ;
+        end
+        else
+        begin
+            @(ENUM or debounce_time_exp) ;
+        end
+
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM asserted when INS and EXT bits cleared") ;
+            test_fail("ENUM was asserted when INS and EXT bits were clear") ;
+            error = 1'b1 ;
+        end
+
+        generate_pci_transfers = 1'b0 ;
+
+    end
+    join
+
+    while (debounce_time_exp !== 1'b1)
+    begin
+        @(ENUM or debounce_time_exp or LED) ;
+        if (ENUM !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("ENUM asserted when INS and EXT bits cleared") ;
+            test_fail("ENUM was asserted when INS and EXT bits were clear") ;
+            error = 1'b1 ;
+        end
+
+        if (LED !== 1'bz)
+        begin
+            $display("At time %t", $time) ;
+            $display("LED not de-asserted when LOO bit not set") ;
+            test_fail("LED output was not de-asserted when LOO bit was not set") ;
+            error = 1'b1 ;
+        end
+    end
+
+    configuration_cycle_read
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        (`PCI_CAP_PTR_VAL) >> 2,        // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+    
+    if ((read_data ^ read_data) !== 'h0)
+    begin
+        $display("At time %t", $time) ;
+        $display("INVALID Data value read from Hot Swap Control and Status Register") ;
+        test_fail("INVALID Data value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+        
+    if (read_data !== 32'h0000_0006)
+    begin
+        $display("At time %t", $time) ;
+        $display("Value read from Hot Swap Control and Status Register not as expected") ;
+        test_fail("Unexpected value was read from Hot Swap Control and Status Register") ;
+        error = 1'b1 ;
+    end
+
+    if (error !== 1'b1)
+        test_ok ;
+end
+endtask
+
+`endif
+
 task display_warning;
     input [31:0] error_address ;
     input [31:0] expected_data ;
     input [31:0] actual ;
 begin
+    $display("At time %t", $time) ;
     $display("Read from address %h produced wrong result! \nExpected value was %h\tread value was %h!", error_address, expected_data, actual) ;
 end
 endtask // display warning
@@ -12738,7 +15396,7 @@ begin
     write_flags`SUBSEQ_WAITS         = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
-    write_data`WRITE_ADDRESS  = { `WB_CONFIGURATION_BASE, offset } ;
+    write_data`WRITE_ADDRESS  = { `WB_CONFIGURATION_BASE, offset }  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'h1 ;
     write_data`WRITE_DATA     = data ;
 
@@ -12757,7 +15415,7 @@ begin
     offset  = {4'h1, `P_BA0_ADDR, 2'b00} ; // PCI Base Address 0
     data    = Target_Base_Addr_R[0] ; // `TAR0_BASE_ADDR_0 = 32'h1000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12837,7 +15495,7 @@ begin
     temp_var                                   = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31-`WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'h1 ;
     write_data`WRITE_DATA     = data ;
 
@@ -12853,7 +15511,7 @@ begin
     offset  = {4'h1, `P_BA0_ADDR, 2'b00} ; // PCI Base Address 0
     data    = Target_Base_Addr_R[0] ; // `TAR0_BASE_ADDR_0 = 32'h1000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12879,7 +15537,7 @@ begin
     offset  = {4'h1, `P_BA1_ADDR, 2'b00} ; // PCI Base Address 1
     data    = Target_Base_Addr_R[1] ; // `TAR0_BASE_ADDR_1 = 32'h2000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12894,7 +15552,7 @@ begin
     offset  = {4'h1, `P_BA2_ADDR, 2'b00} ; // PCI Base Address 2
     data    = Target_Base_Addr_R[2] ; // `TAR0_BASE_ADDR_2 = 32'h3000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12909,7 +15567,7 @@ begin
     offset  = {4'h1, `P_BA3_ADDR, 2'b00} ; // PCI Base Address 3
     data    = Target_Base_Addr_R[3] ; // `TAR0_BASE_ADDR_3 = 32'h4000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12924,7 +15582,7 @@ begin
     offset  = {4'h1, `P_BA4_ADDR, 2'b00} ; // PCI Base Address 4
     data    = Target_Base_Addr_R[4] ; // `TAR0_BASE_ADDR_4 = 32'h5000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -12939,7 +15597,7 @@ begin
     offset  = {4'h1, `P_BA5_ADDR, 2'b00} ; // PCI Base Address 5
     data    = Target_Base_Addr_R[5] ; // `TAR0_BASE_ADDR_5 = 32'h6000_0000
 
-    write_data`WRITE_ADDRESS  = temp_var + offset ;
+    write_data`WRITE_ADDRESS  = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL      = 4'hf ;
     write_data`WRITE_DATA     = data ;
 
@@ -19409,7 +22067,7 @@ begin:main
         write_flags`WB_TRANSFER_AUTO_RTY = 1'b0 ;
 
         // initiate a read request
-        read_data`READ_ADDRESS  = target_address ;
+        read_data`READ_ADDRESS  = target_address + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
         wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
         if ((read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_RTY !== 1'b1))
@@ -19422,7 +22080,7 @@ begin:main
         // handle retries from now on
         write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
 
-        write_data`WRITE_ADDRESS = target_address + 4 ;
+        write_data`WRITE_ADDRESS = target_address + 4  + ({$random} % 4) ;
         write_data`WRITE_DATA    = 32'hF0F0_0F0F ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -19439,7 +22097,7 @@ begin:main
             @(posedge wb_clock) ;
         
         // now perform a read
-        read_data`READ_ADDRESS  = target_address + 4 ;
+        read_data`READ_ADDRESS  = target_address + 4 + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
         wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
         if (read_status`CYC_ACTUAL_TRANSFER !== 1)
@@ -19544,7 +22202,7 @@ begin
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    write_data`WRITE_ADDRESS                     = temp_var + offset ;
+    write_data`WRITE_ADDRESS                     = temp_var + offset  + ({$random} % 4) ;
     write_data`WRITE_SEL                         = byte_enable ;
     write_data`WRITE_DATA                        = data ;
 
@@ -19628,7 +22286,7 @@ begin:main
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    read_data`READ_ADDRESS  = temp_var + offset ;
+    read_data`READ_ADDRESS  = temp_var + offset + ({$random} % 4) ;
     read_data`READ_SEL      = byte_enable ;
 
     wishbone_master.wb_single_read( read_data, read_flags, read_status ) ;
@@ -20310,7 +22968,7 @@ begin:main
     begin
 
         // do one dummy read, to receive bus gnt
-        read_data`READ_ADDRESS  = target_address ;
+        read_data`READ_ADDRESS  = target_address + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
 
         // handle retries
@@ -20324,13 +22982,13 @@ begin:main
             disable main ;
         end
 
-        write_data`WRITE_ADDRESS = target_address + 64;
+        write_data`WRITE_ADDRESS = target_address + 64  + ({$random} % 4) ;
         write_data`WRITE_DATA    = 32'hABCD_EF12 ;
         write_data`WRITE_SEL     = 4'hF ;
 
         wishbone_master.blk_write_data[0] = write_data ;
         
-        write_data`WRITE_ADDRESS = target_address + 128 ;
+        write_data`WRITE_ADDRESS = target_address + 128  + ({$random} % 4) ;
         write_data`WRITE_DATA    = ~write_data`WRITE_DATA ;
         write_data`WRITE_SEL     = 4'hF ;
 
@@ -20350,7 +23008,7 @@ begin:main
         end
 
         // read data back
-        read_data`READ_ADDRESS  = target_address + 64 ;
+        read_data`READ_ADDRESS  = target_address + 64 + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
 
         // handle retries
@@ -20372,7 +23030,7 @@ begin:main
         end
 
         // read second data back
-        read_data`READ_ADDRESS  = target_address + 128 ;
+        read_data`READ_ADDRESS  = target_address + 128 + ({$random} % 4) ;
         read_data`READ_SEL      = 4'hF ;
 
         // handle retries
@@ -20514,7 +23172,6 @@ begin:main
     // configure target image 1 via bus accesses
     pci_configure_pci_target_image
     (
-        1'b1,                               // selects whether to configure image with bus accesses or directly with dot notation in the configuration space
         test_image_num,                     // image number
         Target_Base_Addr_R[test_image_num], // base address
         Target_Addr_Mask_R[test_image_num], // address mask
@@ -20685,7 +23342,6 @@ task test_master_overload ;
 
     reg [31:0] image_base ;
     reg [31:0] target_address ;
-
 begin:main
 
     // set behavioral target to respond normally
@@ -20727,7 +23383,6 @@ begin:main
 
     pci_configure_wb_slave_image
     (
-        1'b1,           // use_bus
         test_image_num, // image_num
         image_base,     // base address
         32'hFFFF_C000,  // address mask
@@ -21099,7 +23754,6 @@ begin:main
     // disable the image
     pci_configure_wb_slave_image
     (
-        1'b1,           // use_bus
         test_image_num, // image_num
         image_base,     // base address
         32'h0000_0000,  //  address mask
@@ -21226,15 +23880,15 @@ begin:main
             case (cur_inc_burst_type)
             2'b00:
                 begin
-                    write_data`WRITE_ADDRESS = image_base + i * 4 + 'd8 ;
+                    write_data`WRITE_ADDRESS = image_base + i * 4 + 'd8  + ({$random} % 4) ;
                 end
             2'b01:
                 begin
-                    write_data`WRITE_ADDRESS = ( image_base[31:4] + (i >> 2) ) << 4 ;
+                    write_data`WRITE_ADDRESS = (( image_base[31:4] + (i >> 2) ) << 4)  + ({$random} % 4) ;
                     if ( (i % 4) === 0 )
-                        write_data`WRITE_ADDRESS =  write_data`WRITE_ADDRESS + 'd8 ;
+                        write_data`WRITE_ADDRESS =  write_data`WRITE_ADDRESS + 'd8  + ({$random} % 4) ;
                     else
-                        write_data`WRITE_ADDRESS = write_data`WRITE_ADDRESS + (4'd8 + (i * 4 % 4) ;
+                        write_data`WRITE_ADDRESS = write_data`WRITE_ADDRESS + (4'd8 + (i * 4 % 4)  + ({$random} % 4) ;
                 end
             2'b10:
                 begin
@@ -21245,10 +23899,10 @@ begin:main
             endcase
 
             if (cur_inc_burst_type === 0)
-                write_data`WRITE_ADDRESS = image_base + i * 4 + 4 ;
+                write_data`WRITE_ADDRESS = image_base + i * 4 + 4  + ({$random} % 4) ;
 
             if ( (i % 4) === 0)
-                write_data`WRITE_ADDRESS = {image_base[31:4] + (i >> 2), 4'h4}
+                write_data`WRITE_ADDRESS = {image_base[31:4] + (i >> 2), 4'h4}  + ({$random} % 4) ;
         end
     
         fork

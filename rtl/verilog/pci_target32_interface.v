@@ -42,6 +42,12 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.10  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.9  2003/08/21 20:55:14  tadejm
 // Corrected bug when writing to FIFO (now it is registered).
 //
@@ -105,7 +111,6 @@ module pci_target32_interface
     load_medium_reg_in,
     sel_fifo_mreg_in,
     sel_conf_fifo_in,
-    fetch_conf_in,
     load_to_pciw_fifo_in,
     load_to_conf_in,
     same_read_out,
@@ -157,7 +162,6 @@ module pci_target32_interface
 	wbu_del_read_comp_pending_in,
 
 	// Configuration space signals
-	conf_hit_out,
 	conf_addr_out,
 	conf_data_out,
 	conf_data_in,
@@ -237,7 +241,6 @@ input		    fetch_pcir_fifo_in ;// Read enable for PCIR_FIFO when when read is fi
 input		    load_medium_reg_in ;// Load data from PCIR_FIFO to medium register (first data must be prepared on time)
 input		    sel_fifo_mreg_in ;	// Read data selection between PCIR_FIFO and medium register
 input		    sel_conf_fifo_in ;	// Read data selection between Configuration registers and "FIFO"
-input		    fetch_conf_in ;		// Read enable for configuration space registers
 input		    load_to_pciw_fifo_in ;// Write enable to PCIW_FIFO
 input		    load_to_conf_in ;	// Write enable to Configuration space registers
 
@@ -315,7 +318,6 @@ input			wbu_del_read_comp_pending_in ; // delayed read pending indicator from WB
 Configuration space signals - from and to registers
 ==================================================================================================================*/
 // BUS for reading and writing to configuration space registers
-output			conf_hit_out ;	// like "chip select" for configuration space
 output	[11:0]	conf_addr_out ;	// address to configuration space when there is access to it
 output	[31:0]	conf_data_out ;	// data to configuration space - for writing to registers
 input	[31:0]	conf_data_in ;	// data from configuration space - for reading from registers

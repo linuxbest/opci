@@ -117,14 +117,18 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE HOST                " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX      " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN       " >> ./defines.args
             echo "-DEFINE PCI33               " >> ./defines.args
             echo "-DEFINE WB_CLK10            " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE       " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS" >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            endif
+
             echo "-DEFINE ADDR_TRAN_IMPL      " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0          " >> ./defines.args
             echo "-DEFINE PCI_IMAGE2          " >> ./defines.args
@@ -159,14 +163,20 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE HOST                " >> ./defines.args
-            echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED      " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED       " >> ./defines.args
             echo "-DEFINE PCI33               " >> ./defines.args
             echo "-DEFINE WB_CLK66            " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE       " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS" >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
             echo "-DEFINE ADDR_TRAN_IMPL      " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0          " >> ./defines.args
             echo "-DEFINE PCI_IMAGE2          " >> ./defines.args
@@ -188,15 +198,20 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE HOST                   " >> ./defines.args
             echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MIN         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MAX          " >> ./defines.args
             echo "-DEFINE PCI66                  " >> ./defines.args
             echo "-DEFINE WB_CLK66               " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
             echo "-DEFINE WB_IMAGE5              " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_SLOW     " >> ./defines.args
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
 
         endif
 
@@ -210,17 +225,23 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
             echo "-DEFINE PCI66                  " >> ./defines.args
             echo "-DEFINE WB_CLK220              " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0             " >> ./defines.args
             echo "-DEFINE PCI_IMAGE5             " >> ./defines.args
             echo "-DEFINE WB_IMAGE4              " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_SLOW     " >> ./defines.args
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 5) then
@@ -246,20 +267,26 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE GUEST                   " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST          " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MIN          " >> ./defines.args
             echo "-DEFINE WB_DECODE_MAX           " >> ./defines.args
             echo "-DEFINE PCI33                   " >> ./defines.args
             echo "-DEFINE WB_CLK220               " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE           " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS    " >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS    " >> ./defines.args
             echo "-DEFINE ADDR_TRAN_IMPL          " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0              " >> ./defines.args
             echo "-DEFINE PCI_IMAGE2              " >> ./defines.args
             echo "-DEFINE WB_IMAGE2               " >> ./defines.args
             echo "-DEFINE WB_IMAGE3               " >> ./defines.args
             echo "-DEFINE WB_IMAGE4               " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 6) then 
@@ -272,15 +299,21 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_MEDIUM       " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED          " >> ./defines.args
             echo "-DEFINE PCI66                  " >> ./defines.args
             echo "-DEFINE WB_CLK10               " >> ./defines.args
             echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
             echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
-            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
             echo "-DEFINE ADDR_TRAN_IMPL         " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
+                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 7) then 
@@ -305,7 +338,6 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE HOST            " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST  " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX  " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN   " >> ./defines.args
             echo "-DEFINE PCI66           " >> ./defines.args
@@ -315,6 +347,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE NO_CNF_IMAGE    " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0      " >> ./defines.args
             echo "-DEFINE PCI_IMAGE4      " >> ./defines.args 
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 8) then 
@@ -328,7 +368,6 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE HOST                    " >> ./defines.args
             echo "-DEFINE REGR_FIFO_MEDIUM_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_MEDIUM        " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED          " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED           " >> ./defines.args
             echo "-DEFINE PCI66                   " >> ./defines.args
@@ -345,6 +384,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE WB_IMAGE3               " >> ./defines.args
             echo "-DEFINE WB_IMAGE4               " >> ./defines.args
             echo "-DEFINE WB_IMAGE5               " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 9) then 
@@ -357,7 +404,6 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE HOST                   " >> ./defines.args
             echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MIN         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MAX          " >> ./defines.args
             echo "-DEFINE PCI33                  " >> ./defines.args
@@ -367,6 +413,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE WB_CNF_BASE_ZERO       " >> ./defines.args
             echo "-DEFINE NO_CNF_IMAGE           " >> ./defines.args
             echo "-DEFINE WB_IMAGE3              " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_SLOW     " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 10) then 
@@ -379,7 +433,6 @@ if ($arg_regression == 1) then
             
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
             echo "-DEFINE PCI33                  " >> ./defines.args
@@ -390,6 +443,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE NO_CNF_IMAGE           " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0             " >> ./defines.args
             echo "-DEFINE PCI_IMAGE3             " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_SLOW     " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 11) then 
@@ -419,7 +480,6 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE GUEST           " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST  " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MIN  " >> ./defines.args
             echo "-DEFINE WB_DECODE_MAX   " >> ./defines.args
             echo "-DEFINE PCI66           " >> ./defines.args
@@ -433,6 +493,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE PCI_IMAGE4      " >> ./defines.args
             echo "-DEFINE PCI_IMAGE5      " >> ./defines.args
             echo "-DEFINE WB_IMAGE2       " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
         endif
 
         if ($iter == 12) then 
@@ -445,7 +513,6 @@ if ($arg_regression == 1) then
             
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
-            echo "-DEFINE WB_DECODE_MEDIUM       " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX         " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED          " >> ./defines.args
             echo "-DEFINE PCI33                  " >> ./defines.args
@@ -457,6 +524,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE WB_IMAGE3              " >> ./defines.args
             echo "-DEFINE WB_IMAGE4              " >> ./defines.args
             echo "-DEFINE WB_IMAGE5              " >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
 
         endif
 
@@ -483,7 +558,6 @@ if ($arg_regression == 1) then
             endif
 
             echo "-DEFINE GUEST                       " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST              " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX              " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED               " >> ./defines.args
             echo "-DEFINE PCI66                       " >> ./defines.args
@@ -492,6 +566,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE WB_CNF_BASE_ZERO            " >> ./defines.args
             echo "-DEFINE NO_CNF_IMAGE                " >> ./defines.args
             echo "-DEFINE WB_CLOCK_FOLLOWS_PCI_CLOCK=2" >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
 
         endif
 
@@ -510,7 +592,6 @@ if ($arg_regression == 1) then
             echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
 
             echo "-DEFINE GUEST                       " >> ./defines.args
-            echo "-DEFINE WB_DECODE_FAST              " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX              " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED               " >> ./defines.args
             echo "-DEFINE PCI66                       " >> ./defines.args
@@ -519,6 +600,14 @@ if ($arg_regression == 1) then
             echo "-DEFINE WB_CNF_BASE_ZERO            " >> ./defines.args
             echo "-DEFINE NO_CNF_IMAGE                " >> ./defines.args
             echo "-DEFINE PCI_CLOCK_FOLLOWS_WB_CLOCK=2" >> ./defines.args
+
+            if ($arg_wb_b3 == 0) then
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+#                echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            else
+                echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            endif
+
 
         endif
 
@@ -533,7 +622,6 @@ if ($arg_regression == 1) then
         if ($arg_wbs_non_alligned) then
             echo "-DEFINE PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS" >> ./defines.args
         endif
-
     endif
 endif
 
@@ -556,6 +644,9 @@ echo "-INCDIR ../../../rtl/verilog" >> ./ncvlog.args
 if (($arg_regression == 1) && ($iter <= $all_iterations)) then 
     cat ./defines.args >> ./ncvlog.args
 endif
+
+echo '-DEFINE PCI_CPCI_SIM' >> ./ncvlog.args
+
 # adding RTL and Sim files to .args file
 cat ../bin/rtl_file_list.lst >> ./ncvlog.args
 cat ../bin/sim_file_list.lst >> ./ncvlog.args                                                                                   
@@ -700,6 +791,10 @@ help:
         echo "            : and optionaly ../../../rtl/verilog/pci_user_constants.v, ../../../bench/verilog/pci_regression_constants.v, ../../../rtl/verilog/wb_tpram.v and ../../../rtl/verilog/pci_tpram.v"
         echo ""
         echo "disable_completion_expired_tests : if you want to disable completion expiration testing during regression run, because these are time consuming tests"
+        echo ""
+        echo "wb_b3 : Run complete regression with WISHBONE Slave Unit's WB B3 to WB B2 cycle translation enabled"
+        echo ""
+        echo "wb_na : Run regression with WISHBONE Slave Unit's non alligned configuration accesses enabled"
         echo ""
 exit
 

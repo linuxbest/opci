@@ -39,6 +39,12 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.10  2003/12/19 11:11:30  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
 // Revision 1.9  2003/08/03 18:05:06  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -80,29 +86,29 @@
 // If RAM_DONT_SHARE is defined, then all RAM address lengths must be specified accordingly, otherwise there are two relevant lengths - PCI_FIFO_RAM_ADDR_LENGTH and
 // WB_FIFO_RAM_ADDR_LENGTH.
 
-`define WBW_ADDR_LENGTH 3
-`define WBR_ADDR_LENGTH 5
-`define PCIW_ADDR_LENGTH 3
-`define PCIR_ADDR_LENGTH 3
+`define WBW_ADDR_LENGTH 7
+`define WBR_ADDR_LENGTH 7
+`define PCIW_ADDR_LENGTH 7
+`define PCIR_ADDR_LENGTH 7
 
-`define FPGA
-`define XILINX
+//`define FPGA
+//`define XILINX
 
 //`define WB_RAM_DONT_SHARE
-`define PCI_RAM_DONT_SHARE
+//`define PCI_RAM_DONT_SHARE
 
 `ifdef FPGA
     `ifdef XILINX
-        `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition
+        `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
         `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-        //`define PCI_XILINX_RAMB4
+        `define PCI_XILINX_RAMB4
         `define WB_XILINX_RAMB4
-        `define PCI_XILINX_DIST_RAM
+        //`define PCI_XILINX_DIST_RAM
         //`define WB_XILINX_DIST_RAM
     `endif
 `else
-    `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-    `define WB_FIFO_RAM_ADDR_LENGTH 7       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
 //    `define WB_ARTISAN_SDP
 //    `define PCI_ARTISAN_SDP
 //    `define PCI_VS_STP
@@ -130,7 +136,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define PCI_NUM_OF_DEC_ADDR_LINES 12
+`define PCI_NUM_OF_DEC_ADDR_LINES 20
 
 // no. of PCI Target IMAGES
 // - PCI provides 6 base address registers for image implementation.
@@ -144,14 +150,14 @@
 // or GUEST implementation.
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
-        `define PCI_IMAGE0
+        //`define PCI_IMAGE0
     `endif
 `endif
 
-//`define PCI_IMAGE2
-//`define PCI_IMAGE3
-//`define PCI_IMAGE4
-//`define PCI_IMAGE5
+`define PCI_IMAGE2
+`define PCI_IMAGE3
+`define PCI_IMAGE4
+`define PCI_IMAGE5
 
 // initial value for PCI image address masks. Address masks can be defined in enabled state,
 // to allow device independent software to detect size of image and map base addresses to
@@ -180,22 +186,22 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of WB images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define WB_NUM_OF_DEC_ADDR_LINES 3
+`define WB_NUM_OF_DEC_ADDR_LINES 20
 
 // no. of WISHBONE Slave IMAGES
 // WB image 0 is always used for access to configuration space. In case configuration space access is not implemented,
 // ( both GUEST and NO_CNF_IMAGE defined ), then WB image 0 is not implemented. User doesn't need to define image 0.
 // WB Image 1 is always implemented and user doesnt need to specify its definition
 // WB images' 2 through 5 implementation by defining each one.
-//`define WB_IMAGE2
-//`define WB_IMAGE3
-//`define WB_IMAGE4
-//`define WB_IMAGE5
+`define WB_IMAGE2
+`define WB_IMAGE3
+`define WB_IMAGE4
+`define WB_IMAGE5
 
 // If this define is commented out, then address translation will not be implemented.
 // addresses will pass through bridge unchanged, regardles of address translation enable bits.
 // Address translation also slows down the decoding
-//`define ADDR_TRAN_IMPL
+`define ADDR_TRAN_IMPL
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow.
 // slower decode speed can be used, to provide enough time for address to be decoded.
@@ -204,7 +210,7 @@
 //`define WB_DECODE_SLOW
 
 // Base address for Configuration space access from WB bus. This value cannot be changed during runtime
-`define WB_CONFIGURATION_BASE 20'hF300_0
+`define WB_CONFIGURATION_BASE 20'h0000_0
 
 // Turn registered WISHBONE slave outputs on or off
 // all outputs from WB Slave state machine are registered, if this is defined - WB bus outputs as well as
@@ -231,7 +237,7 @@ capable device
 // Turn registered WISHBONE master outputs on or off
 // all outputs from WB Master state machine are registered, if this is defined - WB bus outputs as well as
 // outputs to internals of the core.
-`define REGISTER_WBM_OUTPUTS
+//`define REGISTER_WBM_OUTPUTS
 
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
@@ -239,9 +245,11 @@ capable device
 
 // define the macro below to disable internal retry generation in the wishbone master interface
 // used when wb master accesses extremly slow devices.
-`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
+//`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
 
-//`define PCI_WB_REV_B3
+`define PCI_WB_REV_B3
 //`define PCI_WBS_B3_RTY_DISABLE
 
-//`define PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS
+`ifdef GUEST
+    `define PCI_CPCI_HS_IMPLEMENT
+`endif

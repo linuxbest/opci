@@ -39,8 +39,15 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
-// Revision 1.1  2003/06/12 02:55:26  mihad
-// Added a test application!
+// Revision 1.2  2003/12/19 11:11:24  mihad
+// Compact PCI Hot Swap support added.
+// New testcases added.
+// Specification updated.
+// Test application changed to support WB B3 cycles.
+//
+// Revision 1.9  2003/08/03 18:05:06  mihad
+// Added limited WISHBONE B3 support for WISHBONE Slave Unit.
+// Doesn't support full speed bursts yet.
 //
 // Revision 1.8  2003/03/14 15:31:57  mihad
 // Entered the option to disable no response counter in wb master.
@@ -100,8 +107,8 @@
         //`define WB_XILINX_DIST_RAM
     `endif
 `else
-    `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-    `define WB_FIFO_RAM_ADDR_LENGTH 7       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
 //    `define WB_ARTISAN_SDP
 //    `define PCI_ARTISAN_SDP
 //    `define PCI_VS_STP
@@ -143,11 +150,11 @@
 // or GUEST implementation.
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
-        `define PCI_IMAGE0
+        //`define PCI_IMAGE0
     `endif
 `endif
 
-`define PCI_IMAGE2
+//`define PCI_IMAGE2
 //`define PCI_IMAGE3
 //`define PCI_IMAGE4
 //`define PCI_IMAGE5
@@ -186,7 +193,7 @@
 // ( both GUEST and NO_CNF_IMAGE defined ), then WB image 0 is not implemented. User doesn't need to define image 0.
 // WB Image 1 is always implemented and user doesnt need to specify its definition
 // WB images' 2 through 5 implementation by defining each one.
-`define WB_IMAGE2
+//`define WB_IMAGE2
 //`define WB_IMAGE3
 //`define WB_IMAGE4
 //`define WB_IMAGE5
@@ -194,7 +201,7 @@
 // If this define is commented out, then address translation will not be implemented.
 // addresses will pass through bridge unchanged, regardles of address translation enable bits.
 // Address translation also slows down the decoding
-`define ADDR_TRAN_IMPL
+//`define ADDR_TRAN_IMPL
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow.
 // slower decode speed can be used, to provide enough time for address to be decoded.
@@ -203,7 +210,7 @@
 //`define WB_DECODE_SLOW
 
 // Base address for Configuration space access from WB bus. This value cannot be changed during runtime
-`define WB_CONFIGURATION_BASE 20'hF300_0
+`define WB_CONFIGURATION_BASE 20'h0000_0
 
 // Turn registered WISHBONE slave outputs on or off
 // all outputs from WB Slave state machine are registered, if this is defined - WB bus outputs as well as
@@ -230,7 +237,7 @@ capable device
 // Turn registered WISHBONE master outputs on or off
 // all outputs from WB Master state machine are registered, if this is defined - WB bus outputs as well as
 // outputs to internals of the core.
-`define REGISTER_WBM_OUTPUTS
+//`define REGISTER_WBM_OUTPUTS
 
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
@@ -239,3 +246,10 @@ capable device
 // define the macro below to disable internal retry generation in the wishbone master interface
 // used when wb master accesses extremly slow devices.
 //`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
+
+`define PCI_WB_REV_B3
+//`define PCI_WBS_B3_RTY_DISABLE
+
+`ifdef GUEST
+    //`define PCI_CPCI_HS_IMPLEMENT
+`endif
