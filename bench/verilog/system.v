@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.11  2002/10/11 12:03:12  mihad
+// The testcase I just added in previous revision repaired
+//
 // Revision 1.10  2002/10/11 10:08:57  mihad
 // Added additional testcase and changed rst name in BIST to trst
 //
@@ -19466,6 +19469,8 @@ begin:main
         ) ;
     end
 
+    do_pause(1) ;
+
     wb_transaction_progress_monitor
     (
             Target_Base_Addr_R[1] + 64,     // expected address
@@ -19510,7 +19515,7 @@ begin:main
             ) ;
         end
 
-        @(posedge pci_clock) ;
+        do_pause(1) ;
         while (FRAME !== 1'b1 || IRDY !== 1'b1)
             @(posedge pci_clock) ;
 
@@ -19569,6 +19574,7 @@ begin:main
         ) ;
     end
 
+    do_pause(1) ;
     wb_transaction_progress_monitor
     (
             Target_Base_Addr_R[1] + 128,    // expected address
@@ -19613,7 +19619,7 @@ begin:main
             ) ;
         end
 
-        @(posedge pci_clock) ;
+        do_pause(1) ;
         while (FRAME !== 1'b1 || IRDY !== 1'b1)
             @(posedge pci_clock) ;
 
