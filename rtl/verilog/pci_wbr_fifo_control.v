@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: pci_wbr_fifo_control.v,v $
+// Revision 1.3  2003/07/29 08:20:11  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.2  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -215,12 +219,12 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        wgrey_addr <= #`FF_DELAY 0 ;
+        wgrey_addr <= #1 0 ;
     end
     else
     if (wallow)
     begin
-        wgrey_addr <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
+        wgrey_addr <= #1 {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
     end
 end
 

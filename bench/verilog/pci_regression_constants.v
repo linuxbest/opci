@@ -39,6 +39,10 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.4  2003/07/29 08:19:46  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.3  2002/08/13 11:03:51  mihad
 // Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
 //
@@ -70,151 +74,90 @@
     // If RAM_DONT_SHARE is defined, then all RAM address lengths must be specified accordingly, otherwise there are two relevant lengths - PCI_FIFO_RAM_ADDR_LENGTH and
     // WB_FIFO_RAM_ADDR_LENGTH.
     
-    `ifdef REGR_FIFO_SMALL_XILINX // with Xilinx FPGA parameters only
-        `define WBW_ADDR_LENGTH 3
-        `define WBR_ADDR_LENGTH 4
-        `define PCIW_ADDR_LENGTH 4
-        `define PCIR_ADDR_LENGTH 3
+`ifdef REGR_FIFO_SMALL_XILINX // with Xilinx FPGA parameters only
+    `define WBW_ADDR_LENGTH 3
+    `define WBR_ADDR_LENGTH 4
+    `define PCIW_ADDR_LENGTH 4
+    `define PCIR_ADDR_LENGTH 3
+    
+    `define FPGA
+    `define XILINX
+    
+    `define WB_RAM_DONT_SHARE
+    `define PCI_RAM_DONT_SHARE
         
-        `define FPGA
-        `define XILINX
+    `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition
+    `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition
+    `define PCI_XILINX_DIST_RAM
+    `define WB_XILINX_DIST_RAM
+`endif        
+
+`ifdef REGR_FIFO_MEDIUM_XILINX
+    `define WBW_ADDR_LENGTH 8
+    `define WBR_ADDR_LENGTH 8
+    `define PCIW_ADDR_LENGTH 8
+    `define PCIR_ADDR_LENGTH 8
+    
+    `define FPGA
+    `define XILINX
+    
+    `define WB_RAM_DONT_SHARE
+    `define PCI_RAM_DONT_SHARE
         
-        `define WB_RAM_DONT_SHARE
-        `define PCI_RAM_DONT_SHARE
+    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
+    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
+    `define PCI_XILINX_RAMB4
+    `define WB_XILINX_RAMB4
+`endif
         
-        `ifdef FPGA
-            `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition
-                `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition
-                //`define PCI_XILINX_RAMB4
-                //`define WB_XILINX_RAMB4
-                `define PCI_XILINX_DIST_RAM
-                `define WB_XILINX_DIST_RAM
-            `endif
-        `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-            `define WB_ARTISAN_SDP
-            `define PCI_ARTISAN_SDP
-        `endif
-    `else
-    `ifdef REGR_FIFO_MEDIUM_ARTISAN // with Artisan parameter only
-        `define WBW_ADDR_LENGTH 7
-        `define WBR_ADDR_LENGTH 6
-        `define PCIW_ADDR_LENGTH 7
-        `define PCIR_ADDR_LENGTH 8
+`ifdef REGR_FIFO_MEDIUM_ARTISAN // with Artisan parameter only
+    `define WBW_ADDR_LENGTH 7
+    `define WBR_ADDR_LENGTH 6
+    `define PCIW_ADDR_LENGTH 7
+    `define PCIR_ADDR_LENGTH 8
+    
+    `define PCI_RAM_DONT_SHARE
+    
+    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+    `define WB_ARTISAN_SDP
+    `define PCI_ARTISAN_SDP
+`endif
+
+`ifdef REGR_FIFO_SMALL_GENERIC // without any parameters only (generic)
+    `define WBW_ADDR_LENGTH 3
+    `define WBR_ADDR_LENGTH 4
+    `define PCIW_ADDR_LENGTH 4
+    `define PCIR_ADDR_LENGTH 3
+    
+    `define WB_RAM_DONT_SHARE
         
-        //`define FPGA
-        //`define XILINX
-        
-        //`define WB_RAM_DONT_SHARE
-        `define PCI_RAM_DONT_SHARE
-        
-        `ifdef FPGA
-            `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
-                `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-                `define PCI_XILINX_RAMB4
-                `define WB_XILINX_RAMB4
-                //`define PCI_XILINX_DIST_RAM
-                //`define WB_XILINX_DIST_RAM
-            `endif
-        `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-            `define WB_ARTISAN_SDP
-            `define PCI_ARTISAN_SDP
-        `endif
-    `else
-    `ifdef REGR_FIFO_SMALL_GENERIC // without any parameters only (generic)
-        `define WBW_ADDR_LENGTH 3
-        `define WBR_ADDR_LENGTH 4
-        `define PCIW_ADDR_LENGTH 4
-        `define PCIR_ADDR_LENGTH 3
-        
-        //`define FPGA
-        //`define XILINX
-        
-        `define WB_RAM_DONT_SHARE
-        //`define PCI_RAM_DONT_SHARE
-        
-        `ifdef FPGA
-            `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
-                `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-                `define PCI_XILINX_RAMB4
-                `define WB_XILINX_RAMB4
-                //`define PCI_XILINX_DIST_RAM
-                //`define WB_XILINX_DIST_RAM
-            `endif
-        `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 5      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-            //`define WB_ARTISAN_SDP
-            //`define PCI_ARTISAN_SDP
-        `endif
-    `else
-    `ifdef REGR_FIFO_MEDIUM_GENERIC // without any parameters only (generic)
-        `define WBW_ADDR_LENGTH 7
-        `define WBR_ADDR_LENGTH 6
-        `define PCIW_ADDR_LENGTH 7
-        `define PCIR_ADDR_LENGTH 8
-        
-        //`define FPGA
-        //`define XILINX
-        
-        //`define WB_RAM_DONT_SHARE
-        `define PCI_RAM_DONT_SHARE
-        
-        `ifdef FPGA
-            `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
-                `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-                `define PCI_XILINX_RAMB4
-                `define WB_XILINX_RAMB4
-                //`define PCI_XILINX_DIST_RAM
-                //`define WB_XILINX_DIST_RAM
-            `endif
-        `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-            //`define WB_ARTISAN_SDP
-            //`define PCI_ARTISAN_SDP
-        `endif
-    `else
-    `ifdef REGR_FIFO_LARGE_GENERIC // without any parameters only (generic)
+    `define PCI_FIFO_RAM_ADDR_LENGTH 5      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+
+`endif
+
+`ifdef REGR_FIFO_MEDIUM_GENERIC // without any parameters only (generic)
+    `define WBW_ADDR_LENGTH 7
+    `define WBR_ADDR_LENGTH 6
+    `define PCIW_ADDR_LENGTH 7
+    `define PCIR_ADDR_LENGTH 8
+    
+    `define PCI_RAM_DONT_SHARE
+    
+    `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+`endif
+
+`ifdef REGR_FIFO_LARGE_GENERIC // without any parameters only (generic)
         `define WBW_ADDR_LENGTH 9
         `define WBR_ADDR_LENGTH 9
         `define PCIW_ADDR_LENGTH 9
         `define PCIR_ADDR_LENGTH 9
         
-        //`define FPGA
-        //`define XILINX
-        
-        //`define WB_RAM_DONT_SHARE
-        //`define PCI_RAM_DONT_SHARE
-        
-        `ifdef FPGA
-            `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
-                `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-                `define PCI_XILINX_RAMB4
-                `define WB_XILINX_RAMB4
-                //`define PCI_XILINX_DIST_RAM
-                //`define WB_XILINX_DIST_RAM
-            `endif
-        `else
-            `define PCI_FIFO_RAM_ADDR_LENGTH 10      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
-            `define WB_FIFO_RAM_ADDR_LENGTH 10       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
-            //`define WB_ARTISAN_SDP
-            //`define PCI_ARTISAN_SDP
-        `endif
-    `else
-    `endif
-    `endif
-    `endif
-    `endif
-    `endif
+        `define PCI_FIFO_RAM_ADDR_LENGTH 10      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+        `define WB_FIFO_RAM_ADDR_LENGTH 10       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
+`endif
     
     // number defined here specifies how many MS bits in PCI address are compared with base address, to decode
     // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
@@ -232,35 +175,36 @@
     // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
     // Device independent software sets the base addresses acording to MEMORY or IO maping!
 
-    `ifdef PCI_DECODE_MIN
+`ifdef PCI_DECODE_MIN
 
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 3
+	`define PCI_NUM_OF_DEC_ADDR_LINES 3
 
 
-        // don't disable AM0 if GUEST bridge, otherwise there is no other way of accesing configuration space
-        `ifdef HOST
-            `define PCI_AM0 20'h0000_0
-        `else
-            `define PCI_AM0 20'hE000_0
-        `endif
-
-        `define PCI_AM1 20'hE000_0
-        `define PCI_AM2 20'h0000_0
-        `define PCI_AM3 20'hE000_0
-        `define PCI_AM4 20'h0000_0
-        `define PCI_AM5 20'hE000_0
-
-        `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-        `define PCI_BA1_MEM_IO 1'b0
-        `define PCI_BA2_MEM_IO 1'b1
-        `define PCI_BA3_MEM_IO 1'b0
-        `define PCI_BA4_MEM_IO 1'b1
-        `define PCI_BA5_MEM_IO 1'b0
-
+    // don't disable AM0 if GUEST bridge, otherwise there is no other way of accesing configuration space
+    `ifdef HOST
+    	`define PCI_AM0 20'h0000_0
     `else
-     `ifdef PCI_DECODE_MED
+    	`define PCI_AM0 20'hE000_0
+    `endif
 
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 12
+    `define PCI_AM1 20'hE000_0
+    `define PCI_AM2 20'h0000_0
+    `define PCI_AM3 20'hE000_0
+    `define PCI_AM4 20'h0000_0
+    `define PCI_AM5 20'hE000_0
+
+    `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
+    `define PCI_BA1_MEM_IO 1'b0
+    `define PCI_BA2_MEM_IO 1'b1
+    `define PCI_BA3_MEM_IO 1'b0
+    `define PCI_BA4_MEM_IO 1'b1
+    `define PCI_BA5_MEM_IO 1'b0
+
+`endif
+
+`ifdef PCI_DECODE_MED
+
+        `define PCI_NUM_OF_DEC_ADDR_LINES 12
 
         `define PCI_AM0 20'hfff0_0
         `define PCI_AM1 20'h0000_0
@@ -276,68 +220,65 @@
         `define PCI_BA4_MEM_IO 1'b1
         `define PCI_BA5_MEM_IO 1'b0
 
-     `else
-      `ifdef PCI_DECODE_MAX
+`endif
 
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 20
+`ifdef PCI_DECODE_MAX
 
-        `define PCI_AM0 20'hffff_e
-        `define PCI_AM1 20'hffff_c
-        `define PCI_AM2 20'hffff_8
-        `define PCI_AM3 20'hfffe_0
-        `define PCI_AM4 20'hfffc_0
-        `define PCI_AM5 20'hfff8_0
+    `define PCI_NUM_OF_DEC_ADDR_LINES 20
 
-        `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-        `define PCI_BA1_MEM_IO 1'b0
-        `define PCI_BA2_MEM_IO 1'b1
-        `define PCI_BA3_MEM_IO 1'b1
-        `define PCI_BA4_MEM_IO 1'b0
-        `define PCI_BA5_MEM_IO 1'b0
+    `define PCI_AM0 20'hffff_e
+    `define PCI_AM1 20'hffff_c
+    `define PCI_AM2 20'hffff_8
+    `define PCI_AM3 20'hfffe_0
+    `define PCI_AM4 20'hfffc_0
+    `define PCI_AM5 20'hfff8_0
 
-      `endif
-     `endif
-    `endif
-    
-    
+    `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
+    `define PCI_BA1_MEM_IO 1'b0
+    `define PCI_BA2_MEM_IO 1'b1
+    `define PCI_BA3_MEM_IO 1'b1
+    `define PCI_BA4_MEM_IO 1'b0
+    `define PCI_BA5_MEM_IO 1'b0
+
+`endif        
     
     // number defined here specifies how many MS bits in WB address are compared with base address, to decode
     // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
     // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of WB images,
     // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
     // smaller the number here, faster the decoder operation
-    `ifdef WB_DECODE_MIN
-    	`define WB_NUM_OF_DEC_ADDR_LINES 4
-    `else
-     `ifdef WB_DECODE_MED
-     	`define WB_NUM_OF_DEC_ADDR_LINES 12
-     `else
-      `ifdef WB_DECODE_MAX
-      	`define WB_NUM_OF_DEC_ADDR_LINES 20
-      `endif
-     `endif
-    `endif
+`ifdef WB_DECODE_MIN
+	`define WB_NUM_OF_DEC_ADDR_LINES 4
+`endif
+
+`ifdef WB_DECODE_MED
+	`define WB_NUM_OF_DEC_ADDR_LINES 12
+`endif
     
-    // Base address for Configuration space access from WB bus. This value cannot be changed during runtime
-    `ifdef WB_CNF_BASE_ZERO
-    	`define WB_CONFIGURATION_BASE 20'h0000_0
-    `else
-    	`define WB_CONFIGURATION_BASE 20'hB000_0
-    `endif
+`ifdef WB_DECODE_MAX
+	`define WB_NUM_OF_DEC_ADDR_LINES 20
+`endif
+    
+// Base address for Configuration space access from WB bus. This value cannot be changed during runtime
+`ifdef WB_CNF_BASE_ZERO
+    `define WB_CONFIGURATION_BASE 20'h0000_0
+`else
+    `define WB_CONFIGURATION_BASE 20'hB000_0
+`endif
     
     /*-----------------------------------------------------------------------------------------------------------
     [000h-00Ch] First 4 DWORDs (32-bit) of PCI configuration header - the same regardless of the HEADER type !
-    	Vendor_ID is an ID for a specific vendor defined by PCI_SIG - 2321h does not belong to anyone (e.g.
-    	Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
-    	together by application.
+        Vendor_ID is an ID for a specific vendor defined by PCI_SIG - 2321h does not belong to anyone (e.g.
+        Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
+        together by application.
     -----------------------------------------------------------------------------------------------------------*/
     `define HEADER_VENDOR_ID    16'h2321
     `define HEADER_DEVICE_ID    16'h0001
     `define HEADER_REVISION_ID  8'h01
     
     // MAX Retry counter value for WISHBONE Master state-machine
-    // 	This value is 8-bit because of 8-bit retry counter !!!
-    `define WB_RTY_CNT_MAX			8'hff
+    //  This value is 8-bit because of 8-bit retry counter !!!
+    `define WB_RTY_CNT_MAX          8'hff
     
 /////////////////////////////////////////////////////////////////////////////////
 //// ======================================================================= ////
@@ -350,38 +291,36 @@
 
     // wishbone frequncy in GHz
     `ifdef WB_CLK10
-    	`define WB_FREQ 0.01
-    `else 
-     `ifdef WB_CLK66
-    	`define WB_FREQ 0.066
-     `else
-      `ifdef WB_CLK220
-    	`define WB_FREQ 0.22
-      `endif
-     `endif
+        `define WB_PERIOD 100.0
+    `endif
+    `ifdef WB_CLK66
+        `define WB_PERIOD 15.0
+    `endif
+    `ifdef WB_CLK220
+        `define WB_PERIOD 4.5
     `endif
     
     // values of image registers of PCI bridge device - valid are only upper 20 bits, others must be ZERO !
-    `define TAR0_BASE_ADDR_0	32'h1000_0000
-    `define TAR0_BASE_ADDR_1  	32'h2000_0000
-    `define TAR0_BASE_ADDR_2  	32'h4000_0000
-    `define TAR0_BASE_ADDR_3  	32'h6000_0000
-    `define TAR0_BASE_ADDR_4  	32'h8000_0000
-    `define TAR0_BASE_ADDR_5  	32'hA000_0000
+    `define TAR0_BASE_ADDR_0    32'h1000_0000
+    `define TAR0_BASE_ADDR_1    32'h2000_0000
+    `define TAR0_BASE_ADDR_2    32'h4000_0000
+    `define TAR0_BASE_ADDR_3    32'h6000_0000
+    `define TAR0_BASE_ADDR_4    32'h8000_0000
+    `define TAR0_BASE_ADDR_5    32'hA000_0000
     
-    `define TAR0_ADDR_MASK_0	32'hFFFF_F000 // when BA0 is used to access configuration space, this is NOT important!
-    `define TAR0_ADDR_MASK_1  	32'hFFFF_F000
-    `define TAR0_ADDR_MASK_2  	32'hFFFF_F000
-    `define TAR0_ADDR_MASK_3  	32'hFFFF_F000
-    `define TAR0_ADDR_MASK_4  	32'hFFFF_F000
-    `define TAR0_ADDR_MASK_5  	32'hFFFF_F000
+    `define TAR0_ADDR_MASK_0    32'hFFFF_F000 // when BA0 is used to access configuration space, this is NOT important!
+    `define TAR0_ADDR_MASK_1    32'hFFFF_F000
+    `define TAR0_ADDR_MASK_2    32'hFFFF_F000
+    `define TAR0_ADDR_MASK_3    32'hFFFF_F000
+    `define TAR0_ADDR_MASK_4    32'hFFFF_F000
+    `define TAR0_ADDR_MASK_5    32'hFFFF_F000
     
-    `define TAR0_TRAN_ADDR_0	32'hC000_0000 // when BA0 is used to access configuration space, this is NOT important!
-    `define TAR0_TRAN_ADDR_1  	32'hA000_0000
-    `define TAR0_TRAN_ADDR_2  	32'h8000_0000
-    `define TAR0_TRAN_ADDR_3  	32'h6000_0000
-    `define TAR0_TRAN_ADDR_4  	32'h4000_0000
-    `define TAR0_TRAN_ADDR_5  	32'h2000_0000
+    `define TAR0_TRAN_ADDR_0    32'hC000_0000 // when BA0 is used to access configuration space, this is NOT important!
+    `define TAR0_TRAN_ADDR_1    32'hA000_0000
+    `define TAR0_TRAN_ADDR_2    32'h8000_0000
+    `define TAR0_TRAN_ADDR_3    32'h6000_0000
+    `define TAR0_TRAN_ADDR_4    32'h4000_0000
+    `define TAR0_TRAN_ADDR_5    32'h2000_0000
     
     // values of image registers of PCI behavioral target devices !
     `define BEH_TAR1_MEM_START 32'hC000_0000
@@ -413,9 +352,9 @@
 =========================================================================================
 
   REGRESSION
-    HOST						GUEST
-    REGR_FIFO_SMALL_XILINX		REGR_FIFO_MEDIUM_ARTISAN		REGR_FIFO_LARGE_GENERIC
-    (REGR_FIFO_SMALL_GENERIC)	(REGR_FIFO_MEDIUM_GENERIC)
+    HOST                        GUEST
+    REGR_FIFO_SMALL_XILINX      REGR_FIFO_MEDIUM_ARTISAN        REGR_FIFO_LARGE_GENERIC
+    (REGR_FIFO_SMALL_GENERIC)   (REGR_FIFO_MEDIUM_GENERIC)
     ADDR_TRAN_IMPL
     WB_RETRY_MAX
     WB_CNF_BASE_ZERO
@@ -429,14 +368,14 @@
     WB_IMAGE3
     WB_IMAGE4
     WB_IMAGE5
-    WB_DECODE_FAST				WB_DECODE_MEDIUM				WB_DECODE_SLOW
+    WB_DECODE_FAST              WB_DECODE_MEDIUM                WB_DECODE_SLOW
     REGISTER_WBM_OUTPUTS
     REGISTER_WBS_OUTPUTS
-    PCI_DECODE_MIN				PCI_DECODE_MED					PCI_DECODE_MAX
-    WB_DECODE_MIN				WB_DECODE_MED					WB_DECODE_MAX
-    PCI33						PCI66
-    WB_CLK10					WB_CLK66						WB_CLK100
-    ACTIVE_LOW_OE				ACTIVE_HIGH_OE
+    PCI_DECODE_MIN              PCI_DECODE_MED                  PCI_DECODE_MAX
+    WB_DECODE_MIN               WB_DECODE_MED                   WB_DECODE_MAX
+    PCI33                       PCI66
+    WB_CLK10                    WB_CLK66                        WB_CLK100
+    ACTIVE_LOW_OE               ACTIVE_HIGH_OE
 
 -----------------------------------------------------------------------------------------
   Follows combinations of defines used in a script file for regression testing !!!

@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: wb_slave_behavioral.v,v $
+// Revision 1.5  2003/07/29 08:19:47  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.4  2003/06/12 02:30:39  mihad
 // Update!
 //
@@ -122,15 +126,17 @@ begin
   end
 end //reset
 
+reg            retry_expired;
 task cycle_response;
   input [2:0]  ack_err_rty_resp; // acknowledge, error or retry response input flags
   input [3:0]  wait_cycles; // if wait cycles before each data termination cycle (ack, err or rty)
   input [7:0]  retry_cycles; // noumber of retry cycles before acknowledge cycle
 begin
   // assign values
-  a_e_r_resp <= #1 ack_err_rty_resp;
-  wait_cyc   <= #1 wait_cycles;
-  max_retry  <= #1 retry_cycles;
+  a_e_r_resp    <= #1 ack_err_rty_resp;
+  wait_cyc      <= #1 wait_cycles;
+  max_retry     <= #1 retry_cycles;
+  retry_expired <= #1 0 ;
 end
 endtask // cycle_response
 
@@ -211,7 +217,6 @@ reg            calc_rty;
 
 reg     [7:0]  retry_cnt;
 reg     [7:0]  retry_num;
-reg            retry_expired;
 
 // Retry counter
 always@(posedge RST_I or posedge CLK_I)

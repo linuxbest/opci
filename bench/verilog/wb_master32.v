@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: wb_master32.v,v $
+// Revision 1.3  2003/07/29 08:19:47  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.2  2003/06/12 02:30:39  mihad
 // Update!
 //
@@ -352,7 +356,7 @@ module WB_MASTER32
 
     initial
     begin
-        Tp = 1 / `WB_FREQ ;
+        Tp = `WB_PERIOD ;
         in_use = 0 ;
         cycle_in_progress = 0 ;
         cab = 0 ;

@@ -2,20 +2,10 @@
 
 set arg_num = $#argv; # number of arguments
 
-if ($arg_num > 4) then
-    echo "    Too many parameters ( $arg_num )"
-    echo "    Maximum number of parameters is 4:"
-    echo "      - xilinx"
-    echo "      - artisan"
-    echo "      - regression"
-    echo "      - waves"
-    exit
-endif
-
 # current iterration
 set iter = 1;
 # number of tests with DEFINES + test with user defined constants!
-set all_iterations = 13;
+set all_iterations = 14;
 
 # variables
 set iter_failed = 0;
@@ -37,38 +27,45 @@ set arg_dis_comp_exp_test = 0
 set arg_check = 0
 
 while($arg_num <= $#argv)
-    if ($argv[$arg_num] == "help") then
+        if ($argv[$arg_num] == "help") then
         goto help
-    endif
+        endif
 
-    if ($argv[$arg_num] == "regression") then
+        if ($argv[$arg_num] == "regression") then
         @ arg_regression = 1
         @ arg_check      = $arg_check + 1
-    endif
-    
-    if ($argv[$arg_num] == "xilinx") then
+        endif
+
+        if ($argv[$arg_num] == "xilinx") then
         @ arg_xilinx = 1
         @ arg_check      = $arg_check + 1
-    endif
+        endif
 
-    if($argv[$arg_num] == "artisan") then
+        if($argv[$arg_num] == "artisan") then
         @ arg_artisan = 1
         @ arg_check      = $arg_check + 1
-    endif
-         
-    if ($argv[$arg_num] == "waves") then
+        endif
+
+        if ($argv[$arg_num] == "waves") then
         @ arg_waves = 1
         @ arg_check      = $arg_check + 1
-    endif
+        endif
 
-    if ($argv[$arg_num] == "vs_two_port") then
+        if ($argv[$arg_num] == "vs_two_port") then
         @ arg_vs_hdtp = 1
         @ arg_check   = $arg_check + 1
-    endif
+        endif
 
-    if ($argv[$arg_num] == "disable_completion_expired_tests") then
+        if ($argv[$arg_num] == "disable_completion_expired_tests") then
         @ arg_dis_comp_exp_test = 1
         @ arg_check   = $arg_check + 1
+        endif
+
+        if ($argv[$arg_num] == "iter") then
+        @ arg_num = $arg_num + 1
+        @ arg_check = $arg_check + 2
+        @ iter = $argv[$arg_num]
+        @ all_iterations = $iter
     endif
 
     if ($arg_check != $arg_num) then
@@ -88,389 +85,441 @@ echo "<<< Iteration ${iter}"
 echo "<<<" 
 
 
-# Preparing defines into file
-
 if ($arg_regression == 1) then
- if ($iter < $all_iterations) then
-  if (($arg_xilinx == 0) && ($arg_artisan == 0)) then
-         if ($iter == 1) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_FAST, PCI_DECODE_MAX, " 
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, " 
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 2) then 
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tPCI_IMAGE3, PCI_IMAGE4, PCI_IMAGE5, WB_IMAGE2, WB_IMAGE5. " 
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 3) then 
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, WB_IMAGE5. " 
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 4) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, PCI_IMAGE0, PCI_IMAGE5, WB_IMAGE4. " 
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 5) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tWB_IMAGE2, WB_IMAGE3, WB_IMAGE4. " 
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 6) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL" > ./defines.args
-         endif
-         if ($iter == 7) then 
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 8) then 
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 9) then 
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, WB_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 10) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK66, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 11) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 12) then 
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
+    # Preparing defines into file
+    if ($iter <= $all_iterations) then
+
+        if ($iter == 1) then
+            echo "<<< Defines:"
+
+            if ($arg_xilinx == 0) then
+                echo "\tREGR_FIFO_SMALL_GENERIC, "
+            else
+                echo "\tREGR_FIFO_SMALL_XILINX, "
+            endif
+
+            echo "\tHOST, WB_DECODE_FAST, PCI_DECODE_MAX, " 
+            echo "\tWB_DECODE_MIN, PCI33, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, " 
+            echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2. "
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            if ($arg_xilinx == 0) then
+                echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_SMALL_XILINX" >> ./defines.args
+            endif
+
+            echo "-DEFINE HOST                " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST      " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX      " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MIN       " >> ./defines.args
+            echo "-DEFINE PCI33               " >> ./defines.args
+            echo "-DEFINE WB_CLK10            " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE       " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS" >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE2          " >> ./defines.args
+
+        endif
+
+        if ($iter == 2) then 
+
+            echo "<<< Defines:"
+
+            if ($arg_xilinx == 1) then
+                echo "\tREGR_FIFO_MEDIUM_XILINX, "
+            else if ($arg_artisan == 1) then
+                echo "\tREGR_FIFO_MEDIUM_ARTISAN, "
+            else
+                echo "\tREGR_FIFO_MEDIUM_GENERIC, "
+            endif
+
+            echo "\tHOST, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
+            echo "\tWB_DECODE_MED, PCI33, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
+            echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
+            echo "\tPCI_IMAGE3, PCI_IMAGE4, PCI_IMAGE5, WB_IMAGE2, WB_IMAGE5. " 
+
+            echo "-DEFINE REGRESSION          " > ./defines.args
+
+            if ($arg_xilinx == 1) then
+                echo "-DEFINE REGR_FIFO_MEDIUM_XILINX" >> ./defines.args
+            else if ($arg_artisan == 1) then
+       			echo "-DEFINE REGR_FIFO_MEDIUM_ARTISAN" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_MEDIUM_GENERIC" >> ./defines.args
+            endif
+
+            echo "-DEFINE HOST                " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MEDIUM    " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MED      " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED       " >> ./defines.args
+            echo "-DEFINE PCI33               " >> ./defines.args
+            echo "-DEFINE WB_CLK66            " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE       " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS" >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS" >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE2          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE3          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE4          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE5          " >> ./defines.args
+            echo "-DEFINE WB_IMAGE2           " >> ./defines.args
+            echo "-DEFINE WB_IMAGE5           " >> ./defines.args
+        
+        endif
+
+        if ($iter == 3) then 
+            echo "<<< Defines:"
+            echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
+            echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
+            echo "\tREGISTER_WBS_OUTPUTS, WB_IMAGE5. " 
+            
+            echo "-DEFINE REGRESSION             " >  ./defines.args
+
+            echo "-DEFINE HOST                   " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MIN         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MAX          " >> ./defines.args
+            echo "-DEFINE PCI66                  " >> ./defines.args
+            echo "-DEFINE WB_CLK66               " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE WB_IMAGE5              " >> ./defines.args
+
+        endif
+
+        if ($iter == 4) then 
+            echo "<<< Defines:"
+            echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
+            echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
+            echo "\tREGISTER_WBS_OUTPUTS, PCI_IMAGE0, PCI_IMAGE5, WB_IMAGE4. " 
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            echo "-DEFINE GUEST                  " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
+            echo "-DEFINE PCI66                  " >> ./defines.args
+            echo "-DEFINE WB_CLK220              " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0             " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE5             " >> ./defines.args
+            echo "-DEFINE WB_IMAGE4              " >> ./defines.args
+        endif
+
+        if ($iter == 5) then
+            echo "<<< Defines:"
+
+            if ($arg_artisan == 1) then
+                echo "\tREGR_FIFO_MEDIUM_ARTISAN, "
+            else
+                echo "\tREGR_FIFO_MEDIUM_GENERIC, "
+            endif
+
+            echo "\tGUEST, WB_DECODE_FAST, PCI_DECODE_MIN, "
+            echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
+            echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
+            echo "\tWB_IMAGE2, WB_IMAGE3, WB_IMAGE4. " 
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            if ($arg_artisan == 1) then
+       			echo "-DEFINE REGR_FIFO_MEDIUM_ARTISAN" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_MEDIUM_GENERIC" >> ./defines.args
+            endif
+
+            echo "-DEFINE GUEST                   " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST          " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MIN          " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MAX           " >> ./defines.args
+            echo "-DEFINE PCI33                   " >> ./defines.args
+            echo "-DEFINE WB_CLK220               " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE           " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS    " >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS    " >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL          " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0              " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE2              " >> ./defines.args
+            echo "-DEFINE WB_IMAGE2               " >> ./defines.args
+            echo "-DEFINE WB_IMAGE3               " >> ./defines.args
+            echo "-DEFINE WB_IMAGE4               " >> ./defines.args
+        endif
+
+        if ($iter == 6) then 
+            echo "<<< Defines:"
+            echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
+            echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
+            echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL. "
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            echo "-DEFINE GUEST                  " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_MEDIUM       " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED          " >> ./defines.args
+            echo "-DEFINE PCI66                  " >> ./defines.args
+            echo "-DEFINE WB_CLK10               " >> ./defines.args
+            echo "-DEFINE ACTIVE_LOW_OE          " >> ./defines.args
+            echo "-DEFINE REGISTER_WBM_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE REGISTER_WBS_OUTPUTS   " >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL         " >> ./defines.args
+        endif
+
+        if ($iter == 7) then 
+            echo "<<< Defines:"
+    
+            if ($arg_xilinx == 0) then
+                echo "\tREGR_FIFO_SMALL_GENERIC, "
+            else
+                echo "\tREGR_FIFO_SMALL_XILINX, "
+            endif
+
+            echo "\tHOST, WB_DECODE_FAST, PCI_DECODE_MAX, "
+            echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE4. "
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            if ($arg_xilinx == 0) then
+                echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_SMALL_XILINX" >> ./defines.args
+            endif
+
+            echo "-DEFINE HOST            " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST  " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX  " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MIN   " >> ./defines.args
+            echo "-DEFINE PCI66           " >> ./defines.args
+            echo "-DEFINE WB_CLK220       " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE  " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO" >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE    " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE4      " >> ./defines.args 
+        endif
+
+        if ($iter == 8) then 
+            echo "<<< Defines:"
+            echo "\tHOST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
+            echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
+            echo "\tPCI_IMAGE5, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            echo "-DEFINE HOST                    " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_MEDIUM_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_MEDIUM        " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MED          " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED           " >> ./defines.args
+            echo "-DEFINE PCI66                   " >> ./defines.args
+            echo "-DEFINE WB_CLK10                " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE          " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO        " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE            " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0              " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE2              " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE3              " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE4              " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE5              " >> ./defines.args
+            echo "-DEFINE WB_IMAGE2               " >> ./defines.args
+            echo "-DEFINE WB_IMAGE3               " >> ./defines.args
+            echo "-DEFINE WB_IMAGE4               " >> ./defines.args
+            echo "-DEFINE WB_IMAGE5               " >> ./defines.args
+        endif
+
+        if ($iter == 9) then 
+            echo "<<< Defines:"
+            echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
+            echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
+            echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, WB_IMAGE3. "
+
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            echo "-DEFINE HOST                   " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MIN         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MAX          " >> ./defines.args
+            echo "-DEFINE PCI33                  " >> ./defines.args
+            echo "-DEFINE WB_CLK220              " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE         " >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL         " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO       " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE           " >> ./defines.args
+            echo "-DEFINE WB_IMAGE3              " >> ./defines.args
+        endif
+
+        if ($iter == 10) then 
+            echo "<<< Defines:"
+            echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
+            echo "\tWB_DECODE_MIN, PCI33, WB_CLK66, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
+            echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE3. "
+
+            echo "-DEFINE REGRESSION" > ./defines.args
+            
+            echo "-DEFINE GUEST                  " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_SLOW         " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
+            echo "-DEFINE PCI33                  " >> ./defines.args
+            echo "-DEFINE WB_CLK66               " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE         " >> ./defines.args
+            echo "-DEFINE ADDR_TRAN_IMPL         " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO       " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE           " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0             " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE3             " >> ./defines.args
+        endif
+
+        if ($iter == 11) then 
+            echo "<<< Defines:"
+
+            if ($arg_xilinx == 1) then
+                echo "\tREGR_FIFO_MEDIUM_XILINX, "
+            else if ($arg_artisan == 1) then
+                echo "\tREGR_FIFO_MEDIUM_ARTISAN, "
+            else
+                echo "\tREGR_FIFO_MEDIUM_GENERIC, "
+            endif
+
+            echo "\tGUEST, WB_DECODE_FAST, PCI_DECODE_MIN, "
+            echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
+            echo "\tPCI_IMAGE5, WB_IMAGE2. "
+            
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            if ($arg_xilinx == 1) then
+                echo "-DEFINE REGR_FIFO_MEDIUM_XILINX" >> ./defines.args
+            else if ($arg_artisan == 1) then
+       			echo "-DEFINE REGR_FIFO_MEDIUM_ARTISAN" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_MEDIUM_GENERIC" >> ./defines.args
+            endif
+
+            echo "-DEFINE GUEST           " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST  " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MIN  " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MAX   " >> ./defines.args
+            echo "-DEFINE PCI66           " >> ./defines.args
+            echo "-DEFINE WB_CLK66        " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE  " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO" >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE    " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE0      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE2      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE3      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE4      " >> ./defines.args
+            echo "-DEFINE PCI_IMAGE5      " >> ./defines.args
+            echo "-DEFINE WB_IMAGE2       " >> ./defines.args
+        endif
+
+        if ($iter == 12) then 
+            echo "<<< Defines:"
+            echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
+            echo "\tWB_DECODE_MED, PCI33, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
+
+            echo "-DEFINE REGRESSION" > ./defines.args
+            
+            echo "-DEFINE GUEST                  " >> ./defines.args
+            echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
+            echo "-DEFINE WB_DECODE_MEDIUM       " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX         " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED          " >> ./defines.args
+            echo "-DEFINE PCI33                  " >> ./defines.args
+            echo "-DEFINE WB_CLK10               " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE         " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO       " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE           " >> ./defines.args
+            echo "-DEFINE WB_IMAGE2              " >> ./defines.args
+            echo "-DEFINE WB_IMAGE3              " >> ./defines.args
+            echo "-DEFINE WB_IMAGE4              " >> ./defines.args
+            echo "-DEFINE WB_IMAGE5              " >> ./defines.args
+
+        endif
+
+        if ($iter == 13) then 
+
+            echo "<<< Defines:"
+
+            if ($arg_xilinx == 0) then
+                echo "\tREGR_FIFO_SMALL_GENERIC, "
+            else
+                echo "\tREGR_FIFO_SMALL_XILINX, "
+            endif
+
+            echo "\tGUEST, WB_DECODE_FAST, PCI_DECODE_MAX, "
+            echo "\tWB_DECODE_MED, PCI66, WB_CLOCK_FOLLOWS_PCI_CLOCK, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE "
+
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            if ($arg_xilinx == 0) then
+                echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+            else
+                echo "-DEFINE REGR_FIFO_SMALL_XILINX" >> ./defines.args
+            endif
+
+            echo "-DEFINE GUEST                       " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST              " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX              " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED               " >> ./defines.args
+            echo "-DEFINE PCI66                       " >> ./defines.args
+            echo "-DEFINE WB_CLK66                    " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE              " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO            " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE                " >> ./defines.args
+            echo "-DEFINE WB_CLOCK_FOLLOWS_PCI_CLOCK=2" >> ./defines.args
+
+        endif
+
+        if ($iter == 14) then 
+
+            echo "<<< Defines:"
+
+            echo "\tREGR_FIFO_SMALL_GENERIC, "
+
+            echo "\tGUEST, WB_DECODE_FAST, PCI_DECODE_MAX, "
+            echo "\tWB_DECODE_MED, PCI66, WB_CLOCK_FOLLOWS_PCI_CLOCK, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
+            echo "\tNO_CNF_IMAGE "
+
+            echo "-DEFINE REGRESSION" > ./defines.args
+
+            echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
+
+            echo "-DEFINE GUEST                       " >> ./defines.args
+            echo "-DEFINE WB_DECODE_FAST              " >> ./defines.args
+            echo "-DEFINE PCI_DECODE_MAX              " >> ./defines.args
+            echo "-DEFINE WB_DECODE_MED               " >> ./defines.args
+            echo "-DEFINE PCI66                       " >> ./defines.args
+            echo "-DEFINE WB_CLK66                    " >> ./defines.args
+            echo "-DEFINE ACTIVE_HIGH_OE              " >> ./defines.args
+            echo "-DEFINE WB_CNF_BASE_ZERO            " >> ./defines.args
+            echo "-DEFINE NO_CNF_IMAGE                " >> ./defines.args
+            echo "-DEFINE PCI_CLOCK_FOLLOWS_WB_CLOCK=2" >> ./defines.args
+
+        endif
 
         if ($arg_dis_comp_exp_test) then
             echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
         endif
-  else 
-    if (($arg_xilinx == 0) && ($arg_artisan == 1)) then
-         if ($iter == 1) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 2) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tPCI_IMAGE3, PCI_IMAGE4, PCI_IMAGE5, WB_IMAGE2, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 3) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 4) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, PCI_IMAGE0, PCI_IMAGE5, WB_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 5) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tWB_IMAGE2, WB_IMAGE3, WB_IMAGE4. " 
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 6) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL" > ./defines.args
-         endif
-         if ($iter == 7) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 8) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 9) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, WB_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 10) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK66, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 11) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 12) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-        
-         if ($arg_dis_comp_exp_test) then
-            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
-         endif
-    else 
-      if (($arg_xilinx == 1) && ($arg_artisan == 1)) then
-         if ($iter == 1) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_XILINX, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 2) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tPCI_IMAGE3, PCI_IMAGE4, PCI_IMAGE5, WB_IMAGE2, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 3) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 4) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_XILINX, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, PCI_IMAGE0, PCI_IMAGE5, WB_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 5) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tWB_IMAGE2, WB_IMAGE3, WB_IMAGE4. " 
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 6) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL" > ./defines.args
-         endif
-         if ($iter == 7) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_XILINX, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 8) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 9) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, WB_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 10) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_XILINX, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK66, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 11) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_ARTISAN, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_ARTISAN -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 12) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-
-         if ($arg_dis_comp_exp_test) then
-            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
-         endif
-      else
-         if ($iter == 1) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_XILINX, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 2) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tPCI_IMAGE3, PCI_IMAGE4, PCI_IMAGE5, WB_IMAGE2, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 3) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 4) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_XILINX, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, PCI_IMAGE0, PCI_IMAGE5, WB_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 5) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL, PCI_IMAGE0, PCI_IMAGE2, "
-         echo "\tWB_IMAGE2, WB_IMAGE3, WB_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 6) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_LOW_OE, REGISTER_WBM_OUTPUTS, "
-         echo "\tREGISTER_WBS_OUTPUTS, ADDR_TRAN_IMPL. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_LOW_OE -DEFINE REGISTER_WBM_OUTPUTS -DEFINE REGISTER_WBS_OUTPUTS -DEFINE ADDR_TRAN_IMPL" > ./defines.args
-         endif
-         if ($iter == 7) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_SMALL_XILINX, WB_DECODE_FAST, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MIN, PCI66, WB_CLK220, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE4. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MIN -DEFINE PCI66 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE4" > ./defines.args
-         endif
-         if ($iter == 8) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MED, PCI66, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MED -DEFINE PCI66 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-         if ($iter == 9) then
-         echo "<<< Defines:"
-         echo "\tHOST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_SLOW, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI33, WB_CLK220, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, WB_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE HOST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI33 -DEFINE WB_CLK220 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 10) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_SMALL_XILINX, WB_DECODE_SLOW, PCI_DECODE_MED, "
-         echo "\tWB_DECODE_MIN, PCI33, WB_CLK66, ACTIVE_HIGH_OE, ADDR_TRAN_IMPL, "
-         echo "\tWB_CNF_BASE_ZERO, NO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE3. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_SMALL_XILINX -DEFINE WB_DECODE_SLOW -DEFINE PCI_DECODE_MED -DEFINE WB_DECODE_MIN -DEFINE PCI33 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE ADDR_TRAN_IMPL -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE3" > ./defines.args
-         endif
-         if ($iter == 11) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_MEDIUM_GENERIC, WB_DECODE_FAST, PCI_DECODE_MIN, "
-         echo "\tWB_DECODE_MAX, PCI66, WB_CLK66, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, PCI_IMAGE0, PCI_IMAGE2, PCI_IMAGE3, PCI_IMAGE4, "
-         echo "\tPCI_IMAGE5, WB_IMAGE2. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_MEDIUM_GENERIC -DEFINE WB_DECODE_FAST -DEFINE PCI_DECODE_MIN -DEFINE WB_DECODE_MAX -DEFINE PCI66 -DEFINE WB_CLK66 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE PCI_IMAGE0 -DEFINE PCI_IMAGE2 -DEFINE PCI_IMAGE3 -DEFINE PCI_IMAGE4 -DEFINE PCI_IMAGE5 -DEFINE WB_IMAGE2" > ./defines.args
-         endif
-         if ($iter == 12) then
-         echo "<<< Defines:"
-         echo "\tGUEST, REGR_FIFO_LARGE_GENERIC, WB_DECODE_MEDIUM, PCI_DECODE_MAX, "
-         echo "\tWB_DECODE_MED, PCI33, WB_CLK10, ACTIVE_HIGH_OE, WB_CNF_BASE_ZERO, "
-         echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
-     echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
-         endif
-
-         if ($arg_dis_comp_exp_test) then
-            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
-         endif
-
-       endif
-     endif
-  endif
- endif
+    endif
 endif
 
 
@@ -489,7 +538,7 @@ echo "-messages" >> ./ncvlog.args
 echo "-INCDIR ../../../bench/verilog" >> ./ncvlog.args
 echo "-INCDIR ../../../rtl/verilog" >> ./ncvlog.args
 # adding defines to .args file
-if (($arg_regression == 1) && ($iter < $all_iterations)) then 
+if (($arg_regression == 1) && ($iter <= $all_iterations)) then 
     cat ./defines.args >> ./ncvlog.args
 endif
 # adding RTL and Sim files to .args file
@@ -571,7 +620,7 @@ else
     @ all_iters += 1;
   endif
 
-  if (($arg_regression == 1) && ($iter < $all_iterations)) then
+  if (($arg_regression == 1) && ($iter <= $all_iterations)) then
     if ($arg_waves == 1) then 
       mv ../out/waves.shm ../out/i${iter}_waves.shm
     endif
@@ -580,6 +629,8 @@ else
     mv ../log/pciu_mon.log ../log/i${iter}_pciu_mon.log
     mv ../log/wbu_mon.log ../log/i${iter}_wbu_mon.log
     mv ../log/ncsim.log ../log/i${iter}_ncsim.log
+    mv ../log/ncvlog.log ../log/i${iter}_ncvlog.log
+    mv ../log/ncelab.log ../log/i${iter}_ncelab.log
   endif
 endif
 echo "" 

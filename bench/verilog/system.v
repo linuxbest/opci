@@ -39,6 +39,10 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.17  2003/07/29 08:19:47  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.16  2003/06/12 02:30:39  mihad
 // Update!
 //
@@ -83,6 +87,14 @@
     `endif
 `else
     `define TEST_CONF_CYCLE_TYPE1_REFERENCE
+`endif
+
+`ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+    `define DO_CORNER_CASE_TESTS
+`endif
+
+`ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+    `define DO_CORNER_CASE_TESTS
 `endif
 
 module SYSTEM ;
@@ -629,7 +641,7 @@ always@(negedge pci_clock)
 
 `else
     always
-        #(((1/`WB_FREQ)/2)) wb_clock = !wb_clock ;
+        #(`WB_PERIOD/2) wb_clock = !wb_clock ;
 `endif
 
 // Make test name visible when the Master starts working on it
@@ -683,7 +695,7 @@ begin
     next_test_name[79:0] <= "Nowhere___";
     reset = 1'b1 ;
     pci_clock = 1'b0 ;
-    wb_clock  = 1'b1 ;
+    wb_clock  = 1'b0 ;
     target_message = 32'h0000_0000 ;
 //  num_of_retries = 8'h01 ;
 //  ack_err_rty_termination = 3'b100 ;
@@ -967,7 +979,7 @@ scanb_rst <= #1 1'b1 ;
             master_completion_expiration ;
         `endif
 
-        `ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+        `ifdef DO_CORNER_CASE_TESTS
             master_special_corner_case_test ;
         `endif
 
@@ -982,6 +994,7 @@ scanb_rst <= #1 1'b1 ;
 
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
+
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
                 test_conf_cycle_type1_reference ;
             `endif
@@ -1059,7 +1072,7 @@ scanb_rst <= #1 1'b1 ;
     wb_subseq_waits = 0 ;
     pci_subseq_waits = 0 ;
 
-    `ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+    `ifdef DO_CORNER_CASE_TESTS
         test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
         test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = 0 ;
         test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = 0 ;
@@ -9241,7 +9254,7 @@ begin:main
                        `endif
 
     // time used for maximum transaction length on WB
-    deadlock_max_val = deadlock_max_val * ( 1/`WB_FREQ ) ;
+    deadlock_max_val = deadlock_max_val * ( `WB_PERIOD ) ;
 
     // maximum pci clock cycles
     `ifdef PCI33
@@ -9457,7 +9470,7 @@ begin:main
     `endif
 
     // maximum wb clock cycles
-    deadlock_max_val = deadlock_max_val / (1/`WB_FREQ) ;
+    deadlock_max_val = deadlock_max_val / (`WB_PERIOD) ;
 
     in_use       = 1 ;
     ok           = 1 ;
@@ -9629,7 +9642,7 @@ begin:main
     `endif
 
     // maximum wb clock cycles
-    deadlock_max_val = deadlock_max_val / (1/`WB_FREQ) ;
+    deadlock_max_val = deadlock_max_val / (`WB_PERIOD) ;
 
     in_use = 1 ;
     ok     = 1 ;
@@ -16259,7 +16272,7 @@ begin
         //  [3:0]Set_size, Set_addr_translation, Set_prefetch_enable, [7:0]Cache_lsize, Set_wb_wait_states,
         //  MemRdLn_or_MemRd_when_cache_lsize_read.
         test_normal_wr_rd( `Test_Master_2, Target_Base_Addr_R[image_num], 32'h1234_5678, `Test_All_Bytes, image_num,
-                            `Test_One_Word, 1'b0, 1'b1, cache_lsize, 1'b0, 1'b0 );
+                            `Test_One_Word, 1'b0, 1'b0, cache_lsize, 1'b0, 1'b0 );
 
     // TEST NORMAL BURST WRITE READ THROUGH IMAGE WITHOUT ADDRESS TRANSLATION AND WITH PREFETCABLE IMAGES
         // Set Cache Line Size
@@ -16282,7 +16295,7 @@ begin
         test_normal_wr_rd( `Test_Master_2, Target_Base_Addr_R[image_num] + 32'h4, 32'h5a5a_5a5a, `Test_Half_0, image_num,
                             `Test_Two_Words, 1'b0, 1'b1, cache_lsize, 1'b1, 1'b0 );
 
-    // TEST NORMAL BURST WRITE READ THROUGH IMAGE WITH ADDRESS TRANSLATION AND WITH PREFETCABLE IMAGES
+    // TEST NORMAL BURST WRITE READ THROUGH IMAGE WITH ADDRESS TRANSLATION AND WITH PREFETCHABLE IMAGES
         // Set Cache Line Size
         cache_lsize = 8'h8 ;
 
@@ -19518,7 +19531,7 @@ end
 endtask // run_bist_test
 `endif
 
-`ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+`ifdef DO_CORNER_CASE_TESTS
 task target_special_corner_case_test ;
     reg   [11:0]    pci_ctrl_offset ;
     reg   [11:0]    ctrl_offset ;
@@ -19982,7 +19995,7 @@ end
 endtask // target_special_corner_case_test
 `endif
 
-`ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+`ifdef DO_CORNER_CASE_TESTS
 task master_special_corner_case_test ;
     reg   [11:0] ctrl_offset ;
     reg   [11:0] ba_offset ;

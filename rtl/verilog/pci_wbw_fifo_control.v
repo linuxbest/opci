@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_fifo_control.v,v $
+// Revision 1.3  2003/07/29 08:20:11  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.2  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -86,7 +90,6 @@ module pci_wbw_fifo_control
     renable_in,
     wenable_in,
     reset_in,
-//    flush_in, // not used
     almost_full_out,
     full_out,
     empty_out,
@@ -131,6 +134,7 @@ reg [(ADDR_LENGTH - 1):0] waddr;
 assign waddr_out = waddr ;
 
 // grey code registers
+reg [(ADDR_LENGTH - 1):0] wgrey_addr ; // current
 // grey code register for next write address
 reg [(ADDR_LENGTH - 1):0] wgrey_next ; // next
 
@@ -145,38 +149,14 @@ reg [(ADDR_LENGTH - 1):0] rgrey_next ; // next
 // next read gray address calculation - bitwise xor between address and shifted address
 wire [(ADDR_LENGTH - 2):0] calc_rgrey_next  = raddr[(ADDR_LENGTH - 1):1] ^ raddr[(ADDR_LENGTH - 2):0] ;
 
-// FFs for registered empty and full flags
-wire empty ;
-wire full ;
-
-// almost_full tag
-wire almost_full ;
-
 // write allow wire - writes are allowed when fifo is not full
-wire wallow = wenable_in && !full ;
-
-// write allow output assignment
-assign wallow_out = wallow && !full ;
-
-// read allow wire
-wire rallow ;
-
-// full output assignment
-assign full_out  = full ;
-
-// almost full output assignment
-assign almost_full_out  = almost_full && !full ;
+assign wallow_out = wenable_in & ~full_out ;
 
 // clear generation for FFs and registers
-wire clear = reset_in /*|| flush_in*/ ;     // flush not used
-
-assign empty_out = empty ;
+wire clear = reset_in ;
 
 //rallow generation
-assign rallow = renable_in && !empty ; // reads allowed if read enable is high and FIFO is not empty
-
-// rallow output assignment
-assign rallow_out = rallow ;
+assign rallow_out = renable_in & ~empty_out ; // reads allowed if read enable is high and FIFO is not empty
 
 // at any clock edge that rallow is high, this register provides next read address, so wait cycles are not necessary
 // when FIFO is empty, this register provides actual read address, so first location can be read
@@ -184,7 +164,7 @@ reg [(ADDR_LENGTH - 1):0] raddr_plus_one ;
 
 // address output mux - when FIFO is empty, current actual address is driven out, when it is non - empty next address is driven out
 // done for zero wait state burst
-assign raddr_out = rallow ? raddr_plus_one : raddr ;
+assign raddr_out = rallow_out ? raddr_plus_one : raddr ;
 
 always@(posedge rclock_in or posedge clear)
 begin
@@ -193,7 +173,7 @@ begin
         raddr_plus_one <= #`FF_DELAY 4 ;
         raddr          <= #`FF_DELAY 3 ;
     end
-    else if (rallow)
+    else if (rallow_out)
     begin
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
         raddr          <= #`FF_DELAY raddr_plus_one ;
@@ -213,15 +193,15 @@ begin
 	if (clear)
     begin
         // initial value is 0
-        rgrey_minus1 <= #`FF_DELAY 0 ;
-        rgrey_addr   <= #`FF_DELAY 1 ;
+        rgrey_minus1 <= #1 0 ;
+        rgrey_addr   <= #1 1 ;
         rgrey_next   <= #`FF_DELAY 3 ;
     end
     else
-    if (rallow)
+    if (rallow_out)
     begin
-        rgrey_minus1 <= #`FF_DELAY rgrey_addr ;
-        rgrey_addr   <= #`FF_DELAY rgrey_next ;
+        rgrey_minus1 <= #1 rgrey_addr ;
+        rgrey_addr   <= #1 rgrey_next ;
         rgrey_next   <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
     end
 end
@@ -234,12 +214,14 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        wgrey_next <= #`FF_DELAY 3 ;
+        wgrey_addr <= #`FF_DELAY 1 ;
+        wgrey_next <= #1 3         ;
     end
     else
-    if (wallow)
+    if (wallow_out)
     begin
-        wgrey_next <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
+        wgrey_addr <= #`FF_DELAY wgrey_next ;
+        wgrey_next <= #1 {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
     end
 end
 
@@ -250,31 +232,19 @@ begin
         // initial value 4
 	    waddr <= #`FF_DELAY 3 ;
     else
-    if (wallow)
+    if (wallow_out)
         waddr <= #`FF_DELAY waddr + 1'b1 ;
 end
 
 /*------------------------------------------------------------------------------------------------------------------------------
-Full control:
-Gray coded read address pointer is synchronized to write clock domain and compared to Gray coded next write address.
-If they are equal, fifo is full.
+Gray coded address of read address decremented by 1 is synchronized to write clock domain and compared to:
 
-Almost full control:
-Gray coded address of read address decremented by 1 is synchronized to write clock domain and compared to Gray coded next write
-address. If they are equal, fifo is almost full.
+- Gray coded write address. If they are equal, fifo is full.
+
+- Gray coded next write address. If they are equal, fifo is almost full.
 --------------------------------------------------------------------------------------------------------------------------------*/
-wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_addr ;
-reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_addr ;
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_minus1 ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_minus1 ;
-
-synchronizer_flop #(ADDR_LENGTH, 1) i_synchronizer_reg_rgrey_addr
-(
-    .data_in        (rgrey_addr),
-    .clk_out        (wclock_in),
-    .sync_data_out  (wclk_sync_rgrey_addr),
-    .async_reset    (clear)
-) ;
 
 synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus1
 (
@@ -288,18 +258,16 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        wclk_rgrey_addr   <= #`FF_DELAY 1 ;
         wclk_rgrey_minus1 <= #`FF_DELAY 0 ;
     end
     else
     begin
-        wclk_rgrey_addr   <= #`FF_DELAY wclk_sync_rgrey_addr ;
         wclk_rgrey_minus1 <= #`FF_DELAY wclk_sync_rgrey_minus1 ;
     end
 end
 
-assign full         = (wgrey_next == wclk_rgrey_addr) ;
-assign almost_full  = (wgrey_next == wclk_rgrey_minus1) ;
+assign full_out        = (wgrey_addr == wclk_rgrey_minus1) ;
+assign almost_full_out = (wgrey_next == wclk_rgrey_minus1) ;
 
 /*------------------------------------------------------------------------------------------------------------------------------
 Empty control:
@@ -324,6 +292,6 @@ begin
         rclk_wgrey_next <= #`FF_DELAY rclk_sync_wgrey_next ;
 end
 
-assign empty = (rgrey_next == rclk_wgrey_next) ;
+assign empty_out = (rgrey_next == rclk_wgrey_next) ;
 
 endmodule

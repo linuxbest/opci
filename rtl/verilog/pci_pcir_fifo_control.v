@@ -42,6 +42,10 @@
 // CVS Revision History
 //
 // $Log: pci_pcir_fifo_control.v,v $
+// Revision 1.3  2003/07/29 08:20:11  mihad
+// Found and simulated the problem in the synchronization logic.
+// Repaired the synchronization logic in the FIFOs.
+//
 // Revision 1.2  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -224,20 +228,20 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        rgrey_addr   <= #`FF_DELAY 0 ;
+        rgrey_addr   <= #1 0 ;
         rgrey_next   <= #`FF_DELAY 1 ; // this grey code is calculated from the current binary address and loaded any time data is read from fifo
     end
     else if (flush_in)
     begin
         // when fifo is flushed, load the register values from the write clock domain.
         // must be no problem, because write pointers are stable for at least 3 clock cycles before flush can occur.
-        rgrey_addr   <= #`FF_DELAY wgrey_addr ;
+        rgrey_addr   <= #1 wgrey_addr ;
         rgrey_next   <= #`FF_DELAY wgrey_next ;
     end
     else if (rallow)
     begin
         // move the pipeline when data is read from fifo and calculate new value for first stage of pipeline from current binary fifo address
-        rgrey_addr   <= #`FF_DELAY rgrey_next ;
+        rgrey_addr   <= #1 rgrey_next ;
         rgrey_next   <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
     end
 end
@@ -252,13 +256,13 @@ always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        wgrey_addr   <= #`FF_DELAY 0 ;
+        wgrey_addr   <= #1 0 ;
         wgrey_next   <= #`FF_DELAY 1 ;
     end
     else
     if (wallow)
     begin
-        wgrey_addr   <= #`FF_DELAY wgrey_next ;
+        wgrey_addr   <= #1 wgrey_next ;
         wgrey_next   <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
     end
 end
