@@ -664,7 +664,7 @@ int __init vesafb_init(void)
         writel(0x80000000, pspartan_dev.base_map[0] + SPARTAN_W_AM1_ADDR);
 
 	/* Enable address traslation for CRT registers */
-        writel(0x03, pspartan_dev.base_map[0] + SPARTAN_W_IMG_CTRL1_ADDR);
+        writel(0x01, pspartan_dev.base_map[0] + SPARTAN_W_IMG_CTRL1_ADDR);
 
 	/* Set base address of frame buffer in CRT */
 	writel(video_base, pspartan_dev.base_map[1] + SPARTAN_CRT_ADDR);

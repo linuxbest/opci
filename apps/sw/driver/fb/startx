@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # $XConsortium: startx.cpp,v 1.4 91/08/22 11:41:29 rws Exp $
 # $XFree86: xc/programs/xinit/startx.cpp,v 3.2 1998/12/20 11:58:22 dawes Exp $
 # 
@@ -80,12 +79,3 @@ xinit $clientargs -- $server $display $serverargs
 
 # various machines need special cleaning up,
 # which should be done here
-
-
-
-
-
-
-
-
-
