@@ -1,0 +1,16 @@
+//
+// ncvlog.args: Arguments passed to the NC-Verilog parser.
+// Created by ncprep on Mon Apr 28 13:01:59 2003
+
+// Turn on informative messages.
+-MESSAGES
+// -NOCOPYRIGHT
+
+// Uncomment the following line to generate a named log file
+// -LOGFILE ncvlog.log
+
+// Comment the following line to force recompilation.
+-UPDATE
+
+// Source Files
+pci_test_top_2clks.v

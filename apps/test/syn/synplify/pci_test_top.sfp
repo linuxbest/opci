@@ -1,0 +1,14 @@
+assign_target {xc2s150pq208}
+create_block_partition {XC2S150PQ208.wbw_rgrey_addr_sync} 2 32 3 33 RAMB:0_0_0_0
+create_block_partition {XC2S150PQ208.wbw_rgrey_minus1_sync} 2 30 3 31 RAMB:0_0_0_0
+create_block_partition {XC2S150PQ208.wbw_wgrey_next_sync} 2 34 3 35 RAMB:0_0_0_0
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.i_synchronizer_reg_rgrey_addr} {XC2S150PQ208.wbw_rgrey_addr_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.wclk_rgrey_addr[3:0]} {XC2S150PQ208.wbw_rgrey_addr_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.rgrey_addr[3:0]} {XC2S150PQ208.wbw_rgrey_addr_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.i_synchronizer_reg_rgrey_minus1} {XC2S150PQ208.wbw_rgrey_minus1_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.rgrey_minus1[3:0]} {XC2S150PQ208.wbw_rgrey_minus1_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.wclk_rgrey_minus1[3:0]} {XC2S150PQ208.wbw_rgrey_minus1_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.i_synchronizer_reg_wgrey_next} {XC2S150PQ208.wbw_wgrey_next_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.rclk_wgrey_next[3:0]} {XC2S150PQ208.wbw_wgrey_next_sync}
+assign_partition {i_pci_bridge32.wishbone_slave_unit.fifos.wbw_fifo_ctrl.wgrey_next[3:0]} {XC2S150PQ208.wbw_wgrey_next_sync}
+assign_property -speedgrade {XC2S150PQ208} -5

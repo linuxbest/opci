@@ -1,0 +1,22 @@
+ncprep: 04.10-b001: (c) Copyright 1995-2002 Cadence Design Systems, Inc.
+TOOL:	ncprep	04.10-b001: Started on Apr 28, 2003 at 13:01:59
+ncprep
+	+overwrite
+	pci_test_top_2clks.v
+Adding -UPDATE option, to disable update run ncprep with the +noupdate
+        pci_irdy_reg    <= 1'b1 ;
+                   |
+ncvlog: *E,UNDIDN (pci_test_top_2clks.v,220|19): 'pci_irdy_reg': undeclared identifier [12.5(IEEE)].
+        pci_irdy_en_reg <= 1'b0 ;
+                      |
+ncvlog: *E,UNDIDN (pci_test_top_2clks.v,221|22): 'pci_irdy_en_reg': undeclared identifier [12.5(IEEE)].
+        pci_irdy_reg    <= pci_irdy_out    ;
+                   |
+ncvlog: *E,UNDIDN (pci_test_top_2clks.v,225|19): 'pci_irdy_reg': undeclared identifier [12.5(IEEE)].
+        pci_irdy_en_reg <= pci_irdy_en ;
+                      |
+ncvlog: *E,UNDIDN (pci_test_top_2clks.v,226|22): 'pci_irdy_en_reg': undeclared identifier [12.5(IEEE)].
+ncvlog: *F,NOTOPL: no top-level unit found, must have recursive instances.
+ncprep: *E,VLGERR: Error during parsing (status 1), exiting.
+Translation Failed!
+TOOL:	ncprep	04.10-b001: Exiting on Apr 28, 2003 at 13:01:59  (total: 00:00:00)
