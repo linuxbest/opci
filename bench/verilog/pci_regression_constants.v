@@ -39,6 +39,10 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.7  2004/07/07 12:45:02  mihad
+// Added SubsystemVendorID, SubsystemID, MAXLatency, MinGnt defines.
+// Enabled value loading from serial EEPROM for all of the above + VendorID and DeviceID registers.
+//
 // Revision 1.6  2004/01/24 11:54:16  mihad
 // Update! SPOCI Implemented!
 //
@@ -307,9 +311,14 @@
         Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
         together by application.
     -----------------------------------------------------------------------------------------------------------*/
-    `define HEADER_VENDOR_ID    16'h2321
-    `define HEADER_DEVICE_ID    16'h0001
-    `define HEADER_REVISION_ID  8'h01
+    `define HEADER_VENDOR_ID        16'h1895
+    `define HEADER_DEVICE_ID        16'h0001
+    `define HEADER_REVISION_ID      8'h01
+    `define HEADER_SUBSYS_VENDOR_ID 16'h1895
+    `define HEADER_SUBSYS_ID        16'h0001
+    `define HEADER_MAX_LAT          8'h1a
+    `define HEADER_MIN_GNT          8'h08
+
     
     // MAX Retry counter value for WISHBONE Master state-machine
     //  This value is 8-bit because of 8-bit retry counter !!!
