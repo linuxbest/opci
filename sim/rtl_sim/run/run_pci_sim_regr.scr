@@ -534,6 +534,7 @@ echo "\t###"
 # creating ncsim.args file for ncsim and adding main parameters
 echo "-cdslib ../bin/cds.lib" > ./ncsim.args
 echo "-hdlvar ../bin/hdl.var" >> ./ncsim.args
+echo "-licqueue" >> ./ncsim.args
 echo "-logfile ../log/ncsim.log" >> ./ncsim.args
 echo "-messages" >> ./ncsim.args
 echo "-tcl" >> ./ncsim.args

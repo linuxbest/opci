@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.16  2003/06/12 02:30:39  mihad
+// Update!
+//
 // Revision 1.15  2003/03/14 15:33:55  mihad
 // Updated acording to RTL changes.
 //
@@ -100,7 +103,12 @@ wire [4:0] arb_grant_out ;
 
 wire [31:0] AD ;
 wire [3:0]  CBE ;
+wire INTA ;
 pullup(INTA) ;
+wire MAS0_REQ ;
+wire MAS1_REQ ;
+wire MAS2_REQ ;
+wire MAS3_REQ ;
 pullup(MAS0_REQ) ;
 pullup(MAS1_REQ) ;
 pullup(MAS2_REQ) ;
@@ -111,11 +119,14 @@ wire MAS1_GNT = ~arb_grant_out[1] ;
 wire MAS2_GNT = ~arb_grant_out[2] ;
 wire MAS3_GNT = ~arb_grant_out[3] ;
 
+wire FRAME ;
+wire IRDY ;
 pullup(FRAME) ;
 pullup(IRDY) ;
 
 wire        TAR0_IDSEL = AD[`TAR0_IDSEL_INDEX] ;
 
+wire DEVSEL, TRDY, STOP, PERR, SERR, LOCK ;
 pullup(DEVSEL) ;
 pullup(TRDY) ;
 pullup(STOP) ;
@@ -167,8 +178,9 @@ reg  scanb_en ;
 reg  scanb_clk ;
 `endif
 
+wire RST ;
 `ifdef GUEST
-    wire    RST = ~reset ;
+    assign  RST = ~reset ;
     assign  reset_wb = RST_O ;
 `else
     pullup(RST) ;
@@ -848,12 +860,20 @@ begin
 end
 endtask // fill_memory
 
-reg [2:0] tb_init_waits ;
-reg [2:0] tb_subseq_waits ;
+reg [2:0] wb_init_waits ;
+reg [2:0] pci_init_waits ;
+reg [2:0] wb_subseq_waits ;
+reg [2:0] pci_subseq_waits ;
 reg [2:0] tb_target_decode_speed ;
 
 task run_tests ;
 begin
+    wb_init_waits          = 0;
+    pci_init_waits         = 0;
+    wb_subseq_waits        = 0 ;
+    pci_subseq_waits       = 0 ;
+    tb_target_decode_speed = 0 ;
+
     // first - reset logic
     do_reset ;
 
@@ -867,13 +887,16 @@ scanb_rst <= #1 1'b1 ;
     next_test_name[79:0] <= "Initing...";
     test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
 
-    for ( tb_init_waits = 0 ; tb_init_waits <= 4 ; tb_init_waits = tb_init_waits + 1 )
+    for ( wb_init_waits = 0 ; wb_init_waits <= 4 ; wb_init_waits = wb_init_waits + 1 )
     begin
-        for ( tb_subseq_waits = 0 ; tb_subseq_waits <= 4 ; tb_subseq_waits = tb_subseq_waits + 1 )
+        for ( wb_subseq_waits = 0 ; wb_subseq_waits <= 4 ; wb_subseq_waits = wb_subseq_waits + 1 )
         begin
 
-            test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = 4 - tb_init_waits ;
-            test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = 4 - tb_subseq_waits ;
+            pci_init_waits   = wb_init_waits ;
+            pci_subseq_waits = wb_subseq_waits ;
+
+            test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = pci_init_waits ;
+            test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = pci_subseq_waits ;
 
             for ( tb_target_decode_speed = 0 ; tb_target_decode_speed <= 3 ; tb_target_decode_speed = tb_target_decode_speed + 1 )
             begin
@@ -1031,8 +1054,10 @@ scanb_rst <= #1 1'b1 ;
         end
     end
 
-    tb_init_waits   = 0 ;
-    tb_subseq_waits = 0 ;
+    wb_init_waits   = 0 ;
+    pci_init_waits  = 0 ;
+    wb_subseq_waits = 0 ;
+    pci_subseq_waits = 0 ;
 
     `ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
         test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
@@ -1056,8 +1081,10 @@ scanb_rst <= #1 1'b1 ;
         target_special_corner_case_test ;
     `endif
 
-    tb_init_waits   = 0 ;
-    tb_subseq_waits = 0 ;
+    wb_init_waits    = 0 ;
+    pci_init_waits   = 0 ;
+    wb_subseq_waits  = 0 ;
+    pci_subseq_waits = 0 ;
 
     test_summary ;
 
@@ -1217,8 +1244,8 @@ begin:main
     target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
     write_flags                      = 0 ;
-    write_flags`INIT_WAITS           = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    write_flags`INIT_WAITS           = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS         = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     test_name = "WB IMAGE CONFIGURATION" ;
@@ -1967,8 +1994,8 @@ begin:main
     target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     // enable master & target operation
@@ -2541,8 +2568,8 @@ begin:main
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
 
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     err_cs_offset = {4'h1, `W_ERR_CS_ADDR, 2'b00} ;
@@ -2646,7 +2673,7 @@ begin:main
     end
     join
 
-    /*// read data from second write
+    // read data from second write
     write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
     read_data`READ_ADDRESS = target_address ;
     read_data`READ_SEL     = 4'hF ;
@@ -2658,7 +2685,6 @@ begin:main
     begin
         display_warning( target_address, wmem_data[101], read_status`READ_DATA ) ;
     end
-    */
 
     // read error status register - no errors should be reported since reporting was disabled
     test_name = "CHECKING ERROR REPORTING FUNCTIONS AFTER MASTER ABORT ERROR" ;
@@ -4148,8 +4174,8 @@ begin:main
     target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     // enable master & target operation and disable parity functions
@@ -4993,7 +5019,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b0,               // make address parity error on second phase of dual address
@@ -5027,7 +5053,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b0,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -5095,7 +5121,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -5361,7 +5387,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b0,               // make address parity error on second phase of dual address
@@ -5499,7 +5525,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b0,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -5637,7 +5663,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -5904,7 +5930,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b0,               // make address parity error on second phase of dual address
@@ -5938,7 +5964,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b0,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -6006,7 +6032,7 @@ begin:main
             32'h5555_5555,      // second part of address in dual address cycle
             `BC_DUAL_ADDR_CYC,  // dual address cycle command
             `BC_MEM_WRITE,      // normal command
-            4'h0,               // byte enables
+            4'hF,               // byte enables
             32'h1234_5678,      // data
             1'b1,               // make address parity error on first phase of dual address
             1'b1,               // make address parity error on second phase of dual address
@@ -6232,7 +6258,7 @@ begin:main
     $display("Introducing Data Parity Error on Write reference to Bridge's Target!") ;
 
     // set response of WB SLAVE - ACK,    WAIT cycles,        RETRY cycles
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     // setup target's image!
     target_address  = Target_Base_Addr_R[1] ;
@@ -6634,8 +6660,8 @@ begin:main
     target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     // enable master & target operation
@@ -8059,8 +8085,8 @@ task transaction_ordering ;
 
     reg     error_monitor_done ;
 begin:main
-    write_flags`INIT_WAITS = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS = tb_subseq_waits ;
+    write_flags`INIT_WAITS   = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS = wb_subseq_waits ;
 
     wb_ctrl_offset        = {4'h1, `W_IMG_CTRL1_ADDR, 2'b00} ;
     wb_ba_offset          = {4'h1, `W_BA1_ADDR, 2'b00} ;
@@ -8210,7 +8236,7 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Retry_Before ;
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     fork
     begin
@@ -8286,7 +8312,7 @@ begin:main
     test_name = "SIMULTANEOUS WRITE REFERENCE TO PCI TARGET AND WB SLAVE" ;
 
     // put WISHBONE slave in retry mode
-    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'hFF);
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'hFF);
 
     fork
     begin
@@ -8325,7 +8351,7 @@ begin:main
         end
 
         wait ( CYC_O === 0 ) ;
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         wb_transaction_progress_monitor( pci_image_base + 12, 1'b1, 1, 1'b1, ok ) ;
         if ( ok !== 1 )
@@ -8353,7 +8379,7 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Retry_Before ;
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     fork
     begin
@@ -8443,7 +8469,7 @@ begin:main
     test_name = "SIMULTANEOUS MULTI BEAT WRITE REFERENCE TO PCI TARGET AND WB SLAVE" ;
 
     // put WISHBONE slave in retry mode
-    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'hFF);
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'hFF);
 
     fork
     begin
@@ -8493,7 +8519,7 @@ begin:main
         while ( CYC_O === 1 )
             @(posedge wb_clock) ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         if ( target_mem_image == 1 )
             wb_transaction_progress_monitor( pci_image_base, 1'b1, 3, 1'b1, ok ) ;
@@ -8526,7 +8552,7 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Retry_Before ;
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     master1_check_received_data = 1 ;
 
@@ -8762,7 +8788,7 @@ begin:main
     test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
     test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
 
-    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'hFF);
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'hFF);
 
     master1_check_received_data = 1 ;
 
@@ -8873,7 +8899,7 @@ begin:main
 //            @(posedge wb_clock) ;
 
         // set slave response to acknowledge
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         wb_transaction_progress_monitor( pci_image_base + 12, 1'b1, 1, 1'b1, ok ) ;
         if ( ok !== 1 )
@@ -8986,9 +9012,198 @@ begin:main
     end
     join
 
+    // disable wb slave response
+    // fill pci target unit write fifo with single writes
+    // issue a read request - first all writes must finish on WB, than a read should finish on wishbone
+    test_name = "ORDERING OF THE TRANSACTIONS IN THE PCI TARGET UNIT ONLY" ;
+
+    // set slave response to RETRY
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'h0);
+
+    fork
+    begin:pci_generator
+        repeat((`PCIW_DEPTH - 1) / 2)
+        begin
+            if ( target_mem_image == 1 )
+                PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
+                                 pci_image_base, 32'hF0F0_F0F0, 4'h0,
+                                 1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                                 `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+            else
+                PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hF0F0_F0F0, 4'h0, 1, `Test_Target_Normal_Completion) ;
+
+            do_pause(1) ;
+        end
+        
+        // now do a read request
+        if ( target_mem_image == 1 )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base, 32'hF0F0_F0F0,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Retry_On);
+        else
+            PCIU_IO_READ
+             (
+                `Test_Master_1,
+                pci_image_base,
+                32'hF0F0_F0F0,
+                4'h0,
+                1,
+                `Test_Target_Retry_On
+             );
+
+        do_pause( 1 ) ;
+    end
+    begin:error_monitor_7
+        error_monitor_done = 1'b0 ;
+        @(error_event_int or error_monitor_done) ;
+        if ( !error_monitor_done )
+        begin
+            test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+            ok = 0 ;
+        end
+    end
+    begin:pci_check
+        repeat((`PCIW_DEPTH - 1) / 2)
+        begin
+            if ( target_mem_image == 1 )
+                pci_transaction_progress_monitor( pci_image_base, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+            else
+                pci_transaction_progress_monitor( pci_image_base, `BC_IO_WRITE,  1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+
+            if (~ok)
+            begin
+                test_fail("PCI transaction monitor detected invalid transaction or none at all on PCI bus") ;
+            end
+        end
+
+        if ( target_mem_image == 1 )
+            pci_transaction_progress_monitor( pci_image_base, `BC_MEM_READ, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        else
+            pci_transaction_progress_monitor( pci_image_base, `BC_IO_READ,  0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+
+        if (~ok)
+        begin
+            test_fail("PCI transaction monitor detected invalid transaction or none at all on PCI bus") ;
+        end
+
+
+        repeat(2)
+            @(posedge pci_clock) ;
+
+        #1 error_monitor_done = 1'b1 ;
+    end
+    begin:wb_check
+
+        // enable the wishbone slave right after the first finished retry response
+        wb_transaction_progress_monitor( pci_image_base, 1'b1, 0, 1'b1, ok ) ;
+
+        if (~ok)
+        begin
+            test_fail("WB transaction monitor detected invalid transaction or none at all on WB bus") ;
+        end
+
+        // set slave response to acknowledge
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
+    
+        repeat((`PCIW_DEPTH - 1) / 2)
+        begin
+            wishbone_slave.wb_memory[0] = 32'hxxxx_xxxx ;
+            wb_transaction_progress_monitor( pci_image_base, 1'b1, 1, 1'b1, ok ) ;
+            if (~ok)
+            begin
+                test_fail("WB transaction monitor detected invalid transaction or none at all on WB bus") ;
+            end
+            if (wishbone_slave.wb_memory[0] !== 32'hF0F0_F0F0)
+            begin
+                test_fail("Invalid data written on WB bus") ;
+            end
+        end
+
+        // now check for read
+        wb_transaction_progress_monitor( pci_image_base, 1'b0, 1, 1'b1, ok ) ;
+
+        if (~ok)
+        begin
+            test_fail("WB transaction monitor detected invalid transaction or none at all on WB bus") ;
+        end
+
+    end
+    join
+
+    // wait for two pci cycles for statuses to propagate through sync logic
+    repeat(2)
+        @(posedge pci_clock) ;
+
+    // now finish the read through PCI target
+    fork
+    begin
+        if ( target_mem_image == 1 )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base, 32'hF0F0_F0F0,
+                          1, 8'h7_0, `Test_One_Zero_Target_WS,
+                          `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        else
+            PCIU_IO_READ
+            (
+                `Test_Master_1,
+                pci_image_base,
+                32'hF0F0_F0F0,
+                4'h0,
+                1,
+                `Test_Target_Normal_Completion
+            );
+
+        do_pause( 1 ) ;
+    end
+    begin
+        error_monitor_done = 1'b0 ;
+        @(error_event_int or error_monitor_done) ;
+        if ( !error_monitor_done )
+        begin
+            test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+            ok = 0 ;
+        end
+    end
+    begin
+        if ( target_mem_image == 1 )
+            pci_transaction_progress_monitor( pci_image_base, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+        else
+            pci_transaction_progress_monitor( pci_image_base, `BC_IO_READ,  1, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+
+        if (~ok)
+        begin
+            test_fail("PCI transaction monitor detected invalid transaction or none at all on PCI bus") ;
+        end
+
+
+        repeat(2)
+            @(posedge pci_clock) ;
+
+        #1 error_monitor_done = 1'b1 ;
+    end
+    join
+
     if ( ok )
         test_ok ;
 
+    // disable the images
+    // write address mask register
+    config_write( wb_am_offset, 32'h0000_0000, 4'hF, ok ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Transacton ordering testing failed! Failed to write W_AM1 register! Time %t ", $time) ;
+        test_fail("write to WB Address Mask register failed") ;
+        disable main ;
+    end
+
+    config_write( pci_am_offset, 32'h0000_0000, 4'hF, ok ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Transacton ordering testing failed! Failed to write W_AM1 register! Time %t ", $time) ;
+        test_fail("write to WB Address Mask register failed") ;
+        disable main ;
+    end
 end
 endtask // transaction_ordering
 
@@ -9016,9 +9231,9 @@ begin:main
     end
 
     // approximate number of cycles on WB bus for maximum transaction length
-    deadlock_max_val = tb_init_waits + 100 +
+    deadlock_max_val = wb_init_waits + 100 +
                        `WBW_DEPTH *
-                       (tb_subseq_waits + 1 +
+                       (wb_subseq_waits + 1 +
                        `ifdef REGISTER_WBS_OUTPUTS
                        1) ;
                        `else
@@ -9230,9 +9445,9 @@ begin:main
     end
 
     // number of cycles on WB bus for maximum transaction length
-    deadlock_max_val = 4 - tb_init_waits + 100 +
+    deadlock_max_val = pci_init_waits + 100 +
                        `PCIW_DEPTH *
-                       (4 - tb_subseq_waits + 1) ;
+                       (pci_subseq_waits + 1) ;
 
     // time used for maximum transaction length on PCI
     `ifdef PCI33
@@ -9402,9 +9617,9 @@ begin:main
     end
 
     // number of cycles on WB bus for maximum transaction length
-    deadlock_max_val = 4 - tb_init_waits + 100 +
+    deadlock_max_val = pci_init_waits + 100 +
                        `PCIW_DEPTH *
-                       (4 - tb_subseq_waits + 1) ;
+                       (pci_subseq_waits + 1) ;
 
     // time used for maximum transaction length on PCI
     `ifdef PCI33
@@ -9520,7 +9735,7 @@ begin:main
     begin:transfer_checker
         transfer_counter = 0 ;
         @(posedge wb_clock) ;
-        while ( CYC_O !== 0 )
+        while ( (CYC_O !== 0) & (CYC_O_previous !== 0) )
             @(posedge wb_clock) ;
 
         while( CYC_O !== 1 )
@@ -10118,8 +10333,8 @@ begin:main
 
     // setup flags
     flags = 0 ;
-    flags`INIT_WAITS   = tb_init_waits ;
-    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+    flags`INIT_WAITS   = wb_init_waits ;
+    flags`SUBSEQ_WAITS = wb_subseq_waits ;
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
@@ -10231,8 +10446,8 @@ begin:main
 
     // setup flags
     flags = 0 ;
-    flags`INIT_WAITS   = tb_init_waits ;
-    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+    flags`INIT_WAITS   = wb_init_waits ;
+    flags`SUBSEQ_WAITS = wb_subseq_waits ;
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
@@ -10436,8 +10651,8 @@ begin:main
 
     // setup flags
     flags = 0 ;
-    flags`INIT_WAITS   = tb_init_waits ;
-    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+    flags`INIT_WAITS   = wb_init_waits ;
+    flags`SUBSEQ_WAITS = wb_subseq_waits ;
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
     temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
@@ -11018,8 +11233,8 @@ begin
 
     read_data`READ_SEL = 4'hF ;
 
-    flags`INIT_WAITS           = tb_init_waits ;
-    flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    flags`INIT_WAITS           = wb_init_waits ;
+    flags`SUBSEQ_WAITS         = wb_subseq_waits ;
     
     // test MEM/IO map bit initial value in each PCI BAR
     register_offset = {1'b1, `P_BA0_ADDR, 2'b00} ;
@@ -11844,8 +12059,8 @@ task DO_REF;
     test_size <= size;
     test_make_addr_par_error <= make_addr_par_error;
     test_make_data_par_error <= make_data_par_error;
-    test_master_initial_wait_states <= 4 - tb_init_waits ;
-    test_master_subsequent_wait_states <= 4 - tb_subseq_waits ;
+    test_master_initial_wait_states <= pci_init_waits ;
+    test_master_subsequent_wait_states <= pci_subseq_waits ;
     test_target_initial_wait_states <= target_wait_states[7:4];
     test_target_subsequent_wait_states <= target_wait_states[3:0];
     test_target_devsel_speed <= target_devsel_speed[1:0];
@@ -12260,8 +12475,8 @@ begin
     data    = 32'h0000_0007 ; // enable master & target operation
 
     write_flags                      = 0 ;
-    write_flags`INIT_WAITS           = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    write_flags`INIT_WAITS           = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS         = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     write_data`WRITE_ADDRESS  = { `WB_CONFIGURATION_BASE, offset } ;
@@ -12358,8 +12573,8 @@ begin
     data    = 32'h0000_0007 ; // enable master & target operation
 
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     temp_var                                   = { `WB_CONFIGURATION_BASE, 12'h000 } ;
@@ -12726,7 +12941,7 @@ begin:main
     else
         $display("Setting behavioral WB slave parameters: ACK termination and 0 WAIT states!");
     // set response of WB SLAVE - ACK,    WAIT cycles,        RETRY cycles
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     if ( Set_size > (`PCIW_DEPTH - 2) )
     begin
@@ -13231,22 +13446,22 @@ begin:main
     begin
         if ((Imm_BefLast_Last_error == 0) || (expect_length <= 2))
             // set response of WB SLAVE - ERR,    WAIT cycles,        RETRY cycles
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         else if (Imm_BefLast_Last_error == 1)
         begin
             // set response of WB SLAVE - ACK,    WAIT cycles,        RETRY cycles
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
             wb_transaction_stop(expect_length-2) ;
             // set response of WB SLAVE - ERR,    WAIT cycles,        RETRY cycles
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         else
         begin
             // set response of WB SLAVE - ACK,    WAIT cycles,        RETRY cycles
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
             wb_transaction_stop(expect_length-1) ;
             // set response of WB SLAVE - ERR,    WAIT cycles,        RETRY cycles
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
     end
     join
@@ -13609,7 +13824,7 @@ begin:main
         master1_check_received_data = 0 ;
 
         // set response of WB SLAVE - ERR,    WAIT cycles,        RETRY cycles
-        wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
 
 
         // do a single read error terminated on WB bus
@@ -13724,7 +13939,7 @@ begin:main
             end
         end
 
-        wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         fork
         begin
             PCIU_READ (1, Target_Base_Addr_R[target_mem_image],
@@ -13837,7 +14052,7 @@ begin:main
         // do a single read error terminated on WB bus
         test_name = "BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE ON FIRST DATAPHASE" ;
 
-        wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
 
         fork
         begin
@@ -13949,7 +14164,7 @@ begin:main
 
         test_name = "BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE ON SECOND DATAPHASE" ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         fork
         begin
@@ -13992,7 +14207,7 @@ begin:main
         end
         begin
             wb_transaction_stop( 1 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14066,7 +14281,7 @@ begin:main
 
         test_name = "BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE ON LAST DATAPHASE" ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         fork
         begin
@@ -14109,7 +14324,7 @@ begin:main
         end
         begin
             wb_transaction_stop( 3 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14182,7 +14397,7 @@ begin:main
         end
 
         test_name = "BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE ON ONE BEFORE LAST DATAPHASE" ;
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             PCIU_READ (1, Target_Base_Addr_R[target_mem_image],
@@ -14224,7 +14439,7 @@ begin:main
         end
         begin
             wb_transaction_stop( 3 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14297,7 +14512,7 @@ begin:main
         end
 
         test_name = "FULL FIFO BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE ON LAST DATAPHASE" ;
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             PCIU_READ (1, Target_Base_Addr_R[target_mem_image],
@@ -14339,7 +14554,7 @@ begin:main
         end
         begin
             wb_transaction_stop( `PCIR_DEPTH - 2 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14412,7 +14627,7 @@ begin:main
         end
 
         test_name = "FULL FIFO BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE BEFORE LAST DATAPHASE" ;
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             PCIU_READ (1, Target_Base_Addr_R[target_mem_image],
@@ -14454,7 +14669,7 @@ begin:main
         end
         begin
             wb_transaction_stop( `PCIR_DEPTH - 2 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14466,7 +14681,7 @@ begin:main
         @(posedge wb_clock) ;
         @(posedge wb_clock) ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT" ;
         addr_offset = 12'h004 ;
@@ -14529,7 +14744,7 @@ begin:main
         end
 
         test_name = "BURST READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE, ERROR NOT PULLED OUT ON PCI" ;
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             PCIU_READ (1, Target_Base_Addr_R[target_mem_image],
@@ -14571,7 +14786,7 @@ begin:main
         end
         begin
             wb_transaction_stop( 3 ) ;
-            wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+            wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
         end
         join
 
@@ -14744,7 +14959,7 @@ begin:main
         end
 
         // set response of WB SLAVE - ERR,    WAIT cycles,        RETRY cycles
-        wishbone_slave.cycle_response(3'b010, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b010, wb_subseq_waits, 8'h0);
 
         // do a single read error terminated on WB bus
         test_name = "SINGLE I/O READ THROUGH PCI TARGET TERMINATED WITH ERROR ON WISHBONE" ;
@@ -14879,7 +15094,7 @@ begin:main
             disable main;
         end
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
     end
 end // main
@@ -14977,7 +15192,7 @@ begin:main
         disable main ;
     end
 
-    wishbone_slave.cycle_response( 3'b010, tb_subseq_waits, 0 ) ;
+    wishbone_slave.cycle_response( 3'b010, wb_subseq_waits, 0 ) ;
 
     test_name = "TARGET ABORT SIGNALING ON I/O ACCESSES WITH INVALID ADDRESS/BYTE ENABLE COMBINATION" ;
 
@@ -15383,7 +15598,7 @@ begin:main
     else
         test_ok ;
 
-    wishbone_slave.cycle_response( 3'b100, tb_subseq_waits, 0 ) ;
+    wishbone_slave.cycle_response( 3'b100, wb_subseq_waits, 0 ) ;
 
     test_name = "DISABLE IMAGE" ;
 
@@ -15418,7 +15633,7 @@ begin:main
         translation = 0 ;
     `endif
 
-    wishbone_slave.cycle_response( 3'b100, tb_subseq_waits, 0 ) ;
+    wishbone_slave.cycle_response( 3'b100, wb_subseq_waits, 0 ) ;
 
     test_name = "ENABLE/DISABLE ADDRESS TRANSLATION" ;
     config_read( img_ctrl_offset, 4'hF, read_data ) ;
@@ -15642,7 +15857,7 @@ begin:main
         translation = 0 ;
     `endif
 
-    wishbone_slave.cycle_response( 3'b010, tb_subseq_waits, 0 ) ;
+    wishbone_slave.cycle_response( 3'b010, wb_subseq_waits, 0 ) ;
 
     test_name = "ENABLE/DISABLE ADDRESS TRANSLATION" ;
     config_read( img_ctrl_offset, 4'hF, read_data ) ;
@@ -16354,7 +16569,7 @@ begin:main
                                   32'hFFFF_FFFF             // data
                                  ) ;
 
-        wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 0) ;
+        wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 0) ;
 
         test_name = "FAST BACK TO BACK THROUGH TARGET - FILL WRITE FIFO, CHECK RETRY ON FAST B2B WRITE" ;
         fork
@@ -16372,11 +16587,18 @@ begin:main
                   0, `Test_One_Zero_Target_WS,
                   `Test_Devsel_Medium, `Test_Fast_B2B,
                   `Test_Target_Retry_On, `Test_Expect_No_Master_Abort);
-            do_pause(5) ;
 
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
+            do_pause(1) ;
+
         end
         begin:wb_monitor1
+            wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, 0, 1'b1, ok) ;
+
+            if ( ok !== 1 )
+                test_fail("WISHBONE master did invalid transaction or none at all on WISHBONE bus") ;
+
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 0) ;
+
             wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, `PCIW_DEPTH - 2, 1'b1, ok) ;
             if ( ok !== 1 )
                 test_fail("WISHBONE master did invalid transaction or none at all on WISHBONE bus") ;
@@ -16395,7 +16617,7 @@ begin:main
             test_ok ;
 
         test_name = "FAST BACK TO BACK THROUGH TARGET - BOTH WRITES SMALL ENOUGH TO PROCEEDE THROUGH FIFO" ;
-        wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 0) ;
+        wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 0) ;
         fork
         begin
             DO_REF ("MEM_WRITE ", 1, Target_Base_Addr_R[target_mem_image],
@@ -16411,12 +16633,16 @@ begin:main
                   0, `Test_One_Zero_Target_WS,
                   `Test_Devsel_Medium, `Test_Fast_B2B,
                   `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
-            do_pause(5) ;
 
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
+            do_pause(1) ;
 
         end
         begin:wb_monitor2
+
+            wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, 0, 1'b1, ok) ;
+            
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 0) ;
+
             wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, `PCIW_DEPTH - 6, 1'b1, ok) ;
             if ( ok !== 1 )
                 test_fail("WISHBONE master did invalid transaction or none at all on WISHBONE bus") ;
@@ -16441,7 +16667,7 @@ begin:main
             test_ok ;
 
         test_name = "FAST BACK TO BACK THROUGH TARGET - FIRST WRITE FULL FIFO, THEN READ BACK" ;
-        wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 0) ;
+        wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 0) ;
         fork
         begin
             DO_REF ("MEM_WRITE ", 1, Target_Base_Addr_R[target_mem_image],
@@ -16457,11 +16683,13 @@ begin:main
                   0, `Test_One_Zero_Target_WS,
                   `Test_Devsel_Medium, `Test_Fast_B2B,
                   `Test_Target_Retry_Before, `Test_Expect_No_Master_Abort);
-            do_pause(5) ;
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
+
+            do_pause(1) ;
 
         end
         begin:wb_monitor3
+            wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, 0, 1'b1, ok) ;
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 0) ;
             fork
             begin
                 wb_transaction_progress_monitor(Target_Base_Addr_R[target_mem_image], 1'b1, `PCIW_DEPTH - 2, 1'b1, ok) ;
@@ -16641,7 +16869,7 @@ begin:main
                                   32'hFFFF_FFFF             // data
                                  ) ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 0) ;
 
         test_name = "FAST BACK TO BACK THROUGH TARGET - TWO SINGLE IO WRITES" ;
         fork
@@ -16659,7 +16887,8 @@ begin:main
                   0, `Test_One_Zero_Target_WS,
                   `Test_Devsel_Medium, `Test_Fast_B2B,
                   `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
-            do_pause(5) ;
+
+            do_pause(1) ;
 
         end
         begin:wb_monitor4
@@ -16688,7 +16917,7 @@ begin:main
             test_ok ;
 
         test_name = "FAST BACK TO BACK THROUGH TARGET - FIRST I/O WRITE, THEN READ BACK" ;
-        wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 0) ;
+        wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 0) ;
         fork
         begin
             DO_REF ("IO_WRITE  ", 1, Target_Base_Addr_R[target_io_image] + 40,
@@ -16704,10 +16933,16 @@ begin:main
                   0, `Test_One_Zero_Target_WS,
                   `Test_Devsel_Medium, `Test_Fast_B2B,
                   `Test_Target_Retry_On, `Test_Expect_No_Master_Abort);
-            do_pause(5) ;
-            wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
+
+            do_pause(1) ;
+
         end
         begin:wb_monitor5
+
+            wb_transaction_progress_monitor(Target_Base_Addr_R[target_io_image] + 40, 1'b1, 0, 1'b1, ok) ;            
+
+            wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 0) ;
+
             fork
             begin
                 wb_transaction_progress_monitor(Target_Base_Addr_R[target_io_image] + 40, 1'b1, 1, 1'b1, ok) ;
@@ -17120,7 +17355,7 @@ begin:main
         byte_enables = 4'h0 ;
         expect_length = `PCIW_DEPTH - 2 ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             DO_REF ("MEM_WRITE ", `Test_Master_1, pci_address[PCI_BUS_DATA_RANGE:0],
@@ -17163,7 +17398,7 @@ begin:main
         byte_enables = 4'h0 ;
         expect_length = `PCIW_DEPTH - 2 ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         fork
         begin
             DO_REF ("MEM_WRITE ", `Test_Master_1, pci_address[PCI_BUS_DATA_RANGE:0],
@@ -17231,7 +17466,7 @@ begin:main
                         expect_length + 1, `Test_No_Addr_Perr, `Test_No_Data_Perr,
                         8'h0_0, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_No_Fast_B2B,
-                        (tb_subseq_waits == 4) ? `Test_Target_Retry_On : `Test_Target_Disc_Before, `Test_Expect_No_Master_Abort);
+                        (pci_subseq_waits == 0) ? `Test_Target_Retry_On : `Test_Target_Disc_Before, `Test_Expect_No_Master_Abort);
             do_pause( 3 ) ;
 
             while ( FRAME !== 1 || IRDY !== 1 )
@@ -17597,7 +17832,7 @@ begin:main
             disable main ;
         end
     end
-//*
+
     if ( target_io_image !== -1 )
     begin
         do_io_disconnects = 1 ;
@@ -17692,7 +17927,7 @@ begin:main
         byte_enables = 4'h0 ;
         expect_length = 1 ;
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         fork
         begin
@@ -17892,7 +18127,7 @@ begin:main
             disable main ;
         end
     end
-//*/
+
 end
 endtask // target_disconnects
 
@@ -17935,7 +18170,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_IACK,  			// dual address cycle command
         `BC_IACK,      		// normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -17957,7 +18192,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_SPECIAL,  		// dual address cycle command
         `BC_SPECIAL,      	// normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -17979,7 +18214,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_RESERVED0,  	// dual address cycle command
         `BC_RESERVED0,      // normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -18001,7 +18236,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_RESERVED1,  	// dual address cycle command
         `BC_RESERVED1,      // normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -18023,7 +18258,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_RESERVED2,  	// dual address cycle command
         `BC_RESERVED2,      // normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -18045,7 +18280,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_RESERVED3,  	// dual address cycle command
         `BC_RESERVED3,      // normal command
-        4'h0,               // byte enables
+        4'hF,               // byte enables
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -18069,7 +18304,7 @@ begin:main
         Address,      		// second part of address in dual address cycle
         `BC_DUAL_ADDR_CYC,  // dual address cycle command
         `BC_MEM_WRITE,      // normal command
-        4'h0,               // byte enables;
+        4'hF,               // byte enables;
         32'h1234_5678,      // data
         1'b0,               // make address parity error on first phase of dual address
         1'b0,               // make address parity error on second phase of dual address
@@ -18216,7 +18451,7 @@ begin:main
 
     pci_image_base[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
 
-    wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
     test_name = "FLUSH OF DELAYED READ UNCOMPLETED IN 2^^16 CYCLES FROM PCI TARGET UNIT" ;
     master1_check_received_data = 0 ;
 
@@ -18403,7 +18638,7 @@ begin:main
     end
 
     // set wb slave to retry response
-    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'd255);
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'd255);
     test_name = "RETRY COUNTER EXPIRATION DURING WRITE THROUGH PCI TARGET UNIT" ;
     ok_pci = 1 ;
 
@@ -18443,7 +18678,7 @@ begin:main
         end
 
         // set WB slave to normal completion
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
         
         wb_transaction_progress_monitor( pci_image_base, 1'b1, 1, 1'b1, ok_wb ) ; 
         if ( ok_wb !== 1 )
@@ -18526,7 +18761,7 @@ begin:main
 
     test_name = "RETRY COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
     ok_pci = 1 ;
-    wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'd255);
+    wishbone_slave.cycle_response(3'b001, wb_subseq_waits, 8'd255);
     
     i = 0 ;
     fork
@@ -18555,7 +18790,7 @@ begin:main
         end
  
         // set WB slave to normal completion
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'h0);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
 
         fork
         begin
@@ -18624,101 +18859,13 @@ begin:main
 `ifdef PCI_WBM_NO_RESPONSE_CNT_DISABLE
 `else
     
-    test_name = "NO RESPONSE COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
     $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
     $fdisplay(pciu_mon_log_file_desc,
     "********************************************  Monitor should complain in following section for two times about STB de-asserted without slave response  ************************************************") ;
-    ok_pci = 1 ;
-    wishbone_slave.cycle_response(3'b000, tb_subseq_waits, 8'd255);
- 
-    fork
-    begin
-        if ( test_mem )
-            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
-                          pci_image_base + 4, 32'h1234_5678,
-                          2, 8'h7_0, `Test_One_Zero_Target_WS,
-                         `Test_Devsel_Medium, `Test_Target_Retry_Before);
-        else
-            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 2, `Test_Target_Retry_Before ) ;
- 
-        do_pause( 1 ) ;
- 
-    end
-    begin
-        wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 0, 1'b1, ok_wb ) ;
-        if ( ok_wb !== 1 )
-        begin
-            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
-            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
-            disable main ;
-        end
- 
-        repeat(4)
-            @(posedge pci_clock) ;
-        
-        fork
-        begin
- 
-            if ( test_mem )
-                PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
-                              pci_image_base + 4, 32'h8765_4321,
-                              1, 8'h7_0, `Test_One_Zero_Target_WS,
-                             `Test_Devsel_Medium, `Test_Target_Abort_On);
-            else
-                PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h8765_4321, 4'h0, 1, `Test_Target_Abort_On ) ;
-
-            do_pause(1) ;
- 
-        end
-        begin
-           
-            pci_transaction_progress_monitor( pci_image_base + 4, test_mem ? `BC_MEM_READ : `BC_IO_READ, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
-            if ( ok !== 1 )
-            begin
-                $display("WISHBONE Master Retry Counter expiration test failed! PCI transaction progress monitor detected invalid transaction or none at all on PCI bus! Time %t", $time) ;
-                test_fail("PCI transaction progress monitor detected invalid transaction or none at all on PCI bus") ;
-                disable main ;
-            end
-        end
-        join
- 
-        #1 ;
-        if ( !error_monitor_done )
-            disable error_monitor5 ;
-    end
-    begin:error_monitor5
-        error_monitor_done = 0 ;
-        @(error_event_int) ;
-        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
-        ok_pci = 0 ;
-        error_monitor_done = 1 ;
-    end
-    join
- 
-    if ( ok_wb && ok_pci )
-        test_ok ;
-
-    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
-    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
-    if ( temp_val1[8] !== 1'b0 )
-    begin
-        $display("WISHBONE Master Retry Counter expiration test failed! WB Master shouldn't signal an error when retry counter expires during a read! Time %t", $time) ;
-        test_fail("error shouldn't be reported, when retry counter expires during read through PCI Target unit") ;
-    end 
-
-    test_name = "PCI DEVICE STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
-    config_read( pci_device_ctrl_offset, 4'hF, temp_val1 ) ;
-    if ( temp_val1[25] !== 1'b1 )
-    begin
-        $display("WISHBONE Master Retry Counter expiration test failed! Signaled Target Abort bit not set when PCI Target terminated with target abort! Time %t", $time) ;
-        test_fail("Signaled Target Abort bit was not set when PCI Target terminated with target abort") ;
-    end
- 
-    config_write( pci_device_ctrl_offset, temp_val1, 4'hF, ok ) ;
 
     test_name = "NO RESPONSE COUNTER EXPIRATION DURING WRITE THROUGH PCI TARGET UNIT" ;
     ok_pci = 1 ;
-    wishbone_slave.cycle_response(3'b000, tb_subseq_waits, 8'd255);
+    wishbone_slave.cycle_response(3'b000, wb_subseq_waits, 8'd255);
 
     fork
     begin
@@ -18752,7 +18899,7 @@ begin:main
             disable main ;
         end    
 
-        wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 8'd255);
+        wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'd255);
         
         if ( test_mem )
             wb_transaction_progress_monitor( pci_image_base, 1'b1, 3, 1'b1, ok_wb ) ;
@@ -18833,6 +18980,104 @@ begin:main
         $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error data register when no response counter expired during a write! Time %t", $time) ;
         test_fail("value in error data register was wrong when no response counter expired during posted write through PCI Target unit") ;
     end
+
+    $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
+    $fdisplay(pciu_mon_log_file_desc,
+    "********************************************  Monitor should complain in following section for two times about STB de-asserted without slave response  ************************************************") ;
+
+    test_name = "NO RESPONSE COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
+
+    ok_pci = 1 ;
+    wishbone_slave.cycle_response(3'b000, wb_subseq_waits, 8'd255);
+ 
+    fork
+    begin
+        if ( test_mem )
+            PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                          pci_image_base + 4, 32'h1234_5678,
+                          2, 8'h7_0, `Test_One_Zero_Target_WS,
+                         `Test_Devsel_Medium, `Test_Target_Retry_Before);
+        else
+            PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h1234_5678, 4'h0, 2, `Test_Target_Retry_Before ) ;
+ 
+        do_pause( 1 ) ;
+ 
+    end
+    begin
+        wb_transaction_progress_monitor( pci_image_base + 4, 1'b0, 0, 1'b1, ok_wb ) ;
+        if ( ok_wb !== 1 )
+        begin
+            $display("WISHBONE Master Retry Counter expiration test failed! WB transaction progress monitor detected invalid transaction or none at all on WB bus! Time %t", $time) ;
+            test_fail("WB transaction progress monitor detected invalid transaction or none at all on WB bus") ;
+            disable main ;
+        end
+ 
+        repeat(4)
+            @(posedge pci_clock) ;
+        
+        fork
+        begin
+ 
+            if ( test_mem )
+                PCIU_MEM_READ("MEM_READ  ", `Test_Master_1,
+                              pci_image_base + 4, 32'h8765_4321,
+                              1, 8'h7_0, `Test_One_Zero_Target_WS,
+                             `Test_Devsel_Medium, `Test_Target_Abort_On);
+            else
+                PCIU_IO_READ( `Test_Master_1, pci_image_base + 4, 32'h8765_4321, 4'h0, 1, `Test_Target_Abort_On ) ;
+
+            do_pause(1) ;
+ 
+        end
+        begin
+           
+            pci_transaction_progress_monitor( pci_image_base + 4, test_mem ? `BC_MEM_READ : `BC_IO_READ, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+            if ( ok !== 1 )
+            begin
+                $display("WISHBONE Master Retry Counter expiration test failed! PCI transaction progress monitor detected invalid transaction or none at all on PCI bus! Time %t", $time) ;
+                test_fail("PCI transaction progress monitor detected invalid transaction or none at all on PCI bus") ;
+                disable main ;
+            end
+        end
+        join
+ 
+        #1 ;
+        if ( !error_monitor_done )
+            disable error_monitor5 ;
+    end
+    begin:error_monitor5
+        error_monitor_done = 0 ;
+        @(error_event_int) ;
+        test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
+        ok_pci = 0 ;
+        error_monitor_done = 1 ;
+    end
+    join
+ 
+    if ( ok_wb && ok_pci )
+        test_ok ;
+
+    $display("PCIU monitor (WB bus) should NOT complain any more!") ;
+    $fdisplay(pciu_mon_log_file_desc,
+    "********************************************  Monitor should NOT complain any more  ********************************************************************************************************************") ;
+
+    test_name = "ERROR STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
+    config_read( pci_err_cs_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[8] !== 1'b0 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! WB Master shouldn't signal an error when retry counter expires during a read! Time %t", $time) ;
+        test_fail("error shouldn't be reported, when retry counter expires during read through PCI Target unit") ;
+    end 
+
+    test_name = "PCI DEVICE STATUS REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED DURING READ" ;
+    config_read( pci_device_ctrl_offset, 4'hF, temp_val1 ) ;
+    if ( temp_val1[25] !== 1'b1 )
+    begin
+        $display("WISHBONE Master Retry Counter expiration test failed! Signaled Target Abort bit not set when PCI Target terminated with target abort! Time %t", $time) ;
+        test_fail("Signaled Target Abort bit was not set when PCI Target terminated with target abort") ;
+    end
+ 
+    config_write( pci_device_ctrl_offset, temp_val1, 4'hF, ok ) ;
 `endif
     
     // disable current image - write address mask register
@@ -18868,8 +19113,8 @@ begin:main
     target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
     target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
     write_flags                      = 0 ;
-    write_flags`INIT_WAITS           = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    write_flags`INIT_WAITS           = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS         = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     // enable master & target operation
@@ -19045,8 +19290,8 @@ begin
     end
     `ifdef HOST
     write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    write_flags`INIT_WAITS         = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
@@ -19129,8 +19374,8 @@ begin:main
     repeat(4)
         @(posedge wb_clock) ;
     read_flags                    = 0 ;
-    read_flags`INIT_WAITS         = tb_init_waits ;
-    read_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
+    read_flags`INIT_WAITS         = wb_init_waits ;
+    read_flags`SUBSEQ_WAITS       = wb_subseq_waits ;
     read_flags`WB_TRANSFER_AUTO_RTY = 0 ;
 
     temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
@@ -19348,9 +19593,12 @@ begin:main
         disable main ;
     end
 
-    // set waits to max, which means 0 on PCI
-    tb_init_waits   = 4 ;
-    tb_subseq_waits = 4 ;
+    // set waits to min on pci, max on wb
+    wb_init_waits   = 4 ;
+    wb_subseq_waits = 4 ;
+    
+    pci_init_waits   = 0 ;
+    pci_subseq_waits = 0 ;
 
     // do one dummy write, to receive a GNT park
     if (test_mem)
@@ -19977,11 +20225,10 @@ task test_target_overload ;
     integer wb_transaction_num ;
     reg [31:0] current_wb_address ;
     reg io_mapped ;
-    integer init_waits_backup ;
     integer current_size ;
+    reg [31:0] current_pci_address ;
+    reg [31:0] expected_data ;
 begin:main
-    init_waits_backup = tb_init_waits ;
-    tb_init_waits = 0 ;
     
     `ifdef HOST
     io_mapped = 1'b0 ;
@@ -20037,7 +20284,6 @@ begin:main
     if (ok !== 1'b1)
     begin
         test_fail("configuration of PCI Target Image didn't succeede") ;
-        tb_init_waits = init_waits_backup ;
         #1 disable main ;
     end
 
@@ -20051,19 +20297,12 @@ begin:main
     wishbone_slave.cycle_response
     (
         3'b100,          // ACK, ERR, RTY termination
-        tb_subseq_waits, // wait cycles before response
+        wb_subseq_waits, // wait cycles before response
         0                // number of retries before acknowledge
     ) ;
 
     ok_pci = 1 ;
     ok_wb  = 1 ;
-    current_wb_address = pci_to_wb_addr_convert
-                               (
-                                    Target_Base_Addr_R[test_image_num], // pci address
-                                    Target_Tran_Addr_R[test_image_num], // translation address
-                                    addr_translated
-                               );
-    current_wb_address = current_wb_address & Target_Addr_Mask_R[test_image_num] ;
 
     for (current_size = 2 ; (current_size <= 1024) && ok_pci && ok_wb && ok ; current_size = current_size * 2)
     begin
@@ -20072,8 +20311,17 @@ begin:main
         pci_transaction_num = 0 ;
         wb_transaction_num = 0 ;
 
-        current_wb_address = current_wb_address & Target_Addr_Mask_R[test_image_num] ;
-        current_wb_address = current_wb_address + (('d1024 - current_size) * 4) ;
+        current_wb_address = pci_to_wb_addr_convert
+                             (
+                               Target_Base_Addr_R[test_image_num], // pci address
+                               Target_Tran_Addr_R[test_image_num], // translation address
+                               addr_translated
+                              );
+
+        current_wb_address  = current_wb_address & Target_Addr_Mask_R[test_image_num] ;
+        current_wb_address  = current_wb_address + (('d1024 - current_size) * 4) ;
+        current_pci_address = (Target_Base_Addr_R[test_image_num] & Target_Addr_Mask_R[test_image_num]) + (('d1024 - current_size) * 4) ;
+
         fork
         begin
             while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
@@ -20082,16 +20330,17 @@ begin:main
                 ipci_unsupported_commands_master.normal_write_transfer
                 (
                     // always write to the end of the 4kB window
-                    (('d1024 - current_size) * 4) + Target_Base_Addr_R[test_image_num] + (4 * total_transfers), // start_address
-                    io_mapped ? `BC_IO_WRITE : `BC_MEM_WRITE,                                                   // bus_command
-                    (current_size - total_transfers),                                                           // size
-                    4 - tb_subseq_waits[2:0],                                                                   // subsequent wait cycles
-                    transfered,                                                                                 // actual_transfer
-                    received_termination                                                                        // received_termination
+                    current_pci_address,                            // start_address
+                    io_mapped ? `BC_IO_WRITE : `BC_MEM_WRITE,       // bus_command
+                    (current_size - total_transfers),               // size
+                    pci_subseq_waits[2:0],                          // subsequent wait cycles
+                    transfered,                                     // actual_transfer
+                    received_termination                            // received_termination
                 );
                 if (transfered > 0)
                 begin
                     transaction_sizes[pci_transaction_num] = transfered ;
+                    current_pci_address = current_pci_address + (4 * transfered) ;
                     pci_transaction_num = pci_transaction_num + 1'b1 ;
                 end
                 total_transfers = total_transfers + transfered ;
@@ -20113,24 +20362,51 @@ begin:main
             while (((total_transfers < current_size) || (pci_transaction_num > wb_transaction_num)) && ok_pci && ok_wb && ok)
             begin
                 wait(pci_transaction_num > wb_transaction_num) ;
-                wb_transaction_progress_monitor
-                (
-                    current_wb_address,                     //address
-                    1'b1,                                   //write/read
-                    transaction_sizes[wb_transaction_num],  //num_of_transfers
-                    1'b1,                                   //check_transfers
-                    ok_wb                                   // success/fail
-                );
-                current_wb_address = current_wb_address + (transaction_sizes[wb_transaction_num] * 4) ;
-                wb_transaction_num = wb_transaction_num + 1'b1 ;
-                if (ok_wb !== 1'b1)
+                fork
                 begin
-                    test_fail("WB Transaction progress monitor detected invalid transaction or none at all on WB bus");
+                    wb_transaction_progress_monitor
+                    (
+                        current_wb_address,                     //address
+                        1'b1,                                   //write/read
+                        transaction_sizes[wb_transaction_num],  //num_of_transfers
+                        1'b1,                                   //check_transfers
+                        ok_wb                                   // success/fail
+                    );
+                    current_wb_address = current_wb_address + (transaction_sizes[wb_transaction_num] * 4) ;
+                    wb_transaction_num = wb_transaction_num + 1'b1 ;
+                    if (ok_wb !== 1'b1)
+                    begin
+                        test_fail("WB Transaction progress monitor detected invalid transaction or none at all on WB bus");
+                    end
                 end
+                begin
+                    @(posedge wb_clock) ;
+                    while (CYC_O !== 1'b1)
+                        @(posedge wb_clock) ;
+
+                    while (CYC_O === 1'b1)
+                    begin
+                        if (STB_O === 1'b1)
+                        begin
+
+                            expected_data = Target_Base_Addr_R[test_image_num] & Target_Addr_Mask_R[test_image_num] ;
+                            expected_data = expected_data | (ADR_O & ~Target_Addr_Mask_R[test_image_num]) ;
+                            expected_data = ~expected_data ;
+
+                            if (MDAT_O !== expected_data)
+                            begin
+                                $display("Time %t. Wrong data from WB_MASTER detected! Expected %h, Actual %h", $time, expected_data, MDAT_O) ;
+                                test_fail("Wrong WB MASTER output data detected") ;
+                            end
+                        end
+                        @(posedge wb_clock) ;
+                    end
+                end
+                join
             end
 
-            wb_transaction_num = wb_transaction_num - 1'b1 ;
-            current_wb_address = current_wb_address - (transaction_sizes[wb_transaction_num] * 4) ;
+//            wb_transaction_num = wb_transaction_num - 1'b1 ;
+//            current_wb_address = current_wb_address - (transaction_sizes[wb_transaction_num] * 4) ;
  
             if (ok)
                 #1 disable pci_monitoring ;
@@ -20147,8 +20423,6 @@ begin:main
 
     if ((ok && ok_wb && ok_pci) === 1'b1)
         test_ok ;
-
-    tb_init_waits = init_waits_backup ;
 end
 endtask // test_target_overload
 
@@ -20160,11 +20434,10 @@ task test_master_overload ;
     integer transfered ;
     reg [2:0] received_termination ;
     integer total_transfers ;
-    reg [31:0] transaction_sizes [0:1024] ;
+    reg [31:0] transaction_sizes [0:4095] ;
     integer pci_transaction_num ;
     integer wb_transaction_num ;
     reg [31:0] current_pci_address ;
-    integer init_waits_backup ;
     integer current_size ;
 
     reg `WRITE_STIM_TYPE write_data ;
@@ -20176,6 +20449,9 @@ task test_master_overload ;
     reg [31:0] target_address ;
 
     integer i ;
+    integer j ;
+    integer k ;
+    integer l ;
 begin:main
 
     // set behavioral target to respond normally
@@ -20204,23 +20480,24 @@ begin:main
 
     target_address  = `BEH_TAR1_MEM_START ;
     image_base      = 0 ;
+
     image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
 
-    target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
-    target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
+    target_address = image_base ;
 
-    write_flags                      = 0 ;
-    write_flags`INIT_WAITS           = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
-    write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
-    write_flags`WB_TRANSFER_CAB      = 1'b1 ;
+    write_flags                        = 0 ;
+    write_flags`INIT_WAITS             = wb_init_waits ;
+    write_flags`SUBSEQ_WAITS           = wb_subseq_waits ;
+    write_flags`WB_TRANSFER_AUTO_RTY   = 0 ;
+    write_flags`WB_TRANSFER_CAB        = 1'b1 ;
+    write_flags`WB_FAST_B2B            = 1'b1 ;
 
     pci_configure_wb_slave_image
     (
         1'b1,           // use_bus
         test_image_num, // image_num
         image_base,     // base address
-        32'hFFFF_FFFF,  //  address mask
+        32'hFFFF_C000,  // address mask
         32'h0000_0000,  // translation address
         1'b0,           // io/mem mapping select
         1'b1,           // prefetch enable
@@ -20235,28 +20512,29 @@ begin:main
         disable main ;
     end
     
-    // fill wishbone master's memory with data - inverted addresses
-    write_data = 0 ;
-    for (i = 0 ; i < 1024 ; i = i + 1)
-    begin
-        write_data`WRITE_ADDRESS = image_base + (4 * i) ;
-        write_data`WRITE_DATA    = ~(write_data`WRITE_ADDRESS);
-        wishbone_master.blk_write_data[i] = write_data ;
-    end
-
     ok_wb  = 1 ;
     ok_pci = 1 ;
 
     total_transfers = 0 ;
 
-    for (current_size = 2 ; (current_size <= 1024) && ok_pci && ok_wb && ok ; current_size = current_size * 2)
+    for (current_size = 1 ; (current_size <= 1024) && ok_pci && ok_wb && ok ; current_size = current_size * 2)
     begin
+
+        // fill wishbone master's memory with data - inverted addresses
+        write_data = 0 ;
+        write_data`WRITE_SEL = 4'hF ;
+        for (i = 0 ; i < current_size ; i = i + 1)
+        begin
+            write_data`WRITE_ADDRESS = image_base + ((('d1024 - current_size) * 4) + (i * 4)) ;
+            write_data`WRITE_DATA    = ~(write_data`WRITE_ADDRESS);
+            wishbone_master.blk_write_data[i] = write_data ;
+        end
 
         total_transfers = 0 ;
         pci_transaction_num = 0 ;
         wb_transaction_num = 0 ;
 
-        current_pci_address = image_base ;
+        current_pci_address = image_base + ('d1024 - current_size) * 4 ;
         fork
         begin
             while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
@@ -20271,12 +20549,14 @@ begin:main
                 end
 
                 transfered = write_status`CYC_ACTUAL_TRANSFER ;
+                total_transfers = total_transfers + transfered ;
                 if (transfered > 0)
                 begin
-                    transaction_sizes[wb_transaction_num] = transfered ;
+                    transaction_sizes[wb_transaction_num[11:0]] = transfered ;
+                    wishbone_master.shift_write_buffer(transfered) ;
+
                     wb_transaction_num = wb_transaction_num + 1'b1 ;
                 end
-                total_transfers = total_transfers + transfered ;
             end
         end
         begin:pci_models_monitoring
@@ -20285,22 +20565,27 @@ begin:main
                 wait(wb_transaction_num > pci_transaction_num) ;
                 pci_transaction_progress_monitor
                 (
-                    current_pci_address,                        // address
-                    `BC_MEM_WRITE,                              // bus_command
-                    transaction_sizes[pci_transaction_num],     // num_of_transfers
-                    0,                                          // num_of_cycles
-                    1'b1,                                       // check_transfers
-                    1'b0,                                       // check_cycles
-                    1'b0,                                       // doing_fast_back_to_back
-                    ok_pci                                      // ok
+                    current_pci_address,                            // address
+                    `BC_MEM_WRITE,                                  // bus_command
+                    transaction_sizes[pci_transaction_num[11:0]],   // num_of_transfers
+                    0,                                              // num_of_cycles
+                    1'b1,                                           // check_transfers
+                    1'b0,                                           // check_cycles
+                    1'b0,                                           // doing_fast_back_to_back
+                    ok_pci                                          // ok
                 ) ;
 
+                current_pci_address = current_pci_address + (4 * transaction_sizes[pci_transaction_num[11:0]]) ;
                 pci_transaction_num = pci_transaction_num + 1'b1 ;
                 if (ok_pci !== 1'b1)
                 begin
                     test_fail("PCI Transaction progress monitor detected invalid transaction or none at all on PCI bus");
                 end
             end
+
+            // wait two cycles for any wrong parity errors etc..
+            repeat (2)
+                @(posedge pci_clock) ;
 
             if (ok)
                 #1 disable pci_monitoring ;
@@ -20313,8 +20598,228 @@ begin:main
             ok_wb  = 0 ;
         end
         join
+
+        // check the written data
+        for (i = 0 ; i < current_size ; i = i + 1)
+        begin
+            write_data`WRITE_ADDRESS = image_base + ((('d1024 - current_size) * 4) + (i * 4)) ;
+            write_data`WRITE_DATA    = ~(write_data`WRITE_ADDRESS);
+            write_data`WRITE_ADDRESS = pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem['d1024 - current_size + i] ;
+            if (write_data`WRITE_ADDRESS != write_data`WRITE_DATA)
+            begin
+                $display("Time %t!", $time) ;
+                $display("Wrong data written to the target detected! Expected data %h, actual %h", write_data`WRITE_DATA, write_data`WRITE_ADDRESS) ;
+                test_fail("wrong data was written to the target during the test") ;
+                disable main ;
+            end
+        end
     end
     
+    
+// next two tests take forever - commented out - they are here, because some bugs were reported
+// they are commented out, because no bug could be found with them
+/*
+    total_transfers = 0 ;
+    pci_transaction_num = 0 ;
+    wb_transaction_num = 0 ;
+    current_size = 'd2880 ;
+
+    write_data = 0 ;
+    write_data`WRITE_SEL = 4'hF ;
+    for (i = 0 ; i < current_size ; i = i + 1)
+    begin
+        write_data`WRITE_ADDRESS = image_base + (i * 4) ;
+        write_data`WRITE_DATA    = ~(write_data`WRITE_ADDRESS);
+        wishbone_master.blk_write_data[i] = write_data ;
+    end
+
+    current_pci_address = image_base ;
+    fork
+    begin
+        while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
+        begin
+
+            // wait 1 clock cycle after successfull 64 word transfer, because fast b2b cycles are used
+            if ((total_transfers % 64) === 0)
+                @(posedge wb_clock) ;
+
+            write_flags`WB_TRANSFER_SIZE = 64 - (total_transfers % 64) ;
+
+            wishbone_master.wb_block_write(write_flags, write_status) ;
+            if (write_status`CYC_ERR || ((write_status`CYC_ERR !== 1'b1) && (write_status`CYC_RTY !== 1'b1) && (write_status`CYC_ACK !== 1'b1)))
+            begin
+                test_fail("Wishbone slave signaled an error or did not respond to normal write access") ;
+                ok_wb = 0 ;
+            end
+
+            transfered = write_status`CYC_ACTUAL_TRANSFER ;
+            total_transfers = total_transfers + transfered ;
+            if (transfered > 0)
+            begin
+                transaction_sizes[wb_transaction_num[11:0]] = transfered ;
+                wishbone_master.shift_write_buffer(transfered) ;
+
+                wb_transaction_num = wb_transaction_num + 1'b1 ;
+            end
+        end
+    end
+    begin:pci_models_monitoring1
+        while (((total_transfers < current_size) || (wb_transaction_num > pci_transaction_num)) && ok_pci && ok_wb && ok)
+        begin
+            wait(wb_transaction_num > pci_transaction_num) ;
+            pci_transaction_progress_monitor
+            (
+                current_pci_address,                            // address
+                `BC_MEM_WRITE,                                  // bus_command
+                transaction_sizes[pci_transaction_num[11:0]],   // num_of_transfers
+                0,                                              // num_of_cycles
+                1'b1,                                           // check_transfers
+                1'b0,                                           // check_cycles
+                1'b0,                                           // doing_fast_back_to_back
+                ok_pci                                          // ok
+            ) ;
+
+            current_pci_address = current_pci_address + (4 * transaction_sizes[pci_transaction_num[11:0]]) ;
+            pci_transaction_num = pci_transaction_num + 1'b1 ;
+            if (ok_pci !== 1'b1)
+            begin
+                test_fail("PCI Transaction progress monitor detected invalid transaction or none at all on PCI bus");
+            end
+        end
+
+        if (ok)
+            #1 disable pci_monitoring1 ;
+    end
+    begin:pci_monitoring1
+        @(error_event_int) ;
+        test_fail("PCI Bus monitor detected invalid operation on PCI bus") ;
+        ok = 0 ;
+        ok_pci = 0 ;
+        ok_wb  = 0 ;
+    end
+    join
+    
+    // nothing should go on on pci from now on
+    @(posedge pci_clock) ;
+    for (i = 0 ; (i < 100) & (FRAME === 1'b1) ; i = i + 1)
+        @(posedge pci_clock) ;
+
+    if (i !== 100)
+    begin
+        $display("Time %t", $time) ;
+        $display("Unexpected transaction detected on PCI bus") ;
+        test_fail("unexpected transaction was detected on PCI bus");
+    end
+
+    total_transfers = 0 ;
+    pci_transaction_num = 0 ;
+    wb_transaction_num = 0 ;
+    current_size = 'd1024 *'d2000 ;
+
+    write_data = 0 ;
+    write_data`WRITE_SEL = 4'hF ;
+
+    current_pci_address = image_base ;
+
+    fork
+    begin
+
+        while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
+        begin
+
+            if ((total_transfers % 'd1024) === 0)
+            begin
+                // prepare new data
+                for (i = 0 ; i < 1024 ; i = i + 1)
+                begin
+                    j = i + 1 ;
+                    write_data`WRITE_ADDRESS = image_base + (i * 4) ;
+                    write_data`WRITE_DATA    = $random(j) ;
+                    wishbone_master.blk_write_data[i] = write_data ;
+                end
+
+                // because fast b2b cycles are used, wait for 1 cycle
+                @(posedge wb_clock) ;
+            end
+
+            write_flags`WB_TRANSFER_SIZE = 'd1024 - (total_transfers % 'd1024) ;
+
+            wishbone_master.wb_block_write(write_flags, write_status) ;
+            if (write_status`CYC_ERR || ((write_status`CYC_ERR !== 1'b1) && (write_status`CYC_RTY !== 1'b1) && (write_status`CYC_ACK !== 1'b1)))
+            begin
+                test_fail("Wishbone slave signaled an error or did not respond to normal write access") ;
+                ok_wb = 0 ;
+            end
+
+            transfered = write_status`CYC_ACTUAL_TRANSFER ;
+            total_transfers = total_transfers + transfered ;
+            if (transfered > 0)
+            begin
+                transaction_sizes[wb_transaction_num[11:0]] = transfered ;
+                wishbone_master.shift_write_buffer(transfered) ;
+
+                wb_transaction_num = wb_transaction_num + 1'b1 ;
+            end
+        end
+    end
+    begin:pci_models_monitoring2
+        while (((total_transfers < current_size) || (wb_transaction_num > pci_transaction_num)) && ok_pci && ok_wb && ok)
+        begin
+            wait(wb_transaction_num > pci_transaction_num) ;
+            pci_transaction_progress_monitor
+            (
+                current_pci_address,                            // address
+                `BC_MEM_WRITE,                                  // bus_command
+                transaction_sizes[pci_transaction_num[11:0]],   // num_of_transfers
+                0,                                              // num_of_cycles
+                1'b1,                                           // check_transfers
+                1'b0,                                           // check_cycles
+                1'b0,                                           // doing_fast_back_to_back
+                ok_pci                                          // ok
+            ) ;
+
+            current_pci_address = current_pci_address + (4 * transaction_sizes[pci_transaction_num[11:0]]) ;
+            if (current_pci_address === (image_base + 'd4096))
+            begin
+                @(posedge pci_clock) ;
+                @(posedge pci_clock) ;
+                current_pci_address = image_base ;
+                for (k = 0 ; k < 1024 ; k = k + 1)
+                begin
+                    l = k + 1 ;
+                    if (pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[k] !== $random(l))
+                    begin
+                        $display("Time %t", $time) ;
+                        $display("Wrong data written to the target device!") ;
+                        $display("Expected data %h, actual %h", $random(l), pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[k]) ;
+                        ok_pci = 0 ;
+                        test_fail("wrong data was written to pci target device") ;
+                    end
+                end
+            end
+
+            pci_transaction_num = pci_transaction_num + 1'b1 ;
+            if (ok_pci !== 1'b1)
+            begin
+                test_fail("PCI Transaction progress monitor detected invalid transaction or none at all on PCI bus");
+            end
+        end
+
+        repeat(2)
+            @(posedge pci_clock) ;
+
+        if (ok)
+            #1 disable pci_monitoring2 ;
+    end
+    begin:pci_monitoring2
+        @(error_event_int) ;
+        test_fail("PCI Bus monitor detected invalid operation on PCI bus") ;
+        ok = 0 ;
+        ok_pci = 0 ;
+        ok_wb  = 0 ;
+    end
+    join
+*/
     // disable the image
     pci_configure_wb_slave_image
     (
@@ -20413,12 +20918,12 @@ begin
     endcase
 
     $fdisplay( tb_log_file, "TEST PARAMETERS:") ;
-    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Initial Wait States         = %d", (3'd4 - tb_init_waits)) ;
-    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Subsequent Wait States      = %d", (3'd4 - tb_subseq_waits)) ;
+    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Initial Wait States         = %d", (pci_init_waits)) ;
+    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Subsequent Wait States      = %d", (pci_subseq_waits)) ;
     $fdisplay( tb_log_file, "  - PCI Behavioral Devices' DEVSEL speed                = %s", decode_speed_text) ;
 
-    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Initial Wait States    = %d", tb_init_waits) ;
-    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Subsequent Wait States = %d", tb_subseq_waits) ;
+    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Initial Wait States    = %d", wb_init_waits) ;
+    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Subsequent Wait States = %d", wb_subseq_waits) ;
 end
 endtask
 

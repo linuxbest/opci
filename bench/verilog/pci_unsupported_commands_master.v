@@ -281,7 +281,7 @@ begin
     PAR_en   <= #6 1'b1 ;
     IRDY_en  <= #6 1'b1 ;
     IRDY_int <= #6 1'b0 ;
-    CBE_int  <= #6 be ;
+    CBE_int  <= #6 ~be ;
     if (rw)
         AD_int <= #6 data ;
     else
@@ -325,7 +325,7 @@ begin
     end
 
     IRDY_int <= #6 1'b0 ;
-    CBE_int <= #6 be ;
+    CBE_int <= #6 ~be ;
     @(posedge CLK);
     get_termination(received_termination);
 end
@@ -346,7 +346,7 @@ begin
         AD_int <= #6 data ;
     end
 
-    CBE_int <= #6 be ;
+    CBE_int <= #6 ~be ;
 
     @(posedge CLK);
     get_termination(received_termination);

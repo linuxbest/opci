@@ -38,6 +38,9 @@
 // CVS Revision History
 //
 // $Log: wb_master_behavioral.v,v $
+// Revision 1.2  2003/06/12 02:30:39  mihad
+// Update!
+//
 // Revision 1.1  2002/02/01 13:39:43  mihad
 // Initial testbench import. Still under development
 //
@@ -139,9 +142,10 @@ begin:main
     while (retry === 1)
     begin
         // synchronize operation to clock
-        @(posedge CLK_I) ;
+        if (write_flags`WB_FAST_B2B !== 1'b1)
+            @(posedge CLK_I) ;
 
-        wbm_low_level.start_cycle(cab, 1'b1, ok) ;
+        wbm_low_level.start_cycle(cab, 1'b1, write_flags`WB_FAST_B2B, ok) ;
         if ( ok !== 1 )
         begin
             $display("*E, Failed to initialize cycle! Routine wb_single_write, Time %t ", $time) ;
@@ -230,9 +234,10 @@ begin:main
     while (retry === 1)
     begin
         // synchronize operation to clock
-        @(posedge CLK_I) ;
+        if (read_flags`WB_FAST_B2B !== 1'b1)
+            @(posedge CLK_I) ;
 
-        wbm_low_level.start_cycle(cab, 1'b0, ok) ;
+        wbm_low_level.start_cycle(cab, 1'b0, read_flags`WB_FAST_B2B, ok) ;
         if ( ok !== 1 )
         begin
             $display("*E, Failed to initialize cycle! Routine wb_single_read, Time %t ", $time) ;
@@ -323,9 +328,10 @@ begin:main
     while (retry === 1)
     begin
         // synchronize operation to clock
-        @(posedge CLK_I) ;
+        if (read_flags`WB_FAST_B2B !== 1'b1)
+            @(posedge CLK_I) ;
 
-        wbm_low_level.start_cycle(cab, 1'b0, ok) ;
+        wbm_low_level.start_cycle(cab, 1'b0, read_flags`WB_FAST_B2B, ok) ;
         if ( ok !== 1 )
         begin
             $display("*E, Failed to initialize cycle! Routine wb_RMW_read, Time %t ", $time) ;
@@ -419,10 +425,12 @@ begin:main
     while (retry === 1)
     begin
         // synchronize operation to clock
-        @(posedge CLK_I) ;
+        if (write_flags`WB_FAST_B2B !== 1'b1)
+            @(posedge CLK_I) ;
+
         ok = 1 ;
         if (rty_count !== 0)
-            wbm_low_level.start_cycle(cab, 1'b1, ok) ;
+            wbm_low_level.start_cycle(cab, 1'b1, write_flags`WB_FAST_B2B, ok) ;
 
         if ( ok !== 1 )
         begin
@@ -512,9 +520,11 @@ begin:main
     end
 
     in_use = 1 ;
-    @(posedge CLK_I) ;
+    if (write_flags`WB_FAST_B2B !== 1'b1)
+        @(posedge CLK_I) ;
+
     cab = write_flags`WB_TRANSFER_CAB ;
-    wbm_low_level.start_cycle(cab, 1'b1, ok) ;
+    wbm_low_level.start_cycle(cab, 1'b1, write_flags`WB_FAST_B2B, ok) ;
     if ( ok !== 1 )
     begin
         $display("*E, Failed to initialize cycle! Routine wb_block_write, Time %t ", $time) ;
@@ -600,14 +610,17 @@ begin:main
 
         if ( (end_blk === 0) && (return`CYC_RTY === 1) )
         begin
-            wbm_low_level.end_cycle ;
-            @(posedge CLK_I) ;
-            wbm_low_level.start_cycle(cab, 1'b1, ok) ;
-            if ( ok !== 1 )
+            if (write_flags`WB_FAST_B2B !== 1'b1)
             begin
-                $display("*E, Failed to initialize cycle! Routine wb_block_write, Time %t ", $time) ;
-                return`TB_ERROR_BIT = 1'b1 ;
-                end_blk = 1 ;
+                wbm_low_level.end_cycle ;
+                @(posedge CLK_I) ;
+                wbm_low_level.start_cycle(cab, 1'b1, 1'b0, ok) ;
+                if ( ok !== 1 )
+                begin
+                    $display("*E, Failed to initialize cycle! Routine wb_block_write, Time %t ", $time) ;
+                    return`TB_ERROR_BIT = 1'b1 ;
+                    end_blk = 1 ;
+                end
             end
         end
     end //while
@@ -654,7 +667,7 @@ begin:main
     @(posedge CLK_I) ;
     cab = read_flags`WB_TRANSFER_CAB ;
 
-    wbm_low_level.start_cycle(cab, 1'b0, ok) ;
+    wbm_low_level.start_cycle(cab, 1'b0, read_flags`WB_FAST_B2B, ok) ;
 
     if ( ok !== 1 )
     begin
@@ -748,14 +761,17 @@ begin:main
 
         if ( (end_blk === 0) && (return`CYC_RTY === 1) )
         begin
-            wbm_low_level.end_cycle ;
-            @(posedge CLK_I) ;
-            wbm_low_level.start_cycle(cab, 1'b0, ok) ;
-            if ( ok !== 1 )
+            if (read_flags`WB_FAST_B2B !== 1'b1)
             begin
-                $display("*E, Failed to initialize cycle! Routine wb_block_read, Time %t ", $time) ;
-                return`TB_ERROR_BIT = 1'b1 ;
-                end_blk = 1 ;
+                wbm_low_level.end_cycle ;
+                @(posedge CLK_I) ;
+                wbm_low_level.start_cycle(cab, 1'b0, 1'b0, ok) ;
+                if ( ok !== 1 )
+                begin
+                    $display("*E, Failed to initialize cycle! Routine wb_block_read, Time %t ", $time) ;
+                    return`TB_ERROR_BIT = 1'b1 ;
+                    end_blk = 1 ;
+                end
             end
         end
     end //while
@@ -764,6 +780,24 @@ begin:main
     in_use = 0 ;
 end //main
 endtask //wb_block_read
+
+task shift_write_buffer ;
+    input [31:0] shift_num ;
+    integer i ;
+begin
+    if (shift_num < `MAX_BLK_SIZE)
+    begin
+    
+        for (i = 0 ; i + shift_num < `MAX_BLK_SIZE ; i = i + 1)
+        begin
+            blk_write_data[i] = blk_write_data[i + shift_num] ;
+        end
+
+        for (i = (`MAX_BLK_SIZE - shift_num) ; i < `MAX_BLK_SIZE ; i = i + 1)
+            blk_write_data[i] = {1024{1'bx}} ;
+    end
+end
+endtask // shift_write_buffer
 
 endmodule
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_behavioral.v,v $
+// Revision 1.4  2003/06/12 02:30:39  mihad
+// Update!
+//
 // Revision 1.3  2002/10/11 10:08:58  mihad
 // Added additional testcase and changed rst name in BIST to trst
 //
@@ -234,7 +237,8 @@ begin
   else
   begin
     retry_num = retry_cnt;
-    retry_expired = 1'b1;
+    if (max_retry != 8'h0)
+        retry_expired = 1'b1;
   end
 end
 
@@ -389,16 +393,18 @@ begin
     DAT_O <=#1 `WB_DATA_WIDTH'hxxxx_xxxx;
 end
 */
+
+wire `WB_DATA_TYPE current_memory_location = wb_memory[ADR_I[21:2]] ;
 always@
 (
     RST_I or
     ACK_O or
     WE_I  or
-    ADR_I
+    current_memory_location
 )
 begin
     if ((ACK_O === 1'b1) && (RST_I === 1'b0) && (WE_I === 1'b0))
-        DAT_O <= #1 wb_memory[ADR_I[21:2]] ;
+        DAT_O <= #1 current_memory_location ;
     else
         DAT_O <= #1 {`WB_DATA_WIDTH{1'bx}} ;
 end

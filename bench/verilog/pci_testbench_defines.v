@@ -67,7 +67,7 @@
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 
-    `define DISABLE_COMPLETION_EXPIRED_TESTS
+    //`define DISABLE_COMPLETION_EXPIRED_TESTS
 `endif
 
 //===================================================================================
@@ -82,7 +82,7 @@
 `define WAIT_FOR_RESPONSE 6
 
 // maximum number of transactions allowed in single call to block or cab transfer routines
-`define MAX_BLK_SIZE  1024
+`define MAX_BLK_SIZE  4096
 
 // maximum retry terminations allows for WISHBONE master to repeat an access
 `define WB_TB_MAX_RTY 10000
@@ -156,13 +156,14 @@
 `define CYC_ACTUAL_TRANSFER [35:4]
 
 // block transfer flags
-`define WB_TRANSFER_FLAGS [41:0]
+`define WB_TRANSFER_FLAGS [42:0]
 // consists of:
 // - number of transfer cycles to perform
 // - flag that enables retry termination handling - if disabled, block transfer routines will return on any termination other than acknowledge
 // - flag indicating CAB transfer is to be performed - ignored by all single transfer routines
 // - number of initial wait states to insert
 // - number of subsequent wait states to insert
+`define WB_FAST_B2B          [42]
 `define WB_TRANSFER_SIZE     [41:10]
 `define WB_TRANSFER_AUTO_RTY [8]
 `define WB_TRANSFER_CAB      [9]

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_master32.v,v $
+// Revision 1.2  2003/06/12 02:30:39  mihad
+// Update!
+//
 // Revision 1.1  2002/02/01 13:39:43  mihad
 // Initial testbench import. Still under development
 //
@@ -108,8 +111,9 @@ module WB_MASTER32
     reg we ;
 
     task start_cycle ;
-        input is_cab ;
-        input write  ;
+        input is_cab  ;
+        input write   ;
+        input fastb2b ;
         output ok ;      // ok indicates to the caller that cycle was started succesfully - if not, caller must take appropriate action
     begin:main
 
@@ -126,7 +130,9 @@ module WB_MASTER32
         if ( (cycle_in_progress === 1) || (CYC_O === 1))
         begin
             // cycle was previously started - allow cycle to continue if CAB and WE values match
-            $display("*W, cycle already in progress when start_cycle routine was called! Time %t ", $time) ;
+            if (fastb2b !== 1'b1)
+                $display("*W, cycle already in progress when start_cycle routine was called! Time %t ", $time) ;
+
             if ((CAB_O !== is_cab) || (WE_O !== write) )
             begin
                 ok = 0 ;
