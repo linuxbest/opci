@@ -1,11 +1,8 @@
-
-#define __KERNEL__
-#define MODULE
-
 #include <linux/module.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
 #include <linux/pci.h>
+#include <linux/wrapper.h>
 
 #include <asm/uaccess.h>
 #include <spartan_kint.h> //IOCTL definitions
@@ -19,15 +16,20 @@
 #define OC_PCI_VENDOR 0x1895
 #define OC_PCI_DEVICE 0x0001
 #endif
+#ifdef __OC_TEST__
+#define OC_PCI_VENDOR 0x1895
+#define OC_PCI_DEVICE 0x0001
+#define __VGA__
+#endif
 
 // if someone wants specific major number assigned to spartan board - specify it here 
 // if 0 is used, kernel assigns it automaticaly
 #ifdef __SDRAM__
-#define REQUESTED_MAJOR 243
+#define REQUESTED_MAJOR 0 
 #endif
 
 #ifdef __VGA__
-#define REQUESTED_MAJOR 244
+#define REQUESTED_MAJOR 0
 #endif
 
 // if compiling module for kernel 2.4 - leave this defined
@@ -50,7 +52,11 @@
 #define SPARTAN_IO_MAPPED 1
 
 #ifdef __VGA__
-#define VIDEO_SZ (640*480)
+#ifdef __OC_TEST__
+    #define VIDEO_SZ (16384)
+#else
+    #define VIDEO_SZ (640*480)
+#endif
 #endif
 
 // structure for holding board information
@@ -236,6 +242,12 @@ int     spartan_ioctl(struct inode *pnode, struct file *filp, unsigned int cmd, 
 			}
 
 			return 0;
+        case SPARTAN_IOC_GET_VIDEO_BUFF:
+            for(i = 0; i < VIDEO_SZ; i++) {
+                put_user(*((char *)(pspartan_dev.video_vbase +  i)), ((char *)(arg + i))) ;
+            }
+
+            return 0 ;
 #endif
 		default:
 			return -EINVAL ;
@@ -309,7 +321,9 @@ ssize_t spartan_read(struct file *filp, char *buf, size_t count, loff_t *offset_
 	unsigned long offset = pspartan_dev.offset ;
 	int resource_num = pspartan_dev.current_resource ;
 	int i;
-	int value;
+	unsigned int value;
+        unsigned int *kern_buf ;
+        unsigned int *kern_buf_tmp ;
 
 	unsigned long size   = pspartan_dev.base_size[resource_num] ;
 	int result ;
@@ -329,15 +343,24 @@ ssize_t spartan_read(struct file *filp, char *buf, size_t count, loff_t *offset_
 	if ((result = verify_area(VERIFY_WRITE, buf, actual_count)))
 		return result ;
  
+    kern_buf = kmalloc(actual_count, GFP_KERNEL | GFP_DMA) ;
+    kern_buf_tmp = kern_buf ;
+    if (kern_buf <= 0)
+        return 0 ;
+    
+    memcpy_fromio(kern_buf, current_address, actual_count) ;
 	i = actual_count/4;
 	while(i--) {
 	
-		value = readl(current_address);	
-		put_user(value, ((int *)buf));	
+//		value = readl(current_address);	
+        value = *(kern_buf) ;
+		put_user(value, ((unsigned int *)buf));	
 		buf += 4;
-		current_address += 4;
+        ++kern_buf ;
+//		current_address += 4;
 	}
 
+    kfree(kern_buf_tmp);
 	pspartan_dev.offset = pspartan_dev.offset + actual_count ;
  
 	*(offset_out) = pspartan_dev.offset ;
@@ -356,6 +379,8 @@ ssize_t spartan_write(struct file *filp, const char *buf, size_t count, loff_t *
 	int value;
 	unsigned long size   = pspartan_dev.base_size[resource_num] ;
 	int result ;
+    int *kern_buf ;
+    int *kern_buf_tmp ;
  
 	if (pspartan_dev.current_resource < 0)
 		return -ENODEV ;
@@ -372,13 +397,24 @@ ssize_t spartan_write(struct file *filp, const char *buf, size_t count, loff_t *
 	if ((result = verify_area(VERIFY_READ, buf, actual_count)))
 		return result ;
  
+    kern_buf = kmalloc(actual_count, GFP_KERNEL | GFP_DMA) ;
+    kern_buf_tmp = kern_buf ;
+    if (kern_buf <= 0)
+        return 0 ;
+    
 	i = actual_count/4;
 	while(i--) {
 		get_user(value, ((int *)buf));
-		writel(value, current_address);
+		//writel(value, current_address);
+        *kern_buf = value ;
 		buf += 4;
-		current_address += 4;
+		//current_address += 4;
+        ++kern_buf ;
 	}
+
+    memcpy_toio(current_address, kern_buf_tmp, actual_count) ;
+    kfree(kern_buf_tmp) ;
+
 	pspartan_dev.offset = pspartan_dev.offset + actual_count ;
  
 	*(offset_out) = pspartan_dev.offset ;
@@ -596,3 +632,5 @@ void cleanup_module(void)
 		return ;
 	} 
 }
+
+MODULE_LICENSE("GPL") ;
