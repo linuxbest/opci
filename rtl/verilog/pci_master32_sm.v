@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm.v,v $
+// Revision 1.4  2003/01/21 16:06:56  mihad
+// Bug fixes, testcases added.
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -224,9 +227,9 @@ parameter S_TA_END          = 4'h8 ;
 // change state - clock enable for sm state register
 wire change_state ;
 // next state for state machine
-reg [4:0] next_state ;
+reg [3:0] next_state ;
 // SM state register
-reg [4:0] cur_state ;
+reg [3:0] cur_state ;
 
 // variables for indicating which state state machine is in
 // this variables are used to reduce logic levels in case of heavily constrained PCI signals

@@ -523,6 +523,7 @@ echo "-cdslib ../bin/cds.lib" > ./ncsim.args
 echo "-hdlvar ../bin/hdl.var" >> ./ncsim.args
 echo "-logfile ../log/ncsim.log" >> ./ncsim.args
 echo "-messages" >> ./ncsim.args
+echo "-tcl" >> ./ncsim.args
 if ($arg_waves == 1) then
   echo "-input ../bin/ncsim_waves.rc" >> ./ncsim.args
 else

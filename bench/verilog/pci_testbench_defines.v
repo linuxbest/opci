@@ -13,7 +13,7 @@
     // only one at the time can be defined, otherwise testbench won't work
     // they are used to generate both clocks with same period and phase shift of define's value in nano seconds
 
-    `define PCI_CLOCK_FOLLOWS_WB_CLOCK 2
+    //`define PCI_CLOCK_FOLLOWS_WB_CLOCK 2
     //`define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
     
     // wishbone frequncy in GHz
@@ -82,7 +82,7 @@
 `define WAIT_FOR_RESPONSE 6
 
 // maximum number of transactions allowed in single call to block or cab transfer routines
-`define MAX_BLK_SIZE  512
+`define MAX_BLK_SIZE  1024
 
 // maximum retry terminations allows for WISHBONE master to repeat an access
 `define WB_TB_MAX_RTY 10000

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.6  2003/01/21 16:06:56  mihad
+// Bug fixes, testcases added.
+//
 // Revision 1.5  2002/08/22 13:28:04  mihad
 // Updated for synthesis purposes. Gate level simulation was failing in some configurations
 //
@@ -760,6 +763,10 @@ begin
     end
 end
 
+// when disconnect is signalled, the next data written to fifo will be the last
+// also when this happens, disconnect must stay asserted until last data is written to the fifo
+reg next_write_to_pciw_fifo_is_last ;
+
 // selecting "fifo data" from medium registers or from PCIR_FIFO
 wire [31:0]	pcir_fifo_data = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_data_in : pcir_fifo_data_reg ;
 wire [3:0]	pcir_fifo_ctrl = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_control_input : pcir_fifo_ctrl_reg ;
@@ -772,7 +779,7 @@ assign	read_processing_out = req_req_pending_in ; // request pending input for r
 assign	disconect_wo_data_out = (
 	((/*pcir_fifo_ctrl[`LAST_CTRL_BIT] ||*/ pcir_fifo_empty_in || ~burst_ok_out/*addr_burst_ok*/ || io_memory_bus_command) && 
 		~bc0_in && ~frame_reg_in) ||
-	((pciw_fifo_full_in || pciw_fifo_almost_full_in || pciw_fifo_two_left_in || ~addr_burst_ok || io_memory_bus_command) && 
+	((pciw_fifo_full_in || pciw_fifo_almost_full_in || next_write_to_pciw_fifo_is_last || (pciw_fifo_two_left_in && pciw_fifo_wenable_out) || ~addr_burst_ok || io_memory_bus_command) && 
 		bc0_in && ~frame_reg_in)
 								) ;
 assign	disconect_w_data_out =	(
@@ -819,6 +826,16 @@ async_reset_flop		  async_reset_as_pcir_flush
     .reset_in    		  (reset_in)
 ) ;
 
+always@(posedge clk_in or posedge reset_in)
+begin
+    if (reset_in)
+        next_write_to_pciw_fifo_is_last <= #1 1'b0 ;
+    else if (next_write_to_pciw_fifo_is_last && pciw_fifo_wenable_out)
+        next_write_to_pciw_fifo_is_last <= #1 1'b0 ;
+    else if (pciw_fifo_wenable_out && disconect_wo_data_out)
+        next_write_to_pciw_fifo_is_last <= #1 1'b1 ;
+end
+
 // signal assignments from fifo to PCI Target FSM
 assign	wbw_fifo_empty_out = wbw_fifo_empty_in ;
 assign	wbu_del_read_comp_pending_out = wbu_del_read_comp_pending_in ;
@@ -831,8 +848,8 @@ assign	pciw_fifo_wenable_out						= load_to_pciw_fifo_in ;
 assign	pciw_fifo_control_out[`ADDR_CTRL_BIT]		= ~rdy_in ;
 assign	pciw_fifo_control_out[`BURST_BIT]			= rdy_in ? ~frame_reg_in : 1'b0 ;
 assign	pciw_fifo_control_out[`DATA_ERROR_CTRL_BIT]	= 1'b0 ;
-assign	pciw_fifo_control_out[`LAST_CTRL_BIT]		= rdy_in ? 
-		(last_reg_in || pciw_fifo_almost_full_in || ~addr_burst_ok || io_memory_bus_command) : 1'b0 ;
+assign	pciw_fifo_control_out[`LAST_CTRL_BIT]		= rdy_in && 
+		(next_write_to_pciw_fifo_is_last || last_reg_in || pciw_fifo_almost_full_in || ~addr_burst_ok || io_memory_bus_command);
 
 `ifdef		HOST
 	`ifdef	NO_CNF_IMAGE

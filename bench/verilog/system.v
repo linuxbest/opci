@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.13  2003/01/21 16:06:50  mihad
+// Bug fixes, testcases added.
+//
 // Revision 1.12  2002/10/21 13:04:30  mihad
 // Changed BIST signal names etc..
 //
@@ -850,7 +853,8 @@ begin
 
     // if BIST is implemented, give it a go
 `ifdef PCI_BIST
-    run_bist_test ;
+//    run_bist_test ;
+scanb_rst <= #1 1'b1 ;
 `endif
     test_initial_conf_values ;
 
@@ -925,6 +929,8 @@ begin
                 iack_cycle ;
                 `endif
 
+                test_master_overload ;
+
             end
 
         `ifdef DISABLE_COMPLETION_EXPIRED_TESTS
@@ -947,7 +953,6 @@ begin
 
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
-
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
                 test_conf_cycle_type1_reference ;
             `endif
@@ -1001,6 +1006,8 @@ begin
             target_fast_back_to_back ;
             target_disconnects ;
 
+            test_target_overload ;
+
             if ( target_io_image !== -1 )
                 test_target_abort( target_io_image ) ;
             $display(" ") ;
@@ -1017,6 +1024,9 @@ begin
             $display("PCI transaction ordering tests finished!") ;
         end
     end
+
+    tb_init_waits   = 0 ;
+    tb_subseq_waits = 0 ;
 
     `ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
         test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
@@ -1039,6 +1049,9 @@ begin
 
         target_special_corner_case_test ;
     `endif
+
+    tb_init_waits   = 0 ;
+    tb_subseq_waits = 0 ;
 
     test_summary ;
 
@@ -4968,7 +4981,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON FIRST DATA PHASE OF DUAL ADDRESS CYCLE - SERR DISABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5002,7 +5015,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON SECOND DATA PHASE OF DUAL ADDRESS CYCLE - SERR DISABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5070,7 +5083,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON BOTH DATA PHASES OF DUAL ADDRESS CYCLE - SERR DISABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5336,7 +5349,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON FIRST DATA PHASE OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5474,7 +5487,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON SECOND DATA PHASE OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5612,7 +5625,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON BOTH DATA PHASES OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. ENABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5879,7 +5892,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON FIRST DATA PHASE OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. DISABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5913,7 +5926,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON SECOND DATA PHASE OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. DISABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -5981,7 +5994,7 @@ begin:main
     test_name = "ADDRESS PARITY ERROR ON BOTH DATA PHASES OF DUAL ADDRESS CYCLE - SERR ENABLED, PAR. RESP. DISABLED" ;
     fork
     begin
-        ipci_unsupported_commands_master.master_reference
+        ipci_unsupported_commands_master.unsupported_reference
         (
             32'hAAAA_AAAA,      // first part of address in dual address cycle
             32'h5555_5555,      // second part of address in dual address cycle
@@ -8652,7 +8665,7 @@ begin:main
         	do_pause( 1 ) ;
 		end
 		begin
-            pci_transaction_progress_monitor( pci_image_base, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
+            pci_transaction_progress_monitor( pci_image_base, ((target_mem_image == 1) ? `BC_MEM_WRITE : `BC_IO_WRITE), 0, 0, 1'b1, 1'b0, 1'b0, ok ) ;
 		end
 		join
 
@@ -9200,6 +9213,8 @@ task wb_transaction_progress_monitor ;
     integer deadlock_counter ;
     integer transfer_counter ;
     integer deadlock_max_val ;
+    reg [2:0] slave_termination ;
+    reg       cab_asserted ;
 begin:main
     if ( in_use === 1 )
     begin
@@ -9223,8 +9238,9 @@ begin:main
     // maximum wb clock cycles
     deadlock_max_val = deadlock_max_val / (1/`WB_FREQ) ;
 
-    in_use = 1 ;
-    ok     = 1 ;
+    in_use       = 1 ;
+    ok           = 1 ;
+    cab_asserted = 0 ;
 
     fork
     begin:wait_start
@@ -9299,9 +9315,48 @@ begin:main
 
         while( (CYC_O === 1) && ((transfer_counter <= `PCIW_DEPTH) || (transfer_counter <= `PCIR_DEPTH)) )
         begin
-            if ( (STB_O === 1) && (ACK_I === 1) )
-                transfer_counter = transfer_counter + 1 ;
+
+            if (!cab_asserted)
+                cab_asserted = (CAB_O !== 1'b0) ;
+
+            if (STB_O === 1)
+            begin
+                slave_termination = {ACK_I, ERR_I, RTY_I} ;
+                if (ACK_I)
+                    transfer_counter = transfer_counter + 1 ;
+            end
             @(posedge wb_clock) ;
+        end
+
+        if (cab_asserted)
+        begin
+            // cab was sampled asserted
+            // if number of transfers was less than 2 - check for extraordinary terminations
+            if (transfer_counter < 2)
+            begin
+                // if cycle was terminated because of no response, error or retry, than it is OK to have CAB_O asserted while transfering 0 or 1 data.
+                // any other cases are wrong
+                case (slave_termination)
+                3'b000:begin end
+                3'b001:begin end
+                3'b010:begin end
+                default:begin
+                            ok = 0 ;
+                            $display("Time %t", $time) ;
+                            $display("WB_MASTER asserted CAB_O for single transfer") ;
+                        end
+                endcase
+            end
+        end
+        else
+        begin
+            // if cab is not asserted, then WB_MASTER should not read more than one data.
+            if (transfer_counter > 1)
+            begin
+                ok = 0 ;
+                $display("Time %t", $time) ;
+                $display("WB_MASTER didn't assert CAB_O for consecutive block transfer") ;
+            end
         end
 
         if ( check_transfers === 1 )
@@ -17065,10 +17120,10 @@ begin:main
             DO_REF ("MEM_WRITE ", `Test_Master_1, pci_address[PCI_BUS_DATA_RANGE:0],
                         PCI_COMMAND_MEMORY_WRITE, data[PCI_BUS_DATA_RANGE:0],
                         byte_enables,
-                        (tb_subseq_waits != 4) ? expect_length : (expect_length + 1), `Test_No_Addr_Perr, `Test_No_Data_Perr,
+                        expect_length + 1, `Test_No_Addr_Perr, `Test_No_Data_Perr,
                         8'h0_0, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_No_Fast_B2B,
-                        (tb_subseq_waits != 4) ? `Test_Target_Disc_On : `Test_Target_Retry_On, `Test_Expect_No_Master_Abort);
+                        `Test_Target_Retry_On, `Test_Expect_No_Master_Abort);
             do_pause( 3 ) ;
 
             while ( FRAME !== 1 || IRDY !== 1 )
@@ -17108,10 +17163,10 @@ begin:main
             DO_REF ("MEM_WRITE ", `Test_Master_1, pci_address[PCI_BUS_DATA_RANGE:0],
                         PCI_COMMAND_MEMORY_WRITE, data[PCI_BUS_DATA_RANGE:0],
                         byte_enables,
-                        (tb_subseq_waits != 4) ? (expect_length + 1) : (expect_length + 2) , `Test_No_Addr_Perr, `Test_No_Data_Perr,
+                        expect_length + 2, `Test_No_Addr_Perr, `Test_No_Data_Perr,
                         8'h0_0, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_No_Fast_B2B,
-                        (tb_subseq_waits != 4) ? `Test_Target_Disc_Before : `Test_Target_Retry_Before, `Test_Expect_No_Master_Abort);
+                        `Test_Target_Retry_Before, `Test_Expect_No_Master_Abort);
             do_pause( 3 ) ;
 
             while ( FRAME !== 1 || IRDY !== 1 )
@@ -17868,7 +17923,7 @@ begin:main
         32'h0000_0044             // data
     ) ;
 
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -17890,7 +17945,7 @@ begin:main
 
     $display("  Master abort testing with unsuported bus command to image %d (BC is SPECIAL)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - SPECIAL" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -17912,7 +17967,7 @@ begin:main
 
     $display("  Master abort testing with unsuported bus command to image %d (BC is RESERVED0)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - RESERVED0" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -17934,7 +17989,7 @@ begin:main
 
     $display("  Master abort testing with unsuported bus command to image %d (BC is RESERVED1)", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - RESERVED1" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -17956,7 +18011,7 @@ begin:main
 
     $display("  Master abort testing with unsuported bus command to image %d (BC is RESERVED2)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - RESERVED2" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -17978,7 +18033,7 @@ begin:main
 
     $display("  Master abort testing with unsuported bus command to image %d (BC is RESERVED3)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - RESERVED3" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -18002,7 +18057,7 @@ begin:main
     $display("    byte enables are different than first bus command (DUAL_ADDR_CYC)!") ;
     $display("  Master abort testing with unsuported bus command to image %d (BC is DUAL_ADDR_CYC)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - DUAL_ADDR_CYC" ;
-    ipci_unsupported_commands_master.master_reference
+    ipci_unsupported_commands_master.unsupported_reference
     (
         Address,      		// first part of address in dual address cycle
         Address,      		// second part of address in dual address cycle
@@ -19896,6 +19951,384 @@ end
 endtask // master_special_corner_case_test
 `endif
 
+task test_target_overload ;
+    reg ok_pci ;
+    reg ok_wb  ;
+    reg ok ;
+    reg [2:0] test_image_num ;
+    reg addr_translated ;
+    integer transfered ;
+    reg [2:0] received_termination ;
+    integer total_transfers ;
+    reg [31:0] transaction_sizes [0:1024] ;
+    integer pci_transaction_num ;
+    integer wb_transaction_num ;
+    reg [31:0] current_wb_address ;
+    reg io_mapped ;
+    integer init_waits_backup ;
+    integer current_size ;
+begin:main
+    init_waits_backup = tb_init_waits ;
+    tb_init_waits = 0 ;
+    
+    `ifdef HOST
+    io_mapped = 1'b0 ;
+    `endif
+
+    test_image_num = 'd1 ;
+    `ifdef GUEST
+    io_mapped = `PCI_BA1_MEM_IO ;
+    `endif
+
+    `ifdef PCI_IMAGE2
+        test_image_num = 'd2 ;
+        `ifdef GUEST
+            io_mapped = `PCI_BA2_MEM_IO ;
+        `endif
+    `endif
+
+    `ifdef PCI_IMAGE3
+        test_image_num = 'd3 ;
+        `ifdef GUEST
+            io_mapped = `PCI_BA3_MEM_IO ;
+        `endif
+    `endif
+
+    `ifdef PCI_IMAGE4
+        test_image_num = 'd4 ;
+        `ifdef GUEST
+            io_mapped = `PCI_BA4_MEM_IO ;
+        `endif
+    `endif
+
+    `ifdef PCI_IMAGE5
+        test_image_num = 'd5 ;
+        `ifdef GUEST
+            io_mapped = `PCI_BA5_MEM_IO ;
+        `endif
+    `endif
+
+    test_name = "PCI TARGET OVERLOAD" ;
+    // configure target image 1 via bus accesses
+    pci_configure_pci_target_image
+    (
+        1'b1,                               // selects whether to configure image with bus accesses or directly with dot notation in the configuration space
+        test_image_num,                     // image number
+        Target_Base_Addr_R[test_image_num], // base address
+        Target_Addr_Mask_R[test_image_num], // address mask
+        Target_Tran_Addr_R[test_image_num], // translation address
+        1'b0,                               // io/mem mapping select
+        1'b0,                               // prefetch enable
+        1'b1,                               // address translation enable
+        ok                                  // finished succesfully
+    );
+    if (ok !== 1'b1)
+    begin
+        test_fail("configuration of PCI Target Image didn't succeede") ;
+        tb_init_waits = init_waits_backup ;
+        #1 disable main ;
+    end
+
+    `ifdef ADDR_TRAN_IMPL
+        addr_translated = 1'b1 ;
+    `else
+        addr_translated = 1'b0 ;
+    `endif
+
+    // set wb slave's response to max wait cycles
+    wishbone_slave.cycle_response
+    (
+        3'b100,          // ACK, ERR, RTY termination
+        tb_subseq_waits, // wait cycles before response
+        0                // number of retries before acknowledge
+    ) ;
+
+    ok_pci = 1 ;
+    ok_wb  = 1 ;
+    current_wb_address = pci_to_wb_addr_convert
+                               (
+                                    Target_Base_Addr_R[test_image_num], // pci address
+                                    Target_Tran_Addr_R[test_image_num], // translation address
+                                    addr_translated
+                               );
+    current_wb_address = current_wb_address & Target_Addr_Mask_R[test_image_num] ;
+
+    for (current_size = 2 ; (current_size <= 1024) && ok_pci && ok_wb && ok ; current_size = current_size * 2)
+    begin
+        
+        total_transfers = 0 ;
+        pci_transaction_num = 0 ;
+        wb_transaction_num = 0 ;
+
+        current_wb_address = current_wb_address & Target_Addr_Mask_R[test_image_num] ;
+        current_wb_address = current_wb_address + (('d1024 - current_size) * 4) ;
+        fork
+        begin
+            while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
+            begin
+                // try transfering 4kB with no wait cycles through the target
+                ipci_unsupported_commands_master.normal_write_transfer
+                (
+                    // always write to the end of the 4kB window
+                    (('d1024 - current_size) * 4) + Target_Base_Addr_R[test_image_num] + (4 * total_transfers), // start_address
+                    io_mapped ? `BC_IO_WRITE : `BC_MEM_WRITE,                                                   // bus_command
+                    (current_size - total_transfers),                                                           // size
+                    4 - tb_subseq_waits[2:0],                                                                   // subsequent wait cycles
+                    transfered,                                                                                 // actual_transfer
+                    received_termination                                                                        // received_termination
+                );
+                if (transfered > 0)
+                begin
+                    transaction_sizes[pci_transaction_num] = transfered ;
+                    pci_transaction_num = pci_transaction_num + 1'b1 ;
+                end
+                total_transfers = total_transfers + transfered ;
+                if (received_termination > 2) // terminations with numbers 3(Target Abort), 4(Master Abort) and 5(Error) are not allowed
+                begin
+                    ok_pci = 0 ;
+                    if (received_termination == 3)
+                        test_fail("PCI Target signalled Target Abort") ;
+ 
+                    if (received_termination == 4)
+                        test_fail("PCI Master generated Master Abort") ;
+ 
+                    if (received_termination == 5)
+                        test_fail("PCI behavioral master signaled severe error") ;
+                end
+            end
+        end
+        begin:wb_monitoring
+            while (((total_transfers < current_size) || (pci_transaction_num > wb_transaction_num)) && ok_pci && ok_wb && ok)
+            begin
+                wait(pci_transaction_num > wb_transaction_num) ;
+                wb_transaction_progress_monitor
+                (
+                    current_wb_address,                     //address
+                    1'b1,                                   //write/read
+                    transaction_sizes[wb_transaction_num],  //num_of_transfers
+                    1'b1,                                   //check_transfers
+                    ok_wb                                   // success/fail
+                );
+                current_wb_address = current_wb_address + (transaction_sizes[wb_transaction_num] * 4) ;
+                wb_transaction_num = wb_transaction_num + 1'b1 ;
+                if (ok_wb !== 1'b1)
+                begin
+                    test_fail("WB Transaction progress monitor detected invalid transaction or none at all on WB bus");
+                end
+            end
+
+            wb_transaction_num = wb_transaction_num - 1'b1 ;
+            current_wb_address = current_wb_address - (transaction_sizes[wb_transaction_num] * 4) ;
+ 
+            if (ok)
+                #1 disable pci_monitoring ;
+        end
+        begin:pci_monitoring
+            @(error_event_int) ;
+            test_fail("PCI Bus monitor detected invalid operation on PCI bus") ;
+            ok = 0 ;
+            ok_pci = 0 ;
+            ok_wb  = 0 ;
+        end
+        join
+    end
+
+    if ((ok && ok_wb && ok_pci) === 1'b1)
+        test_ok ;
+
+    tb_init_waits = init_waits_backup ;
+end
+endtask // test_target_overload
+
+task test_master_overload ;
+    reg ok_pci ;
+    reg ok_wb  ;
+    reg ok ;
+    reg [2:0] test_image_num ;
+    integer transfered ;
+    reg [2:0] received_termination ;
+    integer total_transfers ;
+    reg [31:0] transaction_sizes [0:1024] ;
+    integer pci_transaction_num ;
+    integer wb_transaction_num ;
+    reg [31:0] current_pci_address ;
+    integer init_waits_backup ;
+    integer current_size ;
+
+    reg `WRITE_STIM_TYPE write_data ;
+
+    reg `WRITE_RETURN_TYPE write_status ;
+    reg `WB_TRANSFER_FLAGS write_flags ;
+
+    reg [31:0] image_base ;
+    reg [31:0] target_address ;
+
+    integer i ;
+begin:main
+
+    // set behavioral target to respond normally
+    test_target_response[`TARGET_ENCODED_TERMINATION]  = `Test_Target_Normal_Completion ;
+    test_target_response[`TARGET_ENCODED_TERMINATE_ON] = 0 ;
+
+    test_image_num = 'd1 ;
+
+    `ifdef WB_IMAGE2
+        test_image_num = 'd2 ;
+    `endif
+
+    `ifdef WB_IMAGE3
+        test_image_num = 'd3 ;
+    `endif
+
+    `ifdef WB_IMAGE4
+        test_image_num = 'd4 ;
+    `endif
+
+    `ifdef WB_IMAGE5
+        test_image_num = 'd5 ;
+    `endif
+
+    test_name = "MASTER OVERLOAD" ;
+
+    target_address  = `BEH_TAR1_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+    target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
+    target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
+
+    write_flags                      = 0 ;
+    write_flags`INIT_WAITS           = tb_init_waits ;
+    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+    write_flags`WB_TRANSFER_CAB      = 1'b1 ;
+
+    pci_configure_wb_slave_image
+    (
+        1'b1,           // use_bus
+        test_image_num, // image_num
+        image_base,     // base address
+        32'hFFFF_FFFF,  //  address mask
+        32'h0000_0000,  // translation address
+        1'b0,           // io/mem mapping select
+        1'b1,           // prefetch enable
+        1'b0,           // address translation enable
+        1'b1,           // memory read line enable
+        ok              // finished succesfully
+    ) ;
+
+    if (ok !== 1'b1)
+    begin
+        test_fail("WB image configuration failed") ;
+        disable main ;
+    end
+    
+    // fill wishbone master's memory with data - inverted addresses
+    write_data = 0 ;
+    for (i = 0 ; i < 1024 ; i = i + 1)
+    begin
+        write_data`WRITE_ADDRESS = image_base + (4 * i) ;
+        write_data`WRITE_DATA    = ~(write_data`WRITE_ADDRESS);
+        wishbone_master.blk_write_data[i] = write_data ;
+    end
+
+    ok_wb  = 1 ;
+    ok_pci = 1 ;
+
+    total_transfers = 0 ;
+
+    for (current_size = 2 ; (current_size <= 1024) && ok_pci && ok_wb && ok ; current_size = current_size * 2)
+    begin
+
+        total_transfers = 0 ;
+        pci_transaction_num = 0 ;
+        wb_transaction_num = 0 ;
+
+        current_pci_address = image_base ;
+        fork
+        begin
+            while ((total_transfers < current_size) && ok_pci && ok_wb && ok)
+            begin
+                // try transfering 4kB with no wait cycles through the wb slave unit
+                write_flags`WB_TRANSFER_SIZE = current_size - total_transfers ;
+                wishbone_master.wb_block_write(write_flags, write_status) ;
+                if (write_status`CYC_ERR || ((write_status`CYC_ERR !== 1'b1) && (write_status`CYC_RTY !== 1'b1) && (write_status`CYC_ACK !== 1'b1)))
+                begin
+                    test_fail("Wishbone slave signaled an error or did not respond to normal write access") ;
+                    ok_wb = 0 ;
+                end
+
+                transfered = write_status`CYC_ACTUAL_TRANSFER ;
+                if (transfered > 0)
+                begin
+                    transaction_sizes[wb_transaction_num] = transfered ;
+                    wb_transaction_num = wb_transaction_num + 1'b1 ;
+                end
+                total_transfers = total_transfers + transfered ;
+            end
+        end
+        begin:pci_models_monitoring
+            while (((total_transfers < current_size) || (wb_transaction_num > pci_transaction_num)) && ok_pci && ok_wb && ok)
+            begin
+                wait(wb_transaction_num > pci_transaction_num) ;
+                pci_transaction_progress_monitor
+                (
+                    current_pci_address,                        // address
+                    `BC_MEM_WRITE,                              // bus_command
+                    transaction_sizes[pci_transaction_num],     // num_of_transfers
+                    0,                                          // num_of_cycles
+                    1'b1,                                       // check_transfers
+                    1'b0,                                       // check_cycles
+                    1'b0,                                       // doing_fast_back_to_back
+                    ok_pci                                      // ok
+                ) ;
+
+                pci_transaction_num = pci_transaction_num + 1'b1 ;
+                if (ok_pci !== 1'b1)
+                begin
+                    test_fail("PCI Transaction progress monitor detected invalid transaction or none at all on PCI bus");
+                end
+            end
+
+            if (ok)
+                #1 disable pci_monitoring ;
+        end
+        begin:pci_monitoring
+            @(error_event_int) ;
+            test_fail("PCI Bus monitor detected invalid operation on PCI bus") ;
+            ok = 0 ;
+            ok_pci = 0 ;
+            ok_wb  = 0 ;
+        end
+        join
+    end
+    
+    // disable the image
+    pci_configure_wb_slave_image
+    (
+        1'b1,           // use_bus
+        test_image_num, // image_num
+        image_base,     // base address
+        32'h0000_0000,  //  address mask
+        32'h0000_0000,  // translation address
+        1'b0,           // io/mem mapping select
+        1'b1,           // prefetch enable
+        1'b0,           // address translation enable
+        1'b1,           // memory read line enable
+        ok              // finished succesfully
+    ) ;
+
+    if (ok !== 1'b1)
+    begin
+        test_fail("WB image configuration failed") ;
+        disable main ;
+    end
+
+    if ((ok && ok_wb && ok_pci) === 1'b1)
+        test_ok ;
+end
+endtask // test_master_overload
+
 task test_fail ;
     input [7999:0] failure_reason ;
     reg   [8007:0] display_failure ;
@@ -19977,4 +20410,5 @@ begin
 end
 endtask
 
+`include "pci_bench_common_tasks.v"
 endmodule

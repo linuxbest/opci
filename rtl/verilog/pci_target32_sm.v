@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.8  2003/01/21 16:06:56  mihad
+// Bug fixes, testcases added.
+//
 // Revision 1.7  2002/09/24 19:09:17  mihad
 // Number of state bits define was removed
 //
@@ -523,7 +526,7 @@ wire    trdy_w          =   (
 wire    trdy_w_frm      =   (
         (state_transfere && !cnf_progress && !norm_access_to_conf_reg && rw_cbe0 && !disconect_wo_data) ||
         (state_transfere && !cnf_progress && !norm_access_to_conf_reg && ~rw_cbe0 && !disconect_wo_data && ~pcir_fifo_data_err_in) ||
-        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && disconect_w_data && pci_irdy_reg_in && (rw_cbe0 || !pcir_fifo_data_err_in))
+        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && disconect_w_data && pci_irdy_reg_in && (!rw_cbe0 && !pcir_fifo_data_err_in))
                             ) ;
         // if not disconnect without data and not target abort (only during reads)
         // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY

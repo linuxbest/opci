@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.5  2003/01/21 16:06:56  mihad
+// Bug fixes, testcases added.
+//
 // Revision 1.4  2002/09/30 17:22:45  mihad
 // Added support for Virtual Silicon two port RAM. Didn't run regression on it yet!
 //
@@ -208,7 +211,7 @@ capable device
 	Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
 	together by application.
 -----------------------------------------------------------------------------------------------------------*/
-`define HEADER_VENDOR_ID    16'h2321
+`define HEADER_VENDOR_ID    16'h1895
 `define HEADER_DEVICE_ID    16'h0001
 `define HEADER_REVISION_ID  8'h01
 
