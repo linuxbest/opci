@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_wbr_fifos.v,v $
+// Revision 1.2  2003/01/30 22:01:09  mihad
+// Updated synchronization in top level fifo modules.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -534,6 +537,24 @@ begin
         inGreyCount <= #`FF_DELAY inNextGreyCount ;
 end
 
+wire [(WBW_ADDR_LENGTH-2):0] pci_clk_sync_inGreyCount ;
+reg  [(WBW_ADDR_LENGTH-2):0] pci_clk_inGreyCount ;
+synchronizer_flop #((WBW_ADDR_LENGTH - 1)) i_synchronizer_reg_inGreyCount
+(
+    .data_in        (inGreyCount),
+    .clk_out        (pci_clock_in),
+    .sync_data_out  (pci_clk_sync_inGreyCount),
+    .async_reset    (1'b0)
+) ;
+
+always@(posedge pci_clock_in or posedge wbw_clear)
+begin
+    if (wbw_clear)
+        pci_clk_inGreyCount <= #`FF_DELAY 1 ;
+    else
+        pci_clk_inGreyCount <= # `FF_DELAY pci_clk_sync_inGreyCount ;
+end
+
 // register holding grey coded count of outgoing transactions
 always@(posedge pci_clock_in or posedge wbw_clear)
 begin
@@ -567,21 +588,7 @@ begin
         wbw_outTransactionCount <= #`FF_DELAY wbw_outTransactionCount + 1'b1 ;
 end
 
-// synchronize transaction ready output to reading clock
-// transaction ready is set when incoming transaction count is not equal to outgoing transaction count (what goes in must come out logic)
-// transaction ready is cleared when whole transaction is pulled out of fifo (otherwise it could stay set for additional cycle and result in wrong op.)
-wire wbw_transaction_ready_flop_i = inGreyCount != outGreyCount ;
-
-meta_flop #(0) i_meta_flop_wbw_transaction_ready
-(
-    .rst_i      (wbw_clear),
-    .clk_i      (pci_clock_in),
-    .ld_i       (out_count_en),
-    .ld_val_i   (1'b0),
-    .en_i       (1'b1),
-    .d_i        (wbw_transaction_ready_flop_i),
-    .meta_q_o   (wbw_transaction_ready_out)
-) ;
+assign wbw_transaction_ready_out = pci_clk_inGreyCount != outGreyCount ;
 
 endmodule
 

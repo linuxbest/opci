@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_pciw_pcir_fifos.v,v $
+// Revision 1.2  2003/01/30 22:01:08  mihad
+// Updated synchronization in top level fifo modules.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -547,7 +550,7 @@ wire [(PCIW_ADDR_LENGTH-2):0] inNextGreyCount  = {pciw_inTransactionCount[(PCIW_
 wire [(PCIW_ADDR_LENGTH-2):0] outNextGreyCount = {pciw_outTransactionCount[(PCIW_ADDR_LENGTH-2)], pciw_outTransactionCount[(PCIW_ADDR_LENGTH-2):1] ^ pciw_outTransactionCount[(PCIW_ADDR_LENGTH-3):0]} ;
 
 // input transaction counter is incremented when whole transaction is written to fifo. This is indicated by last control bit written to last transaction location
-wire in_count_en  = pciw_wallow     && pciw_last_in ;
+wire in_count_en  = pciw_wallow && pciw_last_in ;
 
 // output transaction counter is incremented when whole transaction is pulled out of fifo. This is indicated when location with last control bit set is read
 wire out_count_en = pciw_rallow && pciw_last_out ;
@@ -562,6 +565,24 @@ begin
     else
     if (in_count_en)
         inGreyCount <= #`FF_DELAY inNextGreyCount ;
+end
+
+wire [(PCIW_ADDR_LENGTH-2):0] wb_clk_sync_inGreyCount ;
+reg  [(PCIW_ADDR_LENGTH-2):0] wb_clk_inGreyCount ;
+synchronizer_flop #((PCIW_ADDR_LENGTH - 1)) i_synchronizer_reg_inGreyCount
+(
+    .data_in        (inGreyCount),
+    .clk_out        (wb_clock_in),
+    .sync_data_out  (wb_clk_sync_inGreyCount),
+    .async_reset    (1'b0)
+) ;
+
+always@(posedge wb_clock_in or posedge pciw_clear)
+begin
+    if (pciw_clear)
+        wb_clk_inGreyCount <= #`FF_DELAY 1 ;
+    else
+        wb_clk_inGreyCount <= # `FF_DELAY wb_clk_sync_inGreyCount ;
 end
 
 always@(posedge wb_clock_in or posedge pciw_clear)
@@ -594,21 +615,7 @@ begin
         pciw_outTransactionCount <= #`FF_DELAY pciw_outTransactionCount + 1'b1 ;
 end
 
-// transaction is ready when incoming transaction count is not equal to outgoing transaction count ( what comes in must come out )
-// anytime last entry of transaction is pulled out of fifo, transaction ready flag is cleared for at least one clock to prevent wrong operation
-// ( otherwise transaction ready would stay set for one additional clock even though next transaction was not ready )
-
-wire pciw_transaction_ready_flop_i = inGreyCount != outGreyCount ;
-meta_flop #(0) i_meta_flop_transaction_ready
-(
-    .rst_i      (pciw_clear),
-    .clk_i      (wb_clock_in),
-    .ld_i       (out_count_en),
-    .ld_val_i   (1'b0),
-    .en_i       (1'b1),
-    .d_i        (pciw_transaction_ready_flop_i),
-    .meta_q_o   (pciw_transaction_ready_out)
-) ;
+assign pciw_transaction_ready_out = wb_clk_inGreyCount != outGreyCount ;
 
 assign pcir_transaction_ready_out  = 1'b0 ;
 

@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.14  2003/01/30 22:01:33  mihad
+// Updated synchronization in top level fifo modules.
+//
 // Revision 1.13  2003/01/21 16:06:50  mihad
 // Bug fixes, testcases added.
 //
@@ -18928,8 +18931,8 @@ begin:main
             disable main ;
         end
 
-        // completion is present if wbr fifo for sure, since write proceeded ok, wait for completion to almost expire - 2^^16 cycles - 100
-        repeat('h1_0000 - 100)
+        // completion is present if wbr fifo for sure, since write proceeded ok, wait for completion to almost expire - 2^^16 cycles - 110
+        repeat('h1_0000 - 110)
             @(posedge wb_clock) ;
         
         // now perform a read
@@ -18981,7 +18984,7 @@ begin:main
         end
 
         // wait for 2^^16 cycles, so monitor won't complain about waiting too long
-        repeat('h1_0000 - 50)
+        repeat('h1_0000 - 100)
             @(posedge wb_clock) ;
 
         // monitor normal single memory read

@@ -275,6 +275,10 @@ if ($arg_regression == 1) then
          echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
      echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
          endif
+        
+         if ($arg_dis_comp_exp_test) then
+            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
+         endif
     else 
       if (($arg_xilinx == 1) && ($arg_artisan == 1)) then
          if ($iter == 1) then
@@ -365,6 +369,10 @@ if ($arg_regression == 1) then
          echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
      echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
          endif
+
+         if ($arg_dis_comp_exp_test) then
+            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
+         endif
       else
          if ($iter == 1) then
          echo "<<< Defines:"
@@ -454,6 +462,11 @@ if ($arg_regression == 1) then
          echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
      echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
          endif
+
+         if ($arg_dis_comp_exp_test) then
+            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
+         endif
+
        endif
      endif
   endif

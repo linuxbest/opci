@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_master.v,v $
+// Revision 1.2  2003/01/30 22:01:09  mihad
+// Updated synchronization in top level fifo modules.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -270,7 +273,7 @@ reg             last_data_transferred ; // signal is set by STATE MACHINE after 
 // wire for read attempt - 1 when PCI Target is attempting a read and PCIR_FIFO is not full !
 // because of transaction ordering, PCI Master must not start read untill all writes are done -> at that
 //   moment PCIW_FIFO is empty !!! (when read is pending PCI Target will block new reads and writes)
-wire r_attempt = ( pci_tar_read_request && !w_attempt);// pciw_fifo_empty_in ) ; 
+wire r_attempt = ( pci_tar_read_request && !w_attempt && pciw_fifo_empty_in ) ; 
 
 // Signal is used for reads on WB, when there is retry!
 reg             first_wb_data_access ;
