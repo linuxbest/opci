@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: async_reset_flop.v,v 1.1 2002/02/01 14:43:31 mihad Exp $
+// $Id: async_reset_flop.v,v 1.2 2002/02/25 15:15:43 mihad Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -54,6 +54,9 @@
 // CVS Revision History
 //
 // $Log: async_reset_flop.v,v $
+// Revision 1.2  2002/02/25 15:15:43  mihad
+// Added include statement that was missing and causing errors
+//
 // Revision 1.1  2002/02/01 14:43:31  mihad
 // *** empty log message ***
 //
@@ -62,6 +65,7 @@
 
 // synopsys translate_off
 `include "timescale.v"
+`include "pci_constants.v"
 // synopsys translate_on
 
 module async_reset_flop (
