@@ -201,21 +201,15 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is one more than initial value of read address - 6
+        // initial values seem a bit odd - they are this way to allow easier grey pipeline implementation and to allow min fifo size of 8
         raddr_plus_one <= #`FF_DELAY 6 ;
+        raddr          <= #`FF_DELAY 5 ;
     end
     else if (rallow)
+    begin
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
-end
-
-// raddr is filled with raddr_plus_one on rising read clock edge when rallow is high
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        // initial value is 5
-    raddr <= #`FF_DELAY 5 ;
-    else if (rallow)
-        raddr <= #`FF_DELAY raddr_plus_one ;
+        raddr          <= #`FF_DELAY raddr_plus_one ;
+    end
 end
 
 /*-----------------------------------------------------------------------------------------------
@@ -227,70 +221,26 @@ There are 5 Grey addresses:
     - rgrey_addr is Grey Code of current read address
     - rgrey_next is Grey Code of next read address
 --------------------------------------------------------------------------------------------------*/
-
-// grey code register for three before read address
+// grey coded address pipeline for status generation in read clock domain
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 0
         rgrey_minus3 <= #`FF_DELAY 0 ;
-    end
-    else
-    if (rallow)
-        rgrey_minus3 <= #`FF_DELAY rgrey_minus2 ;
-end
-
-// grey code register for two before read address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 1
         rgrey_minus2 <= #`FF_DELAY 1 ;
+        rgrey_minus1 <= #`FF_DELAY 3 ;  
+        rgrey_addr   <= #`FF_DELAY 2 ;
+        rgrey_next   <= #`FF_DELAY 6 ;
     end
     else
     if (rallow)
+    begin
+        rgrey_minus3 <= #`FF_DELAY rgrey_minus2 ;
         rgrey_minus2 <= #`FF_DELAY rgrey_minus1 ;
-end
-
-// grey code register for one before read address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 3 = ....011
-        rgrey_minus1 <= #`FF_DELAY 3 ;
-    end
-    else
-    if (rallow)
         rgrey_minus1 <= #`FF_DELAY rgrey_addr ;
-end
-
-// grey code register for read address - represents current Read Address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 2 = ....010
-        rgrey_addr <= #`FF_DELAY 2 ;
+        rgrey_addr   <= #`FF_DELAY rgrey_next ;
+        rgrey_next   <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
     end
-    else
-    if (rallow)
-        rgrey_addr <= #`FF_DELAY rgrey_next ;
-end
-
-// grey code register for next read address - represents Grey Code of next read address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 6 = ....110
-        rgrey_next <= #`FF_DELAY 6 ;
-    end
-    else
-    if (rallow)
-        rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
 end
 
 /*--------------------------------------------------------------------------------------------
@@ -299,41 +249,22 @@ Write address control consists of write address counter and three Grey Code Regi
     - wgrey_addr represents current Grey Coded write address
     - wgrey_next represents Grey Coded next write address
 ----------------------------------------------------------------------------------------------*/
-// grey code register for one before write address
+// grey coded address pipeline for status generation in write clock domain
 always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 3 = .....011
         wgrey_minus1 <= #`FF_DELAY 3 ;
+        wgrey_addr   <= #`FF_DELAY 2 ;
+        wgrey_next   <= #`FF_DELAY 6 ;
     end
     else
     if (wallow)
-        wgrey_minus1 <= #`FF_DELAY wgrey_addr ;
-end
-
-// grey code register for write address
-always@(posedge wclock_in or posedge clear)
-begin
-    if (clear)
-        // initial value is 2 = .....010
-        wgrey_addr <= #`FF_DELAY 2 ;
-    else
-    if (wallow)
-        wgrey_addr <= #`FF_DELAY wgrey_next ;
-end
-
-// grey code register for next write address
-always@(posedge wclock_in or posedge clear)
-begin
-    if (clear)
     begin
-        // initial value is 6 = ....0110
-        wgrey_next <= #`FF_DELAY 6 ;
+        wgrey_minus1 <= #`FF_DELAY wgrey_addr ;
+        wgrey_addr   <= #`FF_DELAY wgrey_next ;
+        wgrey_next   <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
     end
-    else
-    if (wallow)
-        wgrey_next <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
 end
 
 // write address counter - nothing special except initial value

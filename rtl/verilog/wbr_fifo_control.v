@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: wbr_fifo_control.v,v $
+// Revision 1.6  2002/11/27 20:36:12  mihad
+// Changed the code a bit to make it more readable.
+// Functionality not changed in any way.
+// More robust synchronization in fifos is still pending.
+//
 // Revision 1.5  2002/09/30 16:03:04  mihad
 // Added meta flop module for easier meta stable FF identification during synthesis
 //
@@ -187,24 +192,20 @@ assign raddr_out = rallow ? raddr_plus_one : raddr ;
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-        // initial value is 3
+    begin
         raddr_plus_one <= #`FF_DELAY 3 ;
+        raddr          <= #`FF_DELAY 2 ;
+    end
     else if (flush_in)
-        raddr_plus_one <= #`FF_DELAY waddr + 1'b1 ; // when read fifo is flushed, values from write side are copied to read side
+    begin
+        raddr_plus_one <= #`FF_DELAY waddr + 1'b1 ; 
+        raddr          <= #`FF_DELAY waddr ;
+    end
     else if (rallow)
+    begin
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
-end
-
-// raddr is filled with raddr_plus_one on rising read clock edge when rallow is high
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        // initial value is 2
-        raddr <= #`FF_DELAY 2 ;
-    else if (flush_in)
-        raddr <= #`FF_DELAY waddr ;                 // when flushed, copy value from write side
-    else if (rallow)
-        raddr <= #`FF_DELAY raddr_plus_one ;
+        raddr          <= #`FF_DELAY raddr_plus_one ;
+    end
 end
 
 /*-----------------------------------------------------------------------------------------------
@@ -213,29 +214,24 @@ There are 3 Grey addresses:
     - rgrey_addr is Grey Code of current read address
     - rgrey_next is Grey Code of next read address
 --------------------------------------------------------------------------------------------------*/
-
-// grey code register for read address - represents current Read Address
+// grey coded address pipeline for status generation in read clock domain
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-        // initial value is 0
+    begin
         rgrey_addr <= #`FF_DELAY 0 ;
-    else if (flush_in)
-        rgrey_addr <= #`FF_DELAY wgrey_addr ;   // when flushed, copy value from write side
-    else if (rallow)
-        rgrey_addr <= #`FF_DELAY rgrey_next ;
-end
-
-// grey code register for next read address - represents Grey Code of next read address
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        // initial value is 1
         rgrey_next <= #`FF_DELAY 1 ;
+    end
     else if (flush_in)
+    begin
+        rgrey_addr <= #`FF_DELAY wgrey_addr ;   // when flushed, copy value from write side
         rgrey_next <= #`FF_DELAY wgrey_next ;
+    end
     else if (rallow)
+    begin
+        rgrey_addr <= #`FF_DELAY rgrey_next ;
         rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
+    end
 end
 
 /*--------------------------------------------------------------------------------------------
@@ -243,30 +239,20 @@ Write address control consists of write address counter and two Grey Code Regist
     - wgrey_addr represents current Grey Coded write address
     - wgrey_next represents Grey Coded next write address
 ----------------------------------------------------------------------------------------------*/
-// grey code register for write address
+// grey coded address pipeline for status generation in write clock domain
 always@(posedge wclock_in or posedge clear)
 begin
     if (clear)
     begin
-        // initial value is 0
         wgrey_addr <= #`FF_DELAY 0 ;
-    end
-    else
-    if (wallow)
-        wgrey_addr <= #`FF_DELAY wgrey_next ;
-end
-
-// grey code register for next write address
-always@(posedge wclock_in or posedge clear)
-begin
-    if (clear)
-    begin
-        // initial value is 1
         wgrey_next <= #`FF_DELAY 1 ;
     end
     else
     if (wallow)
+    begin
+        wgrey_addr <= #`FF_DELAY wgrey_next ;
         wgrey_next <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
+    end
 end
 
 // write address counter - nothing special except initial value
