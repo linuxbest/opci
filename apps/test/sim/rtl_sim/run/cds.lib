@@ -1,6 +1,0 @@
-#
-# cds.lib: Defines the locations of compiled libraries.
-# Created by ncprep on Tue Apr 22 18:01:27 2003
-#
-
-define worklib ./INCA_libs/worklib

@@ -1,2 +1,0 @@
-#!/bin/bash
-ncprep +debug +overwrite +y+../../../rtl/verilog +y+../../../bench/verilog
