@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.2  2003/03/10 16:55:35  mihad
+// Changed vendor ID.
+//
 // Revision 1.1  2002/02/22 20:14:13  tadej
 // User defined constants used for Test Application
 //
@@ -197,7 +200,7 @@ capable device
 	Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
 	together by application.
 -----------------------------------------------------------------------------------------------------------*/
-`define HEADER_VENDOR_ID    16'h2321
+`define HEADER_VENDOR_ID    16'h1895
 `define HEADER_DEVICE_ID    16'h0001
 `define HEADER_REVISION_ID  8'h01
 
