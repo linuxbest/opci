@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_pciw_pcir_fifos.v,v $
+// Revision 1.5  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.4  2003/08/08 16:36:33  tadejm
 // Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
 //
@@ -579,7 +582,7 @@ end
 
 wire [(PCIW_ADDR_LENGTH-2):0] wb_clk_sync_inGreyCount ;
 reg  [(PCIW_ADDR_LENGTH-2):0] wb_clk_inGreyCount ;
-synchronizer_flop #((PCIW_ADDR_LENGTH - 1), 0) i_synchronizer_reg_inGreyCount
+pci_synchronizer_flop #((PCIW_ADDR_LENGTH - 1), 0) i_synchronizer_reg_inGreyCount
 (
     .data_in        (inGreyCount),
     .clk_out        (wb_clock_in),

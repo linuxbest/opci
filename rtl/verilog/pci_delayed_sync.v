@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_delayed_sync.v,v $
+// Revision 1.3  2003/08/14 13:06:02  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.2  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -224,7 +227,7 @@ end
 
 // interemediate stage request synchronization flip - flop - this one is prone to metastability
 // and should have setup and hold times disabled during simulation
-synchronizer_flop #(1, 0) req_sync
+pci_synchronizer_flop #(1, 0) req_sync
 (
     .data_in        (req_req_pending),
     .clk_out        (comp_clk_in),
@@ -278,7 +281,7 @@ end
 assign comp_comp_pending_out = comp_comp_pending ;
 
 // interemediate stage completion synchronization flip - flop - this one is prone to metastability
-synchronizer_flop #(1, 0) comp_sync
+pci_synchronizer_flop #(1, 0) comp_sync
 (
     .data_in        (comp_comp_pending),
     .clk_out        (req_clk_in),
@@ -336,7 +339,7 @@ begin
         req_done_reg <= #`FF_DELAY 1'b1 ;
 end
 
-synchronizer_flop  #(1, 0) done_sync
+pci_synchronizer_flop  #(1, 0) done_sync
 (
     .data_in        (req_done_reg),
     .clk_out        (comp_clk_in),
@@ -384,7 +387,7 @@ begin
 end
 
 // interemediate stage retry expired synchronization flip - flop - this one is prone to metastability
-synchronizer_flop #(1, 0) rty_exp_sync
+pci_synchronizer_flop #(1, 0) rty_exp_sync
 (
     .data_in        (comp_rty_exp_reg),
     .clk_out        (req_clk_in),
@@ -409,7 +412,7 @@ begin
         req_rty_exp_clr <= #`FF_DELAY req_rty_exp_reg ;
 end
 
-synchronizer_flop #(1, 0) rty_exp_back_prop_sync
+pci_synchronizer_flop #(1, 0) rty_exp_back_prop_sync
 (
     .data_in        (req_rty_exp_reg && req_rty_exp_clr),
     .clk_out        (comp_clk_in),

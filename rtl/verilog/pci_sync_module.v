@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_sync_module.v,v $
+// Revision 1.3  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.2  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -106,7 +109,7 @@ end
 assign	block_set_out = del_bit;
 
 // interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-synchronizer_flop	#(1, 0) delete_sync
+pci_synchronizer_flop	#(1, 0) delete_sync
 (
     .data_in        (del_bit),
     .clk_out        (set_clk_in),
@@ -135,7 +138,7 @@ end
 assign	delete_set_out = !delayed_del_bit && sync_del_bit;
 
 // interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-synchronizer_flop	#(1, 0) clear_delete_sync
+pci_synchronizer_flop	#(1, 0) clear_delete_sync
 (
     .data_in        (sync_del_bit),
     .clk_out        (delete_clk_in),

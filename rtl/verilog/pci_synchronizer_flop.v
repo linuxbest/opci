@@ -1,9 +1,9 @@
 //===========================================================================
-// $Id: synchronizer_flop.v,v 1.4 2003/03/26 13:16:18 mihad Exp $
+// $Id: pci_synchronizer_flop.v,v 1.1 2003/08/14 13:08:58 simons Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-//// synchronizer_flop                                            ////
+//// pci_synchronizer_flop                                        ////
 ////                                                              ////
 //// This file is part of the general opencores effort.           ////
 //// <http://www.opencores.org/cores/misc/>                       ////
@@ -61,35 +61,9 @@
 //
 // CVS Revision History
 //
-// $Log: synchronizer_flop.v,v $
-// Revision 1.4  2003/03/26 13:16:18  mihad
-// Added the reset value parameter to the synchronizer flop module.
-// Added resets to all synchronizer flop instances.
-// Repaired initial sync value in fifos.
-//
-// Revision 1.3  2002/02/01 15:25:13  mihad
-// Repaired a few bugs, updated specification, added test bench files and design document
-//
-// Revision 1.2  2001/10/05 08:14:30  mihad
-// Updated all files with inclusion of timescale file for simulation purposes.
-//
-// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
-// New project directory structure
-//
-// Revision 1.5  2001/09/26 21:51:00  Tadej Markovic
-//   Added parameter 'width', if module is used for e.g. bus
-//
-// Revision 1.4  2001/09/03 13:18:30  bbeaver
-// no message
-//
-// Revision 1.1  2001/09/03 11:16:00  Blue Beaver
-// no message
-//
-// Revision 1.1.1.1  2001/09/03 10:24:58  bbeaver
-// no message
-//
-// Revision 1.1  2001/09/02 11:32:03  Blue Beaver
-// no message
+// $Log: pci_synchronizer_flop.v,v $
+// Revision 1.1  2003/08/14 13:08:58  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
 //
 //
 
@@ -99,7 +73,7 @@
 
 // If the vendor has a flop which is particularly good at settling out of
 //   metastability, it should be used here.
-module synchronizer_flop (
+module pci_synchronizer_flop (
   data_in, clk_out, sync_data_out, async_reset
 );
 parameter               width = 1 ;

@@ -62,6 +62,9 @@
 // CVS Revision History
 //
 // $Log: pci_pci_tpram.v,v $
+// Revision 1.2  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -199,23 +202,48 @@ input   scanb_en;       // bist scan shift enable
     //
     // Artisan Synchronous Double-Port RAM (ra2sh)
     //
-    art_hsdp_256x40 /*#(dw, 1<<aw, aw) */ artisan_sdp
-    (
-    	.qa(do_a),
-    	.clka(clk_a),
-    	.cena(~ce_a),
-    	.wena(~we_a),
-    	.aa(addr_a),
-    	.da(di_a),
-    	.oena(~oe_a),
-    	.qb(do_b),
-    	.clkb(clk_b),
-    	.cenb(~ce_b),
-    	.wenb(~we_b),
-    	.ab(addr_b),
-    	.db(di_b),
-    	.oenb(~oe_b)
-    );
+    `ifdef PCI_BIST
+        art_hsdp_64x40_bist /*#(dw, 1<<aw, aw) */ artisan_sdp
+        (
+        	.QA(do_a),
+        	.CLKA(clk_a),
+        	.CENA(~ce_a),
+        	.WENA(~we_a),
+        	.AA(addr_a),
+        	.DA(di_a),
+        	.OENA(~oe_a),
+        	.QB(do_b),
+        	.CLKB(clk_b),
+        	.CENB(~ce_b),
+        	.WENB(~we_b),
+        	.AB(addr_b),
+        	.DB(di_b),
+        	.OENB(~oe_b),
+          .scanb_rst  (scanb_rst),
+          .scanb_clk  (scanb_clk),
+          .scanb_si   (scanb_si),
+          .scanb_so   (scanb_so),
+          .scanb_en   (scanb_en)
+        );
+    `else
+        art_hsdp_64x40 /*#(dw, 1<<aw, aw) */ artisan_sdp
+        (
+        	.QA(do_a),
+        	.CLKA(clk_a),
+        	.CENA(~ce_a),
+        	.WENA(~we_a),
+        	.AA(addr_a),
+        	.DA(di_a),
+        	.OENA(~oe_a),
+        	.QB(do_b),
+        	.CLKB(clk_b),
+        	.CENB(~ce_b),
+        	.WENB(~we_b),
+        	.AB(addr_b),
+        	.DB(di_b),
+        	.OENB(~oe_b)
+        );
+    `endif
 `endif
 
 `ifdef AVANT_ATP

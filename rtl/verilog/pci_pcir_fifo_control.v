@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_pcir_fifo_control.v,v $
+// Revision 1.4  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.3  2003/07/29 08:20:11  mihad
 // Found and simulated the problem in the synchronization logic.
 // Repaired the synchronization logic in the FIFOs.
@@ -285,7 +288,7 @@ If they are equal, fifo is full.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_addr ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_addr ;
-synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_addr
+pci_synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_addr
 (
     .data_in        (rgrey_addr), 
     .clk_out        (wclock_in), 
@@ -311,7 +314,7 @@ equal, fifo is almost empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_addr ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_addr ;
-synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_wgrey_addr
+pci_synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_wgrey_addr
 (
     .data_in        (wgrey_addr),
     .clk_out        (rclock_in),

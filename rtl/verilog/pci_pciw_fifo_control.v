@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_pciw_fifo_control.v,v $
+// Revision 1.5  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.4  2003/08/08 16:36:33  tadejm
 // Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
 //
@@ -261,7 +264,7 @@ Gray coded address of read address decremented by two is synchronized to write c
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_minus2 ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_minus2 ;
 
-synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus2
+pci_synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus2
 (
     .data_in        (rgrey_minus2),
     .clk_out        (wclock_in),
@@ -299,7 +302,7 @@ equal, fifo is almost empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_addr ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_addr ;
-synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_addr
+pci_synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_addr
 (
     .data_in        (wgrey_addr),
     .clk_out        (rclock_in),

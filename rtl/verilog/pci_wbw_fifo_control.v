@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_fifo_control.v,v $
+// Revision 1.4  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.3  2003/07/29 08:20:11  mihad
 // Found and simulated the problem in the synchronization logic.
 // Repaired the synchronization logic in the FIFOs.
@@ -246,7 +249,7 @@ Gray coded address of read address decremented by 1 is synchronized to write clo
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_minus1 ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_minus1 ;
 
-synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus1
+pci_synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus1
 (
     .data_in        (rgrey_minus1),
     .clk_out        (wclock_in),
@@ -276,7 +279,7 @@ If they are equal, fifo is empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_next ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_next ;
-synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_next
+pci_synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_next
 (
     .data_in        (wgrey_next),
     .clk_out        (rclock_in),

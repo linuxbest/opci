@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_wbr_fifos.v,v $
+// Revision 1.4  2003/08/14 13:06:03  simons
+// synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
+//
 // Revision 1.3  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -543,7 +546,7 @@ end
 
 wire [(WBW_ADDR_LENGTH-2):0] pci_clk_sync_inGreyCount ;
 reg  [(WBW_ADDR_LENGTH-2):0] pci_clk_inGreyCount ;
-synchronizer_flop #((WBW_ADDR_LENGTH - 1), 0) i_synchronizer_reg_inGreyCount
+pci_synchronizer_flop #((WBW_ADDR_LENGTH - 1), 0) i_synchronizer_reg_inGreyCount
 (
     .data_in        (inGreyCount),
     .clk_out        (pci_clock_in),
