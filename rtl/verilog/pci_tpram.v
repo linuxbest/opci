@@ -62,6 +62,9 @@
 // CVS Revision History
 //
 // $Log: pci_tpram.v,v $
+// Revision 1.5  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.4  2002/10/08 17:17:06  mihad
 // Added BIST signals for RAMs.
 //
@@ -103,6 +106,7 @@ module PCI_TPRAM
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst,
     SO,
     SI,
     shift_DR,
@@ -140,6 +144,7 @@ output	[dw-1:0]	do_b;	// output data bus
 
 `ifdef PCI_BIST
 // debug chain signals
+input   trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -171,7 +176,7 @@ input   tck ;
         `ifdef PCI_BIST
             ,
             // reset
-            .rst        (rst_a),
+            .trst        (trst),
 
             // debug chain signals
             .SO         (SO),

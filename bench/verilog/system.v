@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.10  2002/10/11 10:08:57  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.9  2002/10/08 17:17:02  mihad
 // Added BIST signals for RAMs.
 //
@@ -144,6 +147,7 @@ wire        reset_wb ; // reset to Wb devices
 `ifdef PCI_BIST
 wire SO ;
 reg  SI ;
+wire trst = reset_wb ;
 reg  shift_DR ;
 reg  capture_DR ;
 reg  extest ;
@@ -213,6 +217,7 @@ TOP `PCI_BRIDGE_INSTANCE
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO),
     .SI         (SI),
     .shift_DR   (shift_DR),
@@ -573,18 +578,35 @@ pci_behavioral_pci2pci_bridge i_pci_behavioral_pci2pci_bridge
 `endif
 
 // pci clock generator
-always
-`ifdef PCI33
-    #15 pci_clock = ~pci_clock ;
+`ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
+    always@(posedge wb_clock)
+        #`PCI_CLOCK_FOLLOWS_WB_CLOCK pci_clock = 1'b1 ;
+
+    always@(negedge wb_clock)
+        #`PCI_CLOCK_FOLLOWS_WB_CLOCK pci_clock = 1'b0 ;
 `else
-`ifdef PCI66
-    #7.5 pci_clock = ~pci_clock ;
-`endif
+    always
+    `ifdef PCI33
+        #15 pci_clock = ~pci_clock ;
+    `else
+    `ifdef PCI66
+        #7.5 pci_clock = ~pci_clock ;
+    `endif
+    `endif
 `endif
 
 // WISHBONE clock generation
-always
-    #(((1/`WB_FREQ)/2)) wb_clock = ~wb_clock ;
+`ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+always@(posedge pci_clock)
+    #`WB_CLOCK_FOLLOWS_PCI_CLOCK wb_clock = 1'b1 ;
+
+always@(negedge pci_clock)
+    #`WB_CLOCK_FOLLOWS_PCI_CLOCK wb_clock = 1'b0 ;
+
+`else
+    always
+        #(((1/`WB_FREQ)/2)) wb_clock = !wb_clock ;
+`endif
 
 // Make test name visible when the Master starts working on it
 reg     [79:0] present_test_name;
@@ -903,7 +925,10 @@ begin
 
             end
 
+        `ifdef DISABLE_COMPLETION_EXPIRED_TESTS
+        `else
             master_completion_expiration ;
+        `endif
 
             $display(" ") ;
             $display("WB slave images' tests finished!") ;
@@ -977,11 +1002,37 @@ begin
 
             transaction_ordering ;
 
+        `ifdef DISABLE_COMPLETION_EXPIRED_TESTS
+        `else
             target_completion_expiration ;
+        `endif
+
             $display(" ") ;
             $display("PCI transaction ordering tests finished!") ;
         end
     end
+
+    `ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+        test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
+        test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = 0 ;
+        test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = 0 ;
+        test_target_response[`TARGET_ENCODED_DEVSEL_SPEED] = 0 ;
+
+        `ifdef HOST
+            configure_bridge_target ;
+        `endif
+
+        @(posedge pci_clock) ;
+        configure_target(1) ;
+        @(posedge pci_clock) ;
+        configure_target(2) ;
+
+        `ifdef GUEST
+            configure_bridge_target ;
+        `endif
+
+        target_special_corner_case_test ;
+    `endif
 
     test_summary ;
 
@@ -9240,7 +9291,7 @@ begin:main
         while( CYC_O !== 1 )
             @(posedge wb_clock) ;
 
-        while( CYC_O === 1 )
+        while( (CYC_O === 1) && ((transfer_counter <= `PCIW_DEPTH) || (transfer_counter <= `PCIR_DEPTH)) )
         begin
             if ( (STB_O === 1) && (ACK_I === 1) )
                 transfer_counter = transfer_counter + 1 ;
@@ -17990,6 +18041,8 @@ begin:main
 end
 endtask // target_unsupported_cmds
 
+`ifdef DISABLE_COMPLETION_EXPIRED_TESTS
+`else
 task target_completion_expiration ;
     reg   [11:0] pci_ctrl_offset ;
     reg   [11:0] pci_ba_offset ;
@@ -18888,6 +18941,7 @@ begin:main
     end
 end
 endtask // master_completion_expiration
+`endif
 
 task config_write ;
     input [11:0] offset ;
@@ -19144,6 +19198,454 @@ end
 endtask // run_bist_test
 `endif
 
+`ifdef WB_CLOCK_FOLLOWS_PCI_CLOCK
+task target_special_corner_case_test ;
+    reg   [11:0]    pci_ctrl_offset ;
+    reg   [11:0]    ctrl_offset ;
+    reg   [11:0]    ba_offset ;
+    reg   [11:0]    am_offset ;
+    reg             ok_wb ;
+    reg             ok_pci ;
+    reg             test_mem ;
+    reg             master_check_data_previous ;
+begin:main
+    master_check_data_previous  = master1_check_received_data ;
+    master1_check_received_data = 1'b1 ;
+    pci_ctrl_offset = 12'h4 ;
+    // use image 1 for this test
+    ctrl_offset = {4'h1, `P_IMG_CTRL1_ADDR, 2'b00} ;
+    ba_offset   = {4'h1, `P_BA1_ADDR, 2'b00} ;
+    am_offset   = {4'h1, `P_AM1_ADDR, 2'b00} ;
+
+    // set behavioral slave cycle response
+    `ifdef REGISTER_WBM_OUTPUTS
+    wishbone_slave.cycle_response
+    (
+        3'b100,         // {ACK, ERR, RTY}
+        0,              // wait cycles
+        8'h0            // num of retries before termination
+    );
+    `else
+    wishbone_slave.cycle_response
+    (
+        3'b100,         // {ACK, ERR, RTY}
+        1,              // wait cycles
+        8'h0            // num of retries before termination
+    );
+    `endif
+    
+    `ifdef HOST
+        test_mem = 1 ;
+    `else
+        test_mem = `PCI_BA1_MEM_IO ;
+        test_mem = !test_mem ;
+    `endif
+
+    test_name = "PCI TARGET UNIT SPECIAL CORNER CASE" ;
+
+    // Set Base Address of IMAGE
+    config_write( ba_offset, Target_Base_Addr_R[1], 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("Image testing failed! Failed to write P_BA1 register! Time %t ", $time);
+        test_fail("PCI Base Address register 1 could not be written") ;
+        #1 ;
+        disable main ;
+    end
+
+    // Set Address Mask of IMAGE
+    config_write( am_offset, Target_Addr_Mask_R[1], 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("Image testing failed! Failed to write P_AM1 register! Time %t ", $time);
+        test_fail("PCI Address Mask register 1 could not be written") ;
+        #1 ;
+        disable main ;
+    end
+
+    // Disable all the features of the PCI Image 1
+    config_write( ctrl_offset, 0, 4'hF, ok_wb ) ;
+    if ( ok_wb !== 1 )
+    begin
+        $display("Image testing failed! Failed to write P_CTRL1 register! Time %t ", $time);
+        test_fail("PCI Image Control register 1 could not be written") ;
+        #1 ;
+        disable main ;
+    end
+
+    // set waits to max, which means 0 on PCI
+    tb_init_waits   = 4 ;
+    tb_subseq_waits = 4 ;
+
+    // do one dummy write, to receive a GNT park
+    if (test_mem)
+    begin
+        PCIU_MEM_WRITE
+        (
+            "MEM_WRITE ",                       // just the name
+            `Test_Master_1,                     // Behavioral Master to use for reference
+            Target_Base_Addr_R[1],              // Address of this transaction
+            32'hAAAA_AAAA,                      // Data For the transaction
+            4'h0,                               // Byte enables
+            1,                                  // length of transfer
+            `Test_One_Zero_Master_WS,           // Master Waits - don't care
+            `Test_One_Zero_Target_WS,           // Expected Target Wait State Response
+            `Test_Devsel_Medium,                // Expected Target DEVSEL Speed Response
+            `Test_Target_Normal_Completion      // Expected Target Termination Response
+        );
+    end
+    else
+    begin
+        PCIU_IO_WRITE
+        (
+            `Test_Master_1,                     // Behavioral Master to use for reference
+            Target_Base_Addr_R[1],              // Address of this transaction
+            32'hAAAA_AAAA,                      // Data For the transaction
+            4'h0,                               // Byte enables
+            1,                                  // Size of transfer
+            `Test_Target_Normal_Completion      // Expected Target Termination Response
+        ) ;
+    end
+
+    do_pause( 1 ) ;
+    wb_transaction_progress_monitor
+    (
+        Target_Base_Addr_R[1],          // expected address
+        1'b1,                           // expected operation R/W
+        1,                              // 1
+        1'b1,                           // turn checking of transfers ON/OFF
+        ok_wb                           // succeeded/failed
+    ) ;
+
+    if (ok_wb !== 1'b1)
+    begin
+        test_fail("WB Transaction Monitor detected invalid transaction on WB bus after posted memory write through target") ;
+        #1 ;
+        disable main ;
+    end
+
+    fork
+    begin
+        if (test_mem)
+        begin
+            PCIU_MEM_WRITE 
+            (
+                "MEM_WRITE ",                       // just the name
+                `Test_Master_1,                     // Behavioral Master to use for reference
+                Target_Base_Addr_R[1] + 64,         // Address of this transaction
+                32'hF0F0_F0F0,                      // Data For the transaction
+                4'h0,                               // Byte enables       
+                1,                                  // length of transfer
+                `Test_One_Zero_Master_WS,           // Master Waits - don't care
+                `Test_One_Zero_Target_WS,           // Expected Target Wait State Response
+                `Test_Devsel_Medium,                // Expected Target DEVSEL Speed Response
+                `Test_Target_Normal_Completion      // Expected Target Termination Response
+            );
+        end
+        else
+        begin
+            PCIU_IO_WRITE
+            ( 
+                `Test_Master_1,                     // Behavioral Master to use for reference
+                Target_Base_Addr_R[1] + 64,         // Address of this transaction
+                32'hF0F0_F0F0,                      // Data For the transaction
+                4'h0,                               // Byte enables
+                1,                                  // Size of transfer
+                `Test_Target_Normal_Completion      // Expected Target Termination Response
+            ) ;
+        end
+
+        do_pause( 1 ) ;
+
+        if (test_mem)
+        begin
+            PCIU_MEM_WRITE
+            (
+                "MEM_WRITE ",                       // just the name
+                `Test_Master_1,                     // Behavioral Master to use for reference
+                Target_Base_Addr_R[1] + 128,        // Address of this transaction
+                32'h0F0F_0F0F,                      // Data For the transaction
+                4'h0,                               // Byte enables
+                1,                                  // length of transfer
+                `Test_One_Zero_Master_WS,           // Master Waits - don't care
+                `Test_One_Zero_Target_WS,           // Expected Target Wait State Response
+                `Test_Devsel_Medium,                // Expected Target DEVSEL Speed Response
+                `Test_Target_Normal_Completion      // Expected Target Termination Response
+            );
+        end
+        else
+        begin
+            PCIU_IO_WRITE
+            (
+                `Test_Master_1,                     // Behavioral Master to use for reference
+                Target_Base_Addr_R[1] + 128,        // Address of this transaction
+                32'h0F0F_0F0F,                      // Data For the transaction
+                4'h0,                               // Byte enables
+                1,                                  // Size of transfer
+                `Test_Target_Normal_Completion      // Expected Target Termination Response
+            ) ;
+        end
+
+        do_pause( 1 ) ;
+    end
+    begin
+        wb_transaction_progress_monitor
+        ( 
+            Target_Base_Addr_R[1] + 64,     // expected address
+            1'b1,                           // expected operation R/W
+            1,                              // expected number of transfers
+            1'b1,                           // turn checking of transfers ON/OFF
+            ok_wb                           // succeeded/failed
+        ) ;
+
+        if ( ok_wb === 1 )
+        begin
+
+            wb_transaction_progress_monitor
+            (
+                Target_Base_Addr_R[1] + 128,    // expected address
+                1'b1,                           // expected operation R/W
+                1,                              // expected number of transfers
+                1'b1,                           // turn checking of transfers ON/OFF
+                ok_wb                           // succeeded/failed
+            ) ;
+        end
+
+        @(posedge pci_clock) ;
+        #1 ;
+        disable pci_error_mon1 ;
+    end
+    begin:pci_error_mon1
+        ok_pci = 1 ;
+        @(error_event_int) ;
+        ok_pci = 0 ;
+    end
+    join
+    
+    if ( ok_wb !== 1'b1 )
+    begin
+        test_fail("WB Master started invalid transaction or none at all after Target write was posted") ;
+    end
+
+    if ( ok_pci !== 1'b1)
+    begin
+        test_fail("PCI Behavioral Master or Monitor signaled an error during write to PCI Bridge Target") ;
+    end
+
+    if ((ok_pci !== 1'b1) || (ok_wb !== 1'b1))
+    begin
+        #1 ;
+        disable main ;
+    end
+
+    if ( test_mem )
+    begin
+        PCIU_MEM_READ
+        (
+            "MEM_READ  ",                   // description
+            `Test_Master_1,                 // behavioral master selection
+            Target_Base_Addr_R[1] + 64,     // address of access
+            32'hF0F0_F0F0,                  // expected read data
+            1,                              // number of transfers
+            8'h7_0,                         // don't care (wait cycles)
+            `Test_One_Zero_Target_WS,       // expected Target Wait Cycles
+            `Test_Devsel_Medium,            // expected Target DEVSEL speed
+            `Test_Target_Retry_On           // expected Target termination
+        );
+    end
+    else
+    begin
+        PCIU_IO_READ
+        ( 
+            `Test_Master_1,                 // behavioral master selection
+            Target_Base_Addr_R[1] + 64,     // address of access
+            32'hF0F0_F0F0,                  // expected read data
+            4'h0,                           // byte enables
+            1,                              // number of transfers
+            `Test_Target_Retry_On           // expected target termination
+        ) ;
+    end
+
+    wb_transaction_progress_monitor
+    (
+            Target_Base_Addr_R[1] + 64,     // expected address
+            1'b0,                           // expected operation R/W
+            1,                              // expected number transfers
+            1'b1,                           // turn checking of transfers ON/OFF
+            ok_wb                           // succeeded/failed
+    ) ;
+
+    // wait for 3 pci cycles for delayed read to become available in pci clock domain
+    repeat(3)
+        @(posedge pci_clock) ;
+
+    // now read data
+    fork
+    begin
+        if ( test_mem )
+        begin
+            PCIU_MEM_READ
+            (
+                "MEM_READ  ",                   // description
+                `Test_Master_1,                 // behavioral master selection
+                Target_Base_Addr_R[1] + 64,     // address of access
+                32'hF0F0_F0F0,                  // expected read data
+                1,                              // number of transfers
+                8'h7_0,                         // don't care (wait cycles)
+                `Test_One_Zero_Target_WS,       // expected Target Wait Cycles
+                `Test_Devsel_Medium,            // expected Target DEVSEL speed
+                `Test_Target_Normal_Completion  // expected Target termination
+            );
+        end
+        else
+        begin
+            PCIU_IO_READ
+            (
+                `Test_Master_1,                 // behavioral master selection
+                Target_Base_Addr_R[1] + 64,     // address of access
+                32'hF0F0_F0F0,                  // expected read data
+                4'h0,                           // byte enables
+                1,                              // number of transfers
+                `Test_Target_Normal_Completion  // expected target termination
+            ) ;
+        end
+
+        @(posedge pci_clock) ;
+        while (FRAME !== 1'b1 || IRDY !== 1'b1)
+            @(posedge pci_clock) ;
+
+        @(posedge pci_clock) ;
+        #1 ;
+        disable pci_error_mon2 ;
+    end
+    begin:pci_error_mon2
+        ok_pci = 1 ;
+        @(error_event_int) ;
+        ok_pci = 0 ;
+    end
+    join
+
+    if ( ok_wb !== 1'b1 )
+    begin
+        test_fail("WB Master started invalid transaction or none at all after Target write was posted") ;
+    end
+
+    if ( ok_pci !== 1'b1)
+    begin
+        test_fail("PCI Behavioral Master or Monitor signaled an error during write to PCI Bridge Target") ;
+    end
+
+    if ((ok_pci !== 1'b1) || (ok_wb !== 1'b1))
+    begin
+        #1 ;
+        disable main ;
+    end
+
+    if ( test_mem )
+    begin
+        PCIU_MEM_READ
+        (
+            "MEM_READ  ",                   // description
+            `Test_Master_1,                 // behavioral master selection
+            Target_Base_Addr_R[1] + 128,    // address of access
+            32'h0F0F_0F0F,                  // expected read data
+            1,                              // number of transfers
+            8'h7_0,                         // don't care (wait cycles)
+            `Test_One_Zero_Target_WS,       // expected Target Wait Cycles
+            `Test_Devsel_Medium,            // expected Target DEVSEL speed
+            `Test_Target_Retry_On           // expected Target termination
+        );
+    end
+    else
+    begin
+        PCIU_IO_READ
+        (
+            `Test_Master_1,                 // behavioral master selection
+            Target_Base_Addr_R[1] + 128,    // address of access
+            32'h0F0F_0F0F,                  // expected read data
+            4'h0,                           // byte enables
+            1,                              // number of transfers
+            `Test_Target_Retry_On           // expected target termination
+        ) ;
+    end
+
+    wb_transaction_progress_monitor
+    (
+            Target_Base_Addr_R[1] + 128,    // expected address
+            1'b0,                           // expected operation R/W
+            1,                              // expected number transfers
+            1'b1,                           // turn checking of transfers ON/OFF
+            ok_wb                           // succeeded/failed
+    ) ;
+
+    // wait for 3 pci cycles for delayed read to become available in pci clock domain
+    repeat(3)
+        @(posedge pci_clock) ;
+
+    // now read data
+    fork
+    begin
+        if ( test_mem )
+        begin
+            PCIU_MEM_READ
+            (
+                "MEM_READ  ",                   // description
+                `Test_Master_1,                 // behavioral master selection
+                Target_Base_Addr_R[1] + 128,    // address of access
+                32'h0F0F_0F0F,                  // expected read data
+                1,                              // number of transfers
+                8'h7_0,                         // don't care (wait cycles)
+                `Test_One_Zero_Target_WS,       // expected Target Wait Cycles
+                `Test_Devsel_Medium,            // expected Target DEVSEL speed
+                `Test_Target_Normal_Completion  // expected Target termination
+            );
+        end
+        else
+        begin
+            PCIU_IO_READ
+            (
+                `Test_Master_1,                 // behavioral master selection
+                Target_Base_Addr_R[1] + 128,    // address of access
+                32'h0F0F_0F0F,                  // expected read data
+                4'h0,                           // byte enables
+                1,                              // number of transfers
+                `Test_Target_Normal_Completion  // expected target termination
+            ) ;
+        end
+
+        @(posedge pci_clock) ;
+        while (FRAME !== 1'b1 || IRDY !== 1'b1)
+            @(posedge pci_clock) ;
+
+        @(posedge pci_clock) ;
+        #1 ;
+        disable pci_error_mon3 ;
+    end
+    begin:pci_error_mon3
+        ok_pci = 1 ;
+        @(error_event_int) ;
+        ok_pci = 0 ;
+    end
+    join
+
+    if ((ok_wb === 1'b1) && (ok_pci === 1'b1))
+        test_ok ;
+
+    if ( ok_wb !== 1'b1 )
+    begin
+        test_fail("WB Master started invalid transaction or none at all after Target read was requested") ;
+    end
+
+    if ( ok_pci !== 1'b1)
+    begin
+        test_fail("PCI Behavioral Master or Monitor signaled an error during read from PCI Bridge Target") ;
+    end
+    
+    master1_check_received_data = master_check_data_previous ;
+end
+endtask // target_special_corner_case_test
+`endif
+
 task test_fail ;
     input [7999:0] failure_reason ;
     reg   [8007:0] display_failure ;
@@ -19159,12 +19661,13 @@ begin
     while ( display_test[799:792] == 0 )
        display_test = display_test << 8 ;
 
-    $fdisplay( tb_log_file, "*****************************************************************************************" ) ;
+    $fdisplay( tb_log_file, "************************************************************************************************************************************************************" ) ;
     $fdisplay( tb_log_file, " At time %t ", $time ) ;
     $fdisplay( tb_log_file, " Test %s", display_test ) ;
     $fdisplay( tb_log_file, " *FAILED* because") ;
     $fdisplay( tb_log_file, " %s", display_failure ) ;
-    $fdisplay( tb_log_file, "*****************************************************************************************" ) ;
+    current_test_parameters ;
+    $fdisplay( tb_log_file, "************************************************************************************************************************************************************" ) ;
     $fdisplay( tb_log_file, " " ) ;
 
     `ifdef STOP_ON_FAILURE
@@ -19182,23 +19685,45 @@ begin
    while ( display_test[799:792] == 0 )
        display_test = display_test << 8 ;
 
-   $fdisplay( tb_log_file, "*****************************************************************************************" ) ;
+   $fdisplay( tb_log_file, "************************************************************************************************************************************************************" ) ;
    $fdisplay( tb_log_file, " At time %t ", $time ) ;
    $fdisplay( tb_log_file, " Test %s", display_test ) ;
    $fdisplay( tb_log_file, " reported *SUCCESSFULL*! ") ;
-   $fdisplay( tb_log_file, "*****************************************************************************************" ) ;
+   current_test_parameters ;
+   $fdisplay( tb_log_file, "************************************************************************************************************************************************************" ) ;
    $fdisplay( tb_log_file, " " ) ;
 end
 endtask // test_ok
 
 task test_summary;
 begin
+    $fdisplay(tb_log_file, "\n \n");
     $fdisplay(tb_log_file, "******************************* PCI Testcase summary *******************************") ;
     $fdisplay(tb_log_file, "Tests performed:   %d", tests_successfull + tests_failed) ;
     $fdisplay(tb_log_file, "Failed tests   :   %d", tests_failed) ;
     $fdisplay(tb_log_file, "Successfull tests: %d", tests_successfull) ;
     $fdisplay(tb_log_file, "******************************* PCI Testcase summary *******************************") ;
     $fclose(tb_log_file) ;
+end
+endtask
+
+task current_test_parameters ;
+    reg [87:0] decode_speed_text ;
+begin
+    case (tb_target_decode_speed)
+        3'b000: decode_speed_text = "FAST       " ;
+        3'b001: decode_speed_text = "MEDIUM     " ;
+        3'b010: decode_speed_text = "SLOW       " ;
+        3'b011: decode_speed_text = "SUBTRACTIVE" ;
+    endcase
+
+    $fdisplay( tb_log_file, "TEST PARAMETERS:") ;
+    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Initial Wait States         = %d", (3'd4 - tb_init_waits)) ;
+    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' Subsequent Wait States      = %d", (3'd4 - tb_subseq_waits)) ;
+    $fdisplay( tb_log_file, "  - PCI Behavioral Devices' DEVSEL speed                = %s", decode_speed_text) ;
+
+    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Initial Wait States    = %d", tb_init_waits) ;
+    $fdisplay( tb_log_file, "  - WISHBONE Behavioral Devices' Subsequent Wait States = %d", tb_subseq_waits) ;
 end
 endtask
 

@@ -8,8 +8,16 @@
 
 `ifdef REGRESSION 
 `else // Following DEFINES are used only without regression testing (together with pci_user_constants) !!!
+
+    // next two defines are used to generate clocks
+    // only one at the time can be defined, otherwise testbench won't work
+    // they are used to generate both clocks with same period and phase shift of define's value in nano seconds
+
+    //`define PCI_CLOCK_FOLLOWS_WB_CLOCK 1
+    `define WB_CLOCK_FOLLOWS_PCI_CLOCK 2
+    
     // wishbone frequncy in GHz
-    `define WB_FREQ 0.05
+    `define WB_FREQ 0.033
     
     // values of image registers of PCI bridge device - valid are only upper 20 bits, others must be ZERO !
     `define TAR0_BASE_ADDR_0	32'h1000_0000
@@ -58,6 +66,8 @@
     `define TAR0_IDSEL_ADDR     (32'h0000_0001 << `TAR0_IDSEL_INDEX)
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
+
+    `define DISABLE_COMPLETION_EXPIRED_TESTS
 `endif
 
 //===================================================================================
@@ -158,4 +168,3 @@
 `define WB_TRANSFER_CAB      [9]
 `define INIT_WAITS           [3:0]
 `define SUBSEQ_WAITS         [7:4]
-

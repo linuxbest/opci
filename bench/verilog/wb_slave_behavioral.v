@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_behavioral.v,v $
+// Revision 1.3  2002/10/11 10:08:58  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.2  2002/03/06 09:10:56  mihad
 // Added missing include statements
 //
@@ -53,6 +56,7 @@
 `include "pci_testbench_defines.v"
 `include "timescale.v"
 `include "pci_constants.v"
+
 module WB_SLAVE_BEHAVIORAL
 (
 	CLK_I,
@@ -70,285 +74,386 @@ module WB_SLAVE_BEHAVIORAL
 	CAB_I
 );
 
-/*----------------------------------------------------------------------------------------------------------------------
+/*------------------------------------------------------------------------------------------------------
 WISHBONE signals
-----------------------------------------------------------------------------------------------------------------------*/
-input					CLK_I ;
-input					RST_I ;
-output					ACK_O ;
-input	`WB_ADDR_TYPE	ADR_I ;
-input					CYC_I ;
-output	`WB_DATA_TYPE	DAT_O ;
-input	`WB_DATA_TYPE	DAT_I ;
-output					ERR_O ;
-output					RTY_O ;
-input	`WB_SEL_TYPE	SEL_I ;
-input					STB_I ;
-input					WE_I ;
-input					CAB_I ;
+------------------------------------------------------------------------------------------------------*/
+input                   CLK_I;
+input                   RST_I;
+output                  ACK_O;
+input   `WB_ADDR_TYPE   ADR_I;
+input                   CYC_I;
+output  `WB_DATA_TYPE   DAT_O;
+input   `WB_DATA_TYPE   DAT_I;
+output                  ERR_O;
+output                  RTY_O;
+input   `WB_SEL_TYPE    SEL_I;
+input                   STB_I;
+input                   WE_I;
+input                   CAB_I;
 
-//reg				ACK_O ;
-//reg				ERR_O ;
-//reg				RTY_O ;
-reg		[31:0]	DAT_O ;
+reg     `WB_DATA_TYPE   DAT_O;
 
-/*----------------------------------------------------------------------------------------------------------------------
+/*------------------------------------------------------------------------------------------------------
 Asynchronous dual-port RAM signals for storing and fetching the data
-----------------------------------------------------------------------------------------------------------------------*/
-reg 	[31:0] 	wb_memory [0:1023] ; // data for WB memory - 16 LSB addresses are connected
-reg		[31:0]	mem_wr_data_out ;
-reg		[31:0]	mem_rd_data_in ;
+------------------------------------------------------------------------------------------------------*/
+//reg     `WB_DATA_TYPE wb_memory [0:16777215]; // WB memory - 24 addresses connected - 2 LSB not used
+reg     `WB_DATA_TYPE wb_memory [0:1048575]; // WB memory - 20 addresses connected - 2 LSB not used
+reg     `WB_DATA_TYPE mem_wr_data_out;
+reg     `WB_DATA_TYPE mem_rd_data_in;
 
-/*----------------------------------------------------------------------------------------------------------------------
+/*------------------------------------------------------------------------------------------------------
 Maximum values for WAIT and RETRY counters and which response !!!
-----------------------------------------------------------------------------------------------------------------------*/
-reg		[2:0]	a_e_r_resp ; 		// tells with which cycle_termination_signal must wb_slave respond !
-reg				wait_cyc ;
-reg		[7:0]	max_retry ;
+------------------------------------------------------------------------------------------------------*/
+reg     [2:0]  a_e_r_resp; // tells with which cycle_termination_signal must wb_slave respond !
+reg     [3:0]  wait_cyc;
+reg     [7:0]  max_retry;
 
 // assign registers to default state while in reset
 always@(RST_I)
 begin
-    if (RST_I)
-    begin
-        a_e_r_resp	<= 3'b000 ; // do not respond
-    	wait_cyc	<= 1'b0 ;	// no wait cycles
-        max_retry	<= 8'h0 ;	// no retries
-    end
+  if (RST_I)
+  begin
+    a_e_r_resp <= 3'b000; // do not respond
+    wait_cyc   <= 4'b0; // no wait cycles
+    max_retry  <= 8'h0; // no retries
+  end
 end //reset
 
-task cycle_response ;
-	input [2:0]		ack_err_rty_resp ;	// acknowledge, error or retry response input flags
-	input 			wait_cycles ;		// if wait cycles before each data termination cycle (ack, err or rty)
-	input [7:0]		retry_cycles ;		// noumber of retry cycles before acknowledge cycle
+task cycle_response;
+  input [2:0]  ack_err_rty_resp; // acknowledge, error or retry response input flags
+  input [3:0]  wait_cycles; // if wait cycles before each data termination cycle (ack, err or rty)
+  input [7:0]  retry_cycles; // noumber of retry cycles before acknowledge cycle
 begin
-    // assign values
-    a_e_r_resp	<= #1 ack_err_rty_resp ;
-	wait_cyc	<= #1 wait_cycles ;
-    max_retry	<= #1 retry_cycles ;
+  // assign values
+  a_e_r_resp <= #1 ack_err_rty_resp;
+  wait_cyc   <= #1 wait_cycles;
+  max_retry  <= #1 retry_cycles;
 end
 endtask // cycle_response
 
-/*----------------------------------------------------------------------------------------------------------------------
-Internal signals and logic
-----------------------------------------------------------------------------------------------------------------------*/
-reg				calc_ack ;
-reg				calc_err ;
-reg				calc_rty ;
+/*------------------------------------------------------------------------------------------------------
+Tasks for writing and reading to and from memory !!!
+------------------------------------------------------------------------------------------------------*/
+reg    `WB_ADDR_TYPE task_wr_adr_i;
+reg    `WB_ADDR_TYPE task_rd_adr_i;
+reg    `WB_DATA_TYPE task_dat_i;
+reg    `WB_DATA_TYPE task_dat_o;
+reg    `WB_SEL_TYPE  task_sel_i;
+reg                  task_wr_data;
+reg                  task_data_written;
+reg    `WB_DATA_TYPE task_mem_wr_data;
 
-reg		[7:0]	retry_cnt ;
-reg		[7:0]	retry_num ;
-reg				retry_expired ;
-reg				retry_rst ;
-
-// RESET retry counter
-always@(posedge RST_I or posedge CLK_I)
+// write to memory
+task wr_mem;
+    input   `WB_ADDR_TYPE adr_i;
+    input   `WB_DATA_TYPE dat_i;
+    input   `WB_SEL_TYPE  sel_i;
+    integer current_byte ;
+    integer current_bit ;
 begin
-	if (RST_I)
-		retry_rst <= 1'b1 ;
-	else
-		retry_rst <= calc_ack || calc_err ;
+    /*
+    task_data_written = 0;
+    task_wr_adr_i = adr_i;
+    task_dat_i = dat_i;
+    task_sel_i = sel_i;
+    task_wr_data = 1;
+    wait(task_data_written);
+    task_wr_data = 0;
+    */
+  
+    task_mem_wr_data = wb_memory[adr_i[21:2]];
+
+    for (current_byte = 0 ; current_byte < `WB_DATA_WIDTH / 8 ; current_byte = current_byte + 1'b1)
+    begin
+        // check sel_i for every byte
+        if (sel_i[current_byte])
+        begin
+            // have to write a bit at a time, because dynamic range bouds are not allowed
+            for (current_bit = 0 ; current_bit < 8 ; current_bit = current_bit + 1'b1)
+                task_mem_wr_data[current_byte * 8 + current_bit] = dat_i[current_byte * 8 + current_bit] ;
+        end
+    end
+    /*if (sel_i[3])
+      task_mem_wr_data[31:24] = dat_i[31:24];
+    if (sel_i[2])
+      task_mem_wr_data[23:16] = dat_i[23:16];
+    if (sel_i[1])
+      task_mem_wr_data[15: 8] = dat_i[15: 8];
+    if (sel_i[0])
+      task_mem_wr_data[ 7: 0] = dat_i[ 7: 0];
+    */
+    wb_memory[adr_i[21:2]] = task_mem_wr_data; // write data
 end
+endtask
+
+// read from memory
+task rd_mem;
+  input  `WB_ADDR_TYPE adr_i;
+  output `WB_DATA_TYPE dat_o;
+  input  `WB_SEL_TYPE  sel_i;
+begin
+  task_rd_adr_i = adr_i;
+  task_sel_i = sel_i;
+  #1;
+  dat_o = task_dat_o;
+end
+endtask
+
+/*------------------------------------------------------------------------------------------------------
+Internal signals and logic
+------------------------------------------------------------------------------------------------------*/
+reg            calc_ack;
+reg            calc_err;
+reg            calc_rty;
+
+reg     [7:0]  retry_cnt;
+reg     [7:0]  retry_num;
+reg            retry_expired;
 
 // Retry counter
-always@(posedge retry_rst or negedge calc_rty)
-begin
-	if (retry_rst)
-		retry_cnt <= #`FF_DELAY 8'h00 ;
-	else
-		retry_cnt <= #`FF_DELAY retry_num ;
-end
-always@(retry_cnt or max_retry)
-begin
-	if (retry_cnt < max_retry)
-	begin
-		retry_num = retry_cnt + 1'b1 ;
-		retry_expired = #10 1'b0 ;
-	end
-	else
-	begin
-		retry_num = retry_cnt ;
-		retry_expired = #10 1'b1 ;
-	end
-end
-
-reg		[1:0]	wait_cnt ;
-reg		[1:0]	wait_num ;
-reg				wait_expired ;
-reg				reset_wait ;
-
 always@(posedge RST_I or posedge CLK_I)
 begin
-	if (RST_I)
-		reset_wait <= #`FF_DELAY 1'b1 ;
-	else
-		reset_wait <= #`FF_DELAY (wait_expired || ~STB_I) ;
+  if (RST_I)
+    retry_cnt <= #1 8'h00;
+  else
+  begin
+    if (calc_ack || calc_err)
+      retry_cnt <= #1 8'h00;
+    else if (calc_rty)
+      retry_cnt <= #1 retry_num;
+  end
 end
+
+always@(retry_cnt or max_retry)
+begin
+  if (retry_cnt < max_retry)
+  begin
+    retry_num = retry_cnt + 1'b1;
+    retry_expired = 1'b0;
+  end
+  else
+  begin
+    retry_num = retry_cnt;
+    retry_expired = 1'b1;
+  end
+end
+
+reg     [3:0]  wait_cnt;
+reg     [3:0]  wait_num;
+reg            wait_expired;
 
 // Wait counter
-always@(posedge reset_wait or posedge CLK_I)
+always@(posedge RST_I or posedge CLK_I)
 begin
-	if (reset_wait)
-		wait_cnt <= #`FF_DELAY 4'h0 ;
-	else
-		wait_cnt <= #`FF_DELAY wait_num ;
+  if (RST_I)
+    wait_cnt <= #1 4'h0;
+  else
+  begin
+    if (wait_expired || ~STB_I)
+      wait_cnt <= #1 4'h0;
+    else
+      wait_cnt <= #1 wait_num;
+  end
 end
+
 always@(wait_cnt or wait_cyc or STB_I or a_e_r_resp or retry_expired)
 begin
-	if ((wait_cyc) && (STB_I))
-	begin
-		if (wait_cnt < 2'h2)
-		begin
-			wait_num = wait_cnt + 1'b1 ;
-			wait_expired = 1'b0 ;
-			calc_ack = 1'b0 ;
-			calc_err = 1'b0 ;
-			calc_rty = 1'b0 ;
-		end
-		else
-		begin
-			wait_num = wait_cnt ;
-			wait_expired = 1'b1 ;
-			if (a_e_r_resp == 3'b100)
-			begin
-				calc_ack = 1'b1 ;
-				calc_err = 1'b0 ;
-				calc_rty = 1'b0 ;
-			end
-			else
-			if (a_e_r_resp == 3'b010)
-			begin
-				calc_ack = 1'b0 ;
-				calc_err = 1'b1 ;
-				calc_rty = 1'b0 ;
-			end
-			else
-			if (a_e_r_resp == 3'b001)
-			begin
-				calc_err = 1'b0 ;
-				if (retry_expired)
-				begin
-					calc_ack = 1'b1 ;
-					calc_rty = 1'b0 ;
-				end
-				else
-				begin
-					calc_ack = 1'b0 ;
-					calc_rty = 1'b1 ;
-				end
-			end
-			else
-			begin
-				calc_ack = 1'b0 ;
-				calc_err = 1'b0 ;
-				calc_rty = 1'b0 ;
-			end
-		end
-	end
-	else
-	if ((~wait_cyc) && (STB_I))
-	begin
-		wait_num = 2'h0 ;
-		wait_expired = 1'b1 ;
-		if (a_e_r_resp == 3'b100)
-		begin
-			calc_ack = 1'b1 ;
-			calc_err = 1'b0 ;
-			calc_rty = 1'b0 ;
-		end
-		else
-		if (a_e_r_resp == 3'b010)
-		begin
-			calc_ack = 1'b0 ;
-			calc_err = 1'b1 ;
-			calc_rty = 1'b0 ;
-		end
-		else
-		if (a_e_r_resp == 3'b001)
-		begin
-			calc_err = 1'b0 ;
-			if (retry_expired)
-			begin
-				calc_ack = 1'b1 ;
-				calc_rty = 1'b0 ;
-			end
-			else
-			begin
-				calc_ack = 1'b0 ;
-				calc_rty = 1'b1 ;
-			end
-		end
-		else
-		begin
-			calc_ack = 1'b0 ;
-			calc_err = 1'b0 ;
-			calc_rty = 1'b0 ;
-		end
-	end
-	else
-	begin
-		wait_num = 2'h0 ;
-		wait_expired = 1'b0 ;
-		calc_ack = 1'b0 ;
-		calc_err = 1'b0 ;
-		calc_rty = 1'b0 ;
-	end
+  if ((wait_cyc > 0) && (STB_I))
+  begin
+    if (wait_cnt < wait_cyc) // 4'h2)
+    begin
+      wait_num = wait_cnt + 1'b1;
+      wait_expired = 1'b0;
+      calc_ack = 1'b0;
+      calc_err = 1'b0;
+      calc_rty = 1'b0;
+    end
+    else
+    begin
+      wait_num = wait_cnt;
+      wait_expired = 1'b1;
+      if (a_e_r_resp == 3'b100)
+      begin
+        calc_ack = 1'b1;
+        calc_err = 1'b0;
+        calc_rty = 1'b0;
+      end
+      else
+      if (a_e_r_resp == 3'b010)
+      begin
+        calc_ack = 1'b0;
+        calc_err = 1'b1;
+        calc_rty = 1'b0;
+      end
+      else
+      if (a_e_r_resp == 3'b001)
+      begin
+        calc_err = 1'b0;
+        if (retry_expired)
+        begin
+          calc_ack = 1'b1;
+          calc_rty = 1'b0;
+        end
+        else
+        begin
+          calc_ack = 1'b0;
+          calc_rty = 1'b1;
+        end
+      end
+      else
+      begin
+        calc_ack = 1'b0;
+        calc_err = 1'b0;
+        calc_rty = 1'b0;
+      end
+    end
+  end
+  else
+  if ((wait_cyc == 0) && (STB_I))
+  begin
+    wait_num = 2'h0;
+    wait_expired = 1'b1;
+    if (a_e_r_resp == 3'b100)
+    begin
+      calc_ack = 1'b1;
+      calc_err = 1'b0;
+      calc_rty = 1'b0;
+    end
+    else if (a_e_r_resp == 3'b010)
+    begin
+      calc_ack = 1'b0;
+      calc_err = 1'b1;
+      calc_rty = 1'b0;
+    end
+    else if (a_e_r_resp == 3'b001)
+    begin
+      calc_err = 1'b0;
+      if (retry_expired)
+      begin
+        calc_ack = 1'b1;
+        calc_rty = 1'b0;
+      end
+      else
+      begin
+        calc_ack = 1'b0;
+        calc_rty = 1'b1;
+      end
+    end
+    else
+    begin
+      calc_ack = 1'b0;
+      calc_err = 1'b0;
+      calc_rty = 1'b0;
+    end
+  end
+  else
+  begin
+    wait_num = 2'h0;
+    wait_expired = 1'b0;
+    calc_ack = 1'b0;
+    calc_err = 1'b0;
+    calc_rty = 1'b0;
+  end
 end
 
-wire	rd_sel = (CYC_I && STB_I && ~WE_I) ;
-wire	wr_sel = (CYC_I && STB_I && WE_I) ;
+wire rd_sel = (CYC_I && STB_I && ~WE_I);
+wire wr_sel = (CYC_I && STB_I && WE_I);
 
 // Generate cycle termination signals
-assign	ACK_O = calc_ack && STB_I ;
-assign	ERR_O = calc_err && STB_I ;
-assign	RTY_O = calc_rty && STB_I ;
+assign ACK_O = calc_ack && STB_I && CYC_I;
+assign ERR_O = calc_err && STB_I && CYC_I;
+assign RTY_O = calc_rty && STB_I && CYC_I;
 
 // Assign address to asynchronous memory
-always@(ADR_I or RST_I)
+always@(RST_I or ADR_I)
 begin
-	if (RST_I) // this is added because at start of test bench we need address change in order to get data!
-		mem_rd_data_in = 32'hxxxx_xxxx ;
-	else
-		mem_rd_data_in = wb_memory[ADR_I[11:2]] ;
+  if (RST_I) // this is added because at start of test bench we need address change in order to get data!
+  begin
+    #1 mem_rd_data_in = `WB_DATA_WIDTH'hxxxx_xxxx;
+  end
+  else
+  begin
+//    #1 mem_rd_data_in = wb_memory[ADR_I[25:2]];
+    #1 mem_rd_data_in = wb_memory[ADR_I[21:2]];
+  end
 end
 
-// assign outputs to unknown state while in reset
-always@(RST_I)
+/*// Data input/output interface
+always@(rd_sel or mem_rd_data_in or RST_I)
 begin
-    if (RST_I)
-    begin
-		DAT_O <= 32'hxxxx_xxxx ;
-    end
-end //reset
-
-// Data input/output interface
-always@(rd_sel or wr_sel or mem_rd_data_in or DAT_I or SEL_I or mem_wr_data_out)
-begin
-	if (rd_sel)
-	begin
-		DAT_O = mem_rd_data_in ;
-	end
+  if (RST_I)
+    DAT_O <=#1 `WB_DATA_WIDTH'hxxxx_xxxx;	// assign outputs to unknown state while in reset
+  else if (rd_sel)
+    DAT_O <=#1 mem_rd_data_in;
+  else
+    DAT_O <=#1 `WB_DATA_WIDTH'hxxxx_xxxx;
 end
+*/
+always@
+(
+    RST_I or
+    ACK_O or
+    WE_I  or
+    ADR_I
+)
+begin
+    if ((ACK_O === 1'b1) && (RST_I === 1'b0) && (WE_I === 1'b0))
+        DAT_O <= #1 wb_memory[ADR_I[21:2]] ;
+    else
+        DAT_O <= #1 {`WB_DATA_WIDTH{1'bx}} ;
+end
+
+always@(RST_I or task_rd_adr_i)
+begin
+  if (RST_I)
+    task_dat_o = `WB_DATA_WIDTH'hxxxx_xxxx;
+  else
+    task_dat_o = wb_memory[task_rd_adr_i[21:2]];
+end
+
+/*always@(CLK_I or wr_sel or task_wr_data or ADR_I or task_wr_adr_i or 
+        mem_wr_data_out or DAT_I or task_dat_i or
+        SEL_I or task_sel_i)
+begin
+  if (task_wr_data)
+  begin
+    task_mem_wr_data = wb_memory[task_wr_adr_i[21:2]];
+
+    if (task_sel_i[3])
+      task_mem_wr_data[31:24] = task_dat_i[31:24];
+    if (task_sel_i[2])
+      task_mem_wr_data[23:16] = task_dat_i[23:16];
+    if (task_sel_i[1])
+      task_mem_wr_data[15: 8] = task_dat_i[15: 8];
+    if (task_sel_i[0])
+      task_mem_wr_data[ 7: 0] = task_dat_i[ 7: 0];
+
+    wb_memory[task_wr_adr_i[21:2]] = task_mem_wr_data; // write data
+    task_data_written = 1;
+  end
+  else if (wr_sel && CLK_I)
+  begin
+//    mem_wr_data_out = wb_memory[ADR_I[25:2]]; // if no SEL_I is active, old value will be written
+    mem_wr_data_out = wb_memory[ADR_I[21:2]]; // if no SEL_I is active, old value will be written
+
+    if (SEL_I[3])
+      mem_wr_data_out[31:24] = DAT_I[31:24];
+    if (SEL_I[2])
+      mem_wr_data_out[23:16] = DAT_I[23:16];
+    if (SEL_I[1])
+      mem_wr_data_out[15: 8] = DAT_I[15: 8];
+    if (SEL_I[0])
+      mem_wr_data_out[ 7: 0] = DAT_I[ 7: 0];
+
+//    wb_memory[ADR_I[25:2]]  <= mem_wr_data_out; // write data
+    wb_memory[ADR_I[21:2]]      = mem_wr_data_out; // write data
+  end
+end
+*/
 always@(posedge CLK_I)
 begin
-    if (wr_sel)
-    begin
-        mem_wr_data_out         = wb_memory[ADR_I[11:2]] ;
-
-        if ( SEL_I[3] )
-            mem_wr_data_out[31:24] = DAT_I[31:24] ;
-
-        if ( SEL_I[2] )
-            mem_wr_data_out[23:16] = DAT_I[23:16] ;
-
-        if ( SEL_I[1] )
-            mem_wr_data_out[15: 8] = DAT_I[15: 8] ;
-
-        if ( SEL_I[0] )
-            mem_wr_data_out[ 7: 0] = DAT_I[ 7: 0] ;
-
-        wb_memory[ADR_I[11:2]] <= mem_wr_data_out ;
-    end
+    if (CYC_I && STB_I && WE_I && ACK_O)
+            wr_mem(ADR_I, DAT_I, SEL_I) ;
 end
 
 endmodule

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
+// Revision 1.8  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.7  2002/10/08 17:17:06  mihad
 // Added BIST signals for RAMs.
 //
@@ -108,6 +111,7 @@ module PCIW_PCIR_FIFOS
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst       ,
     SO         ,
     SI         ,
     shift_DR   ,
@@ -229,6 +233,7 @@ output pcir_transaction_ready_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
+input   trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -386,6 +391,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
+        .trst       (trst),
         .SO         (SO_internal),
         .SI         (SI),
         .shift_DR   (shift_DR),
@@ -418,6 +424,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
+        .trst       (trst),
         .SO         (SO),
         .SI         (SI_internal),
         .shift_DR   (shift_DR),
@@ -482,6 +489,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
+        .trst       (trst),
         .SO         (SO),
         .SI         (SI),
         .shift_DR   (shift_DR),

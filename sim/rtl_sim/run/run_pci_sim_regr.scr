@@ -31,11 +31,16 @@ set arg_xilinx = 0;
 set arg_artisan = 0;
 set arg_waves = 0;
 set arg_vs_hdtp = 0
+set arg_dis_comp_exp_test = 0
 
 @ arg_num     = 1
 set arg_check = 0
 
 while($arg_num <= $#argv)
+    if ($argv[$arg_num] == "help") then
+        goto help
+    endif
+
     if ($argv[$arg_num] == "regression") then
         @ arg_regression = 1
         @ arg_check      = $arg_check + 1
@@ -61,9 +66,15 @@ while($arg_num <= $#argv)
         @ arg_check   = $arg_check + 1
     endif
 
+    if ($argv[$arg_num] == "disable_completion_expired_tests") then
+        @ arg_dis_comp_exp_test = 1
+        @ arg_check   = $arg_check + 1
+    endif
+
     if ($arg_check != $arg_num) then
-        echo "Invalid argument found"
-        exit
+        echo "Invalid argument found: $argv[$arg_num]"
+        echo
+        goto help
     endif
     @ arg_num = $arg_num + 1
 end
@@ -170,6 +181,10 @@ if ($arg_regression == 1) then
          echo "\tNO_CNF_IMAGE, WB_IMAGE2, WB_IMAGE3, WB_IMAGE4, WB_IMAGE5. "
      echo "-DEFINE REGRESSION -DEFINE GUEST -DEFINE REGR_FIFO_LARGE_GENERIC -DEFINE WB_DECODE_MEDIUM -DEFINE PCI_DECODE_MAX -DEFINE WB_DECODE_MED -DEFINE PCI33 -DEFINE WB_CLK10 -DEFINE ACTIVE_HIGH_OE -DEFINE WB_CNF_BASE_ZERO -DEFINE NO_CNF_IMAGE -DEFINE WB_IMAGE2 -DEFINE WB_IMAGE3 -DEFINE WB_IMAGE4 -DEFINE WB_IMAGE5" > ./defines.args
          endif
+
+        if ($arg_dis_comp_exp_test) then
+            echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
+        endif
   else 
     if (($arg_xilinx == 0) && ($arg_artisan == 1)) then
          if ($iter == 1) then
@@ -584,4 +599,26 @@ else
     echo "<<<   ../log/*ncsim.log "
     echo "<<<"
 endif
+exit
+
+help:
+        echo ""
+        echo "Script arguments:"
+        echo ""
+        echo "regression  : run all implemented regression iterations on PCI Bridge Design"
+        echo ""
+        echo "xilinx      : if you want to run simulation with xilinx RAM primitives. You have to provide RAM16X1D.v, RAMB4_S16_S16.v and glbl.v simulation files."
+        echo "            : you have to edit ../bin/xilinx_file_list.lst file with the correct paths to these files. Leave other paths as they are!"
+        echo ""
+        echo "artisan     : if you want to run simulation with artisan ASIC library vendor RAM primitives. You have to provide simulation models for these, edit ../bin/artisan_file_list.lst,"
+        echo "            : and optionaly ../../../rtl/verilog/pci_user_constants.v, ../../../bench/verilog/pci_regression_constants.v, ../../../rtl/verilog/wb_tpram.v and ../../../rtl/verilog/pci_tpram.v"
+        echo ""
+        echo "waves       : if you want to dump all the signals in the testbench to the signalscan output file in ../out/ directory"
+        echo ""
+        echo "vs_two_port : if you want to run simulation with virtual silicon ASIC library vendor RAM primitives. You have to provide simulation models for these, edit ../bin/vs_file_list.lst,"
+        echo "            : and optionaly ../../../rtl/verilog/pci_user_constants.v, ../../../bench/verilog/pci_regression_constants.v, ../../../rtl/verilog/wb_tpram.v and ../../../rtl/verilog/pci_tpram.v"
+        echo ""
+        echo "disable_completion_expired_tests : if you want to disable completion expiration testing during regression run, because these are time consuming tests"
+        echo ""
+exit
 

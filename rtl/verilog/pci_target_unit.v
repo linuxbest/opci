@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.8  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.7  2002/10/08 17:17:05  mihad
 // Added BIST signals for RAMs.
 //
@@ -163,6 +166,7 @@ module PCI_TARGET_UNIT
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst       ,
     SO         ,
     SI         ,
     shift_DR   ,
@@ -271,6 +275,7 @@ output          pciu_pciw_fifo_empty_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
+input   trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -559,6 +564,7 @@ PCIW_PCIR_FIFOS fifos
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO),
     .SI         (SI),
     .shift_DR   (shift_DR),

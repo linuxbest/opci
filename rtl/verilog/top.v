@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.6  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.5  2002/10/08 17:17:06  mihad
 // Added BIST signals for RAMs.
 //
@@ -121,6 +124,7 @@ module TOP
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst       ,
     SO         ,
     SI         ,
     shift_DR   ,
@@ -184,6 +188,7 @@ input           ERR_I ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
+input   trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -345,6 +350,7 @@ PCI_BRIDGE32 bridge
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO),
     .SI         (SI),
     .shift_DR   (shift_DR),

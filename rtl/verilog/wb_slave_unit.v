@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.6  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.5  2002/10/08 17:17:06  mihad
 // Added BIST signals for RAMs.
 //
@@ -156,6 +159,7 @@ module WB_SLAVE_UNIT
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst       ,
     SO         ,
     SI         ,
     shift_DR   ,
@@ -268,6 +272,7 @@ output          wbu_ad_load_on_transfer_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
+input trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -577,6 +582,7 @@ WBW_WBR_FIFOS fifos
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO),
     .SI         (SI),
     .shift_DR   (shift_DR),

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.5  2002/10/11 10:09:01  mihad
+// Added additional testcase and changed rst name in BIST to trst
+//
 // Revision 1.4  2002/10/08 17:17:05  mihad
 // Added BIST signals for RAMs.
 //
@@ -166,6 +169,7 @@ module PCI_BRIDGE32
 `ifdef PCI_BIST
     ,
     // debug chain signals
+    trst       ,
     SO         ,
     SI         ,
     shift_DR   ,
@@ -273,6 +277,7 @@ output  PCI_SERRn_EN_OUT ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
+input   trst ;
 output  SO ;
 input   SI ;
 input   shift_DR ;
@@ -798,6 +803,7 @@ WB_SLAVE_UNIT wishbone_slave_unit
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO_internal),
     .SI         (SI),
     .shift_DR   (shift_DR),
@@ -981,6 +987,7 @@ PCI_TARGET_UNIT pci_target_unit
 
 `ifdef PCI_BIST
     ,
+    .trst       (trst),
     .SO         (SO),
     .SI         (SI_internal),
     .shift_DR   (shift_DR),
