@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.13  2003/08/21 20:55:14  tadejm
+// Corrected bug when writing to FIFO (now it is registered).
+//
 // Revision 1.12  2003/08/08 16:36:33  tadejm
 // Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
 //
@@ -94,17 +97,19 @@ module pci_target_unit
     reset_in,
     wb_clock_in,
     pci_clock_in,
-    ADR_O,
-    MDATA_O,
-    MDATA_I,
-    CYC_O,
-    STB_O,
-    WE_O,
-    SEL_O,
-    ACK_I,
-    RTY_I,
-    ERR_I,
-    CAB_O,
+
+    pciu_wbm_adr_o,
+    pciu_wbm_dat_o,
+    pciu_wbm_dat_i,
+    pciu_wbm_cyc_o,
+    pciu_wbm_stb_o,
+    pciu_wbm_we_o,
+    pciu_wbm_cti_o,
+    pciu_wbm_bte_o,
+    pciu_wbm_sel_o,
+    pciu_wbm_ack_i,
+    pciu_wbm_rty_i,
+    pciu_wbm_err_i,
     pciu_mem_enable_in,
     pciu_io_enable_in,
     pciu_map_in,
@@ -191,17 +196,18 @@ input reset_in,
       wb_clock_in,
       pci_clock_in ;
 
-output  [31:0]  ADR_O   ;
-output  [31:0]  MDATA_O ;
-input   [31:0]  MDATA_I ;
-output          CYC_O   ;
-output          STB_O   ;
-output          WE_O    ;
-output  [3:0]   SEL_O   ;
-input           ACK_I   ;
-input           RTY_I   ;
-input           ERR_I   ;
-output          CAB_O   ;
+output  [31:0]  pciu_wbm_adr_o   ;
+output  [31:0]  pciu_wbm_dat_o ;
+input   [31:0]  pciu_wbm_dat_i ;
+output          pciu_wbm_cyc_o   ;
+output          pciu_wbm_stb_o   ;
+output          pciu_wbm_we_o    ;
+output  [2:0]   pciu_wbm_cti_o   ;
+output  [1:0]   pciu_wbm_bte_o   ;
+output  [3:0]   pciu_wbm_sel_o   ;
+input           pciu_wbm_ack_i   ;
+input           pciu_wbm_rty_i   ;
+input           pciu_wbm_err_i   ;
 
 input           pciu_wbw_fifo_empty_in ;
 input			pciu_wbu_del_read_comp_pending_in ;
@@ -401,10 +407,11 @@ wire        wbm_sm_read_rty_cnt_exp_out ;
 wire        wbm_sm_cyc_out ;
 wire        wbm_sm_stb_out ;
 wire        wbm_sm_we_out ;
+wire  [2:0] wbm_sm_cti_out ;
+wire  [1:0] wbm_sm_bte_out ;
 wire  [3:0] wbm_sm_sel_out ;
 wire [31:0] wbm_sm_adr_out ;
 wire [31:0] wbm_sm_mdata_out ;
-wire        wbm_sm_cab_out ;
 
 assign  pciu_err_addr_out       =   wbm_sm_adr_out ;
 assign  pciu_err_bc_out         =   wbm_sm_pci_error_bc ;
@@ -414,13 +421,14 @@ assign  pciu_err_signal_out     =   wbm_sm_pci_error_sig_out ;
 assign  pciu_err_source_out     =   wbm_sm_error_source_out ;
 assign  pciu_err_rty_exp_out    =   wbm_sm_write_rty_cnt_exp_out ;
 
-assign  ADR_O       =   wbm_sm_adr_out ;
-assign  MDATA_O     =   wbm_sm_mdata_out ;
-assign  CYC_O       =   wbm_sm_cyc_out ;
-assign  STB_O       =   wbm_sm_stb_out ;
-assign  WE_O        =   wbm_sm_we_out ;
-assign  SEL_O       =   wbm_sm_sel_out ;
-assign  CAB_O       =   wbm_sm_cab_out ;
+assign  pciu_wbm_adr_o       =   wbm_sm_adr_out ;
+assign  pciu_wbm_dat_o       =   wbm_sm_mdata_out ;
+assign  pciu_wbm_cyc_o       =   wbm_sm_cyc_out ;
+assign  pciu_wbm_stb_o       =   wbm_sm_stb_out ;
+assign  pciu_wbm_we_o        =   wbm_sm_we_out ;
+assign  pciu_wbm_cti_o       =   wbm_sm_cti_out ;
+assign  pciu_wbm_bte_o       =   wbm_sm_bte_out ;
+assign  pciu_wbm_sel_o       =   wbm_sm_sel_out ;
 
 // pciw_pcir fifo outputs
 
@@ -474,10 +482,10 @@ wire  [3:0] wbm_sm_pciw_fifo_control_in             =   fifos_pciw_control_out ;
 wire        wbm_sm_pciw_fifo_almost_empty_in        =   fifos_pciw_almost_empty_out ;
 wire        wbm_sm_pciw_fifo_empty_in               =   fifos_pciw_empty_out ;
 wire        wbm_sm_pciw_fifo_transaction_ready_in   =   fifos_pciw_transaction_ready_out ;
-wire [31:0] wbm_sm_mdata_in                         =   MDATA_I ;
-wire        wbm_sm_ack_in                           =   ACK_I ;
-wire        wbm_sm_rty_in                           =   RTY_I ;
-wire        wbm_sm_err_in                           =   ERR_I ;
+wire [31:0] wbm_sm_mdata_in                         =   pciu_wbm_dat_i ;
+wire        wbm_sm_ack_in                           =   pciu_wbm_ack_i ;
+wire        wbm_sm_rty_in                           =   pciu_wbm_rty_i ;
+wire        wbm_sm_err_in                           =   pciu_wbm_err_i ;
 
 // WISHBONE master interface instantiation
 pci_wb_master wishbone_master
@@ -509,17 +517,18 @@ pci_wb_master wishbone_master
     .write_rty_cnt_exp_out          (wbm_sm_write_rty_cnt_exp_out),
     .error_source_out               (wbm_sm_error_source_out),
     .read_rty_cnt_exp_out           (wbm_sm_read_rty_cnt_exp_out),
-    .CYC_O                          (wbm_sm_cyc_out),
-    .STB_O                          (wbm_sm_stb_out),
-    .WE_O                           (wbm_sm_we_out),
-    .SEL_O                          (wbm_sm_sel_out),
-    .ADR_O                          (wbm_sm_adr_out),
-    .MDATA_I                        (wbm_sm_mdata_in),
-    .MDATA_O                        (wbm_sm_mdata_out),
-    .ACK_I                          (wbm_sm_ack_in),
-    .RTY_I                          (wbm_sm_rty_in),
-    .ERR_I                          (wbm_sm_err_in),
-    .CAB_O                          (wbm_sm_cab_out)
+    .wb_cyc_o                      (wbm_sm_cyc_out),
+    .wb_stb_o                      (wbm_sm_stb_out),
+    .wb_we_o                       (wbm_sm_we_out),
+    .wb_cti_o                      (wbm_sm_cti_out),
+    .wb_bte_o                      (wbm_sm_bte_out),
+    .wb_sel_o                      (wbm_sm_sel_out),
+    .wb_adr_o                      (wbm_sm_adr_out),
+    .wb_dat_i                      (wbm_sm_mdata_in),
+    .wb_dat_o                      (wbm_sm_mdata_out),
+    .wb_ack_i                      (wbm_sm_ack_in),
+    .wb_rty_i                      (wbm_sm_rty_in),
+    .wb_err_i                      (wbm_sm_err_in)
 );
 
 // pciw_pcir_fifos inputs
