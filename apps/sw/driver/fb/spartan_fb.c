@@ -41,7 +41,7 @@
 /* SIMON */
 #define PCI 1
 
-#define OC_PCI_VENDOR 0x2321
+#define OC_PCI_VENDOR 0x1895
 #define OC_PCI_DEVICE 0x0001
 
 #define VIDEO_WIDTH 640

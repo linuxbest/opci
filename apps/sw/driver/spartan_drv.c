@@ -16,7 +16,7 @@
 #define OC_PCI_DEVICE 0x0300
 #endif
 #ifdef __VGA__
-#define OC_PCI_VENDOR 0x2321
+#define OC_PCI_VENDOR 0x1895
 #define OC_PCI_DEVICE 0x0001
 #endif
 
