@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
+// Revision 1.5  2002/09/30 16:03:04  mihad
+// Added meta flop module for easier meta stable FF identification during synthesis
+//
 // Revision 1.4  2002/09/25 15:53:52  mihad
 // Removed all logic from asynchronous reset network
 //
@@ -502,17 +505,18 @@ end
 // synchronize transaction ready output to reading clock
 // transaction ready is set when incoming transaction count is not equal to outgoing transaction count (what goes in must come out logic)
 // transaction ready is cleared when whole transaction is pulled out of fifo (otherwise it could stay set for additional cycle and result in wrong op.)
-reg wbw_transaction_ready_out ;
-always@(posedge pci_clock_in or posedge wbw_clear)
-begin
-    if (wbw_clear)
-        wbw_transaction_ready_out <= #`FF_DELAY 1'b0 ;
-    else
-    if ( out_count_en )
-        wbw_transaction_ready_out <= #`FF_DELAY 1'b0 ;
-    else
-        wbw_transaction_ready_out <= #`FF_DELAY inGreyCount != outGreyCount ;
-end
+wire wbw_transaction_ready_flop_i = inGreyCount != outGreyCount ;
+
+meta_flop #(0) i_meta_flop_wbw_transaction_ready
+(
+    .rst_i      (wbw_clear),
+    .clk_i      (pci_clock_in),
+    .ld_i       (out_count_en),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (wbw_transaction_ready_flop_i),
+    .meta_q_o   (wbw_transaction_ready_out)
+) ;
 
 endmodule
 

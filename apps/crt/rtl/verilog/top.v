@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.3  2002/09/30 16:03:06  mihad
+// Added meta flop module for easier meta stable FF identification during synthesis
+//
 // Revision 1.2  2002/02/01 15:24:46  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -57,8 +60,6 @@
 module TOP
 (
     CLK,
-    AD,
-    CBE,
     RST,
     INTA,
     REQ,
@@ -72,6 +73,42 @@ module TOP
     PAR,
     PERR,
     SERR,
+    AD0,
+    AD1,
+    AD2,
+    AD3,
+    AD4,
+    AD5,
+    AD6,
+    AD7,
+    AD8,
+    AD9,
+    AD10,
+    AD11,
+    AD12,
+    AD13,
+    AD14,
+    AD15,
+    AD16,
+    AD17,
+    AD18,
+    AD19,
+    AD20,
+    AD21,
+    AD22,
+    AD23,
+    AD24,
+    AD25,
+    AD26,
+    AD27,
+    AD28,
+    AD29,
+    AD30,
+    AD31,
+    CBE0,
+    CBE1,
+    CBE2,
+    CBE3,
 
 /*    CLK_I,
     RST_I,
@@ -108,13 +145,62 @@ module TOP
     CRT_CLK,
     HSYNC,
     VSYNC,
-    RGB,
+
+    RGB4,
+    RGB5,
+    RGB6,
+    RGB7,
+    RGB8,
+    RGB9,
+    RGB10,
+    RGB11,
+    RGB12,
+    RGB13,
+    RGB14,
+    RGB15,
+    
     LED
 );
 
 input           CLK ;
-inout   [31:0]  AD ;
-inout   [3:0]   CBE ;
+inout           AD0,
+                AD1,
+                AD2,
+                AD3,
+                AD4,
+                AD5,
+                AD6,
+                AD7,
+                AD8,
+                AD9,
+                AD10,
+                AD11,
+                AD12,
+                AD13,
+                AD14,
+                AD15,
+                AD16,
+                AD17,
+                AD18,
+                AD19,
+                AD20,
+                AD21,
+                AD22,
+                AD23,
+                AD24,
+                AD25,
+                AD26,
+                AD27,
+                AD28,
+                AD29,
+                AD30,
+                AD31 ;
+
+inout           CBE0,
+                CBE1,
+                CBE2,
+                CBE3 ;
+
 inout           RST ;
 inout           INTA ;
 output          REQ ;
@@ -133,7 +219,18 @@ input           CRT_CLK ;
 // CRT outputs
 output          HSYNC ;
 output          VSYNC ;
-output  [15:4]  RGB ;
+output          RGB4,
+                RGB5,
+                RGB6,
+                RGB7,
+                RGB8,
+                RGB9,
+                RGB10,
+                RGB11,
+                RGB12,
+                RGB13,
+                RGB14,
+                RGB15 ;
 output			LED ;
 
 // WISHBONE system signals
@@ -173,9 +270,50 @@ wire    [31:0]  AD_out ;
 wire    [31:0]  AD_en ;
 
 
-wire    [31:0]  AD_in = AD ;
+wire    [31:0]  AD_in = 
+{
+    AD31,
+    AD30,
+    AD29,
+    AD28,
+    AD27,
+    AD26,
+    AD25,
+    AD24,
+    AD23,
+    AD22,
+    AD21,
+    AD20,
+    AD19,
+    AD18,
+    AD17,
+    AD16,
+    AD15,
+    AD14,
+    AD13,
+    AD12,
+    AD11,
+    AD10,
+    AD9,
+    AD8,
+    AD7,
+    AD6,
+    AD5,
+    AD4,
+    AD3,
+    AD2,
+    AD1,
+    AD0
+} ;
 
-wire    [3:0]   CBE_in = CBE ;
+wire    [3:0]   CBE_in = 
+{
+    CBE3,
+    CBE2,
+    CBE1,
+    CBE0
+} ;
+
 wire    [3:0]   CBE_out ;
 wire    [3:0]   CBE_en ;
 
@@ -321,43 +459,43 @@ PCI_BRIDGE32 bridge
 );
 
 // PCI IO buffers instantiation
-bufif0 AD_buf0   ( AD[0],  AD_out[0], AD_en[0]) ;
-bufif0 AD_buf1   ( AD[1],  AD_out[1], AD_en[1]) ;
-bufif0 AD_buf2   ( AD[2],  AD_out[2], AD_en[2]) ;
-bufif0 AD_buf3   ( AD[3],  AD_out[3], AD_en[3]) ;
-bufif0 AD_buf4   ( AD[4],  AD_out[4], AD_en[4]) ;
-bufif0 AD_buf5   ( AD[5],  AD_out[5], AD_en[5]) ;
-bufif0 AD_buf6   ( AD[6],  AD_out[6], AD_en[6]) ;
-bufif0 AD_buf7   ( AD[7],  AD_out[7], AD_en[7]) ;
-bufif0 AD_buf8   ( AD[8],  AD_out[8], AD_en[8]) ;
-bufif0 AD_buf9   ( AD[9],  AD_out[9], AD_en[9]) ;
-bufif0 AD_buf10  ( AD[10], AD_out[10],AD_en[10] ) ;
-bufif0 AD_buf11  ( AD[11], AD_out[11],AD_en[11] ) ;
-bufif0 AD_buf12  ( AD[12], AD_out[12],AD_en[12] ) ;
-bufif0 AD_buf13  ( AD[13], AD_out[13],AD_en[13] ) ;
-bufif0 AD_buf14  ( AD[14], AD_out[14],AD_en[14] ) ;
-bufif0 AD_buf15  ( AD[15], AD_out[15],AD_en[15] ) ;
-bufif0 AD_buf16  ( AD[16], AD_out[16],AD_en[16] ) ;
-bufif0 AD_buf17  ( AD[17], AD_out[17],AD_en[17] ) ;
-bufif0 AD_buf18  ( AD[18], AD_out[18],AD_en[18] ) ;
-bufif0 AD_buf19  ( AD[19], AD_out[19],AD_en[19] ) ;
-bufif0 AD_buf20  ( AD[20], AD_out[20],AD_en[20] ) ;
-bufif0 AD_buf21  ( AD[21], AD_out[21],AD_en[21] ) ;
-bufif0 AD_buf22  ( AD[22], AD_out[22],AD_en[22] ) ;
-bufif0 AD_buf23  ( AD[23], AD_out[23],AD_en[23] ) ;
-bufif0 AD_buf24  ( AD[24], AD_out[24],AD_en[24] ) ;
-bufif0 AD_buf25  ( AD[25], AD_out[25],AD_en[25] ) ;
-bufif0 AD_buf26  ( AD[26], AD_out[26],AD_en[26] ) ;
-bufif0 AD_buf27  ( AD[27], AD_out[27],AD_en[27] ) ;
-bufif0 AD_buf28  ( AD[28], AD_out[28],AD_en[28] ) ;
-bufif0 AD_buf29  ( AD[29], AD_out[29],AD_en[29] ) ;
-bufif0 AD_buf30  ( AD[30], AD_out[30],AD_en[30] ) ;
-bufif0 AD_buf31  ( AD[31], AD_out[31],AD_en[31] ) ;
+bufif0 AD_buf0   ( AD0,  AD_out[0], AD_en[0]) ;
+bufif0 AD_buf1   ( AD1,  AD_out[1], AD_en[1]) ;
+bufif0 AD_buf2   ( AD2,  AD_out[2], AD_en[2]) ;
+bufif0 AD_buf3   ( AD3,  AD_out[3], AD_en[3]) ;
+bufif0 AD_buf4   ( AD4,  AD_out[4], AD_en[4]) ;
+bufif0 AD_buf5   ( AD5,  AD_out[5], AD_en[5]) ;
+bufif0 AD_buf6   ( AD6,  AD_out[6], AD_en[6]) ;
+bufif0 AD_buf7   ( AD7,  AD_out[7], AD_en[7]) ;
+bufif0 AD_buf8   ( AD8,  AD_out[8], AD_en[8]) ;
+bufif0 AD_buf9   ( AD9,  AD_out[9], AD_en[9]) ;
+bufif0 AD_buf10  ( AD10, AD_out[10],AD_en[10] ) ;
+bufif0 AD_buf11  ( AD11, AD_out[11],AD_en[11] ) ;
+bufif0 AD_buf12  ( AD12, AD_out[12],AD_en[12] ) ;
+bufif0 AD_buf13  ( AD13, AD_out[13],AD_en[13] ) ;
+bufif0 AD_buf14  ( AD14, AD_out[14],AD_en[14] ) ;
+bufif0 AD_buf15  ( AD15, AD_out[15],AD_en[15] ) ;
+bufif0 AD_buf16  ( AD16, AD_out[16],AD_en[16] ) ;
+bufif0 AD_buf17  ( AD17, AD_out[17],AD_en[17] ) ;
+bufif0 AD_buf18  ( AD18, AD_out[18],AD_en[18] ) ;
+bufif0 AD_buf19  ( AD19, AD_out[19],AD_en[19] ) ;
+bufif0 AD_buf20  ( AD20, AD_out[20],AD_en[20] ) ;
+bufif0 AD_buf21  ( AD21, AD_out[21],AD_en[21] ) ;
+bufif0 AD_buf22  ( AD22, AD_out[22],AD_en[22] ) ;
+bufif0 AD_buf23  ( AD23, AD_out[23],AD_en[23] ) ;
+bufif0 AD_buf24  ( AD24, AD_out[24],AD_en[24] ) ;
+bufif0 AD_buf25  ( AD25, AD_out[25],AD_en[25] ) ;
+bufif0 AD_buf26  ( AD26, AD_out[26],AD_en[26] ) ;
+bufif0 AD_buf27  ( AD27, AD_out[27],AD_en[27] ) ;
+bufif0 AD_buf28  ( AD28, AD_out[28],AD_en[28] ) ;
+bufif0 AD_buf29  ( AD29, AD_out[29],AD_en[29] ) ;
+bufif0 AD_buf30  ( AD30, AD_out[30],AD_en[30] ) ;
+bufif0 AD_buf31  ( AD31, AD_out[31],AD_en[31] ) ;
 
-bufif0 CBE_buf0 ( CBE[0], CBE_out[0], CBE_en[0] ) ;
-bufif0 CBE_buf1 ( CBE[1], CBE_out[1], CBE_en[1] ) ;
-bufif0 CBE_buf2 ( CBE[2], CBE_out[2], CBE_en[2] ) ;
-bufif0 CBE_buf3 ( CBE[3], CBE_out[3], CBE_en[3] ) ;
+bufif0 CBE_buf0 ( CBE0, CBE_out[0], CBE_en[0] ) ;
+bufif0 CBE_buf1 ( CBE1, CBE_out[1], CBE_en[1] ) ;
+bufif0 CBE_buf2 ( CBE2, CBE_out[2], CBE_en[2] ) ;
+bufif0 CBE_buf3 ( CBE3, CBE_out[3], CBE_en[3] ) ;
 
 bufif0 FRAME_buf    ( FRAME, FRAME_out, FRAME_en ) ;
 bufif0 IRDY_buf     ( IRDY, IRDY_out, IRDY_en ) ;
@@ -424,7 +562,7 @@ CRTC_IOB crt_out_reg
     .rgb_in(rgb_int[15:4]),
     .hsync_out(HSYNC),
     .vsync_out(VSYNC),
-    .rgb_out(RGB)
+    .rgb_out({RGB15, RGB14, RGB13, RGB12, RGB11, RGB10, RGB9, RGB8, RGB7, RGB6, RGB5, RGB4})
 ) ;
 
 endmodule

@@ -127,15 +127,15 @@ reg [(ADDR_LENGTH - 1):0] rgrey_next ; // next
 wire [(ADDR_LENGTH - 2):0] calc_rgrey_next  = raddr[(ADDR_LENGTH - 1):1] ^ raddr[(ADDR_LENGTH - 2):0] ;
 
 // FFs for registered empty and full flags
-reg empty ;
-reg full ;
+wire empty ;
+wire full ;
 
 // registered almost_empty and almost_full flags
-reg almost_empty ;
-reg almost_full ;
+wire almost_empty ;
+wire almost_full ;
 
 // write allow wire - writes are allowed when fifo is not full
-wire wallow = wenable_in && ~full ;
+wire wallow = wenable_in && !full ;
 
 // write allow output assignment
 assign wallow_out = wallow ;
@@ -147,7 +147,7 @@ wire rallow ;
 assign full_out  = full ;
 
 // almost full output assignment
-assign almost_full_out  = almost_full && ~full ;
+assign almost_full_out  = almost_full && !full ;
 
 // clear generation for FFs and registers
 wire clear = reset_in /*|| flush_in*/ ;     // flush not used for write fifo
@@ -161,26 +161,32 @@ begin
         wclock_nempty_detect <= #`FF_DELAY (rgrey_addr != wgrey_addr) ;
 end
 
-reg stretched_empty ;
-always@(posedge rclock_in or posedge clear)
-begin
-    if(clear)
-        stretched_empty <= #`FF_DELAY 1'b1 ;
-    else
-        stretched_empty <= #`FF_DELAY empty && ~wclock_nempty_detect ;
-end
+wire stretched_empty ;
+
+wire stretched_empty_flop_i = empty && ~wclock_nempty_detect ;
+
+meta_flop #(1) i_meta_flop_stretched_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (stretched_empty_flop_i),
+    .meta_q_o   (stretched_empty)
+) ;
 
 // empty output is actual empty + 1 read clock cycle ( stretched empty )
 assign empty_out = empty  || stretched_empty ;
 
 //rallow generation
-assign rallow = renable_in && ~empty && ~stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
+assign rallow = renable_in && !empty && !stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
 
 // rallow output assignment
 assign rallow_out = rallow ;
 
 // almost empty output assignment
-assign almost_empty_out = almost_empty && ~empty && ~stretched_empty ;
+assign almost_empty_out = almost_empty && !empty && !stretched_empty ;
 
 // at any clock edge that rallow is high, this register provides next read address, so wait cycles are not necessary
 // when FIFO is empty, this register provides actual read address, so first location can be read
@@ -355,7 +361,6 @@ Registered two left control:
 registered two left is set on rising edge of write clock when three locations are left in fifo and another is written to it.
 it's kept high until something is read/written from/to fifo.
 --------------------------------------------------------------------------------------------------------------------------------*/
-reg two_left_out ;
 wire comb_full          = wgrey_next == rgrey_addr ;
 wire comb_almost_full   = wgrey_addr == rgrey_minus2 ;
 wire comb_two_left      = wgrey_next == rgrey_minus2 ;
@@ -364,34 +369,43 @@ wire comb_three_left    = wgrey_next == rgrey_minus3 ;
 //combinatorial input to Registered full FlipFlop
 wire reg_full = (wallow && comb_almost_full) || (comb_full) ;
 
-always@(posedge wclock_in or posedge clear)
-begin
-	if (clear)
-		full <= #`FF_DELAY 1'b0 ;
-	else
-		full <= #`FF_DELAY reg_full ;
-end
+meta_flop #(0) i_meta_flop_full
+(
+    .rst_i       (clear),
+    .clk_i       (wclock_in),
+    .ld_i        (1'b0),
+    .ld_val_i    (1'b0),
+    .en_i        (1'b1), 
+    .d_i         (reg_full),
+    .meta_q_o    (full)
+) ;
 
 // input for almost full flip flop
 wire reg_almost_full_in = wallow && comb_two_left || comb_almost_full ;
 
-always@(posedge clear or posedge wclock_in)
-begin
-    if (clear)
-        almost_full <= #`FF_DELAY 1'b0 ;
-    else
-        almost_full <= #`FF_DELAY reg_almost_full_in ;
-end
+meta_flop #(0) i_meta_flop_almost_full
+(
+    .rst_i       (clear),
+    .clk_i       (wclock_in),
+    .ld_i        (1'b0),
+    .ld_val_i    (1'b0),
+    .en_i        (1'b1),
+    .d_i         (reg_almost_full_in),
+    .meta_q_o    (almost_full)
+) ;
 
 wire reg_two_left_in = wallow && comb_three_left || comb_two_left ;
 
-always@(posedge clear or posedge wclock_in)
-begin
-    if (clear)
-        two_left_out <= #`FF_DELAY 1'b0 ;
-    else
-        two_left_out <= #`FF_DELAY reg_two_left_in ;
-end
+meta_flop #(0) i_meta_flop_two_left
+(
+    .rst_i       (clear),
+    .clk_i       (wclock_in),
+    .ld_i        (1'b0),
+    .ld_val_i    (1'b0),
+    .en_i        (1'b1),
+    .d_i         (reg_two_left_in),
+    .meta_q_o    (two_left_out)
+) ;
 
 /*------------------------------------------------------------------------------------------------------------------------------
 Registered empty control:
@@ -410,22 +424,29 @@ wire comb_two_used      = rgrey_next == wgrey_minus1 ;
 // combinatorial input for registered emty FlipFlop
 wire reg_empty = (rallow && comb_almost_empty) || comb_empty ;
 
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        empty <= #`FF_DELAY 1'b1 ;
-	else
-        empty <= #`FF_DELAY reg_empty ;
-end
+meta_flop #(1) i_meta_flop_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (reg_empty),
+    .meta_q_o   (empty)
+) ;
 
 // input for almost empty flip flop
 wire reg_almost_empty = rallow && comb_two_used || comb_almost_empty ;
-always@(posedge clear or posedge rclock_in)
-begin
-    if (clear)
-        almost_empty <= #`FF_DELAY 1'b0 ;
-    else
-        almost_empty <= #`FF_DELAY reg_almost_empty ;
-end
+
+meta_flop #(0) i_meta_flop_almost_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (reg_almost_empty),
+    .meta_q_o   (almost_empty)
+) ;
 
 endmodule

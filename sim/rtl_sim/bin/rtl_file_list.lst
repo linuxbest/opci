@@ -51,3 +51,4 @@
 ../../../rtl/verilog/pci_rst_int.v
 ../../../rtl/verilog/sync_module.v
 ../../../rtl/verilog/wb_tpram.v
+../../../rtl/verilog/meta_flop.v

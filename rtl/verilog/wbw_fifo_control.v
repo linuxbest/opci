@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_fifo_control.v,v $
+// Revision 1.5  2002/09/30 16:03:04  mihad
+// Added meta flop module for easier meta stable FF identification during synthesis
+//
 // Revision 1.4  2002/09/25 15:53:52  mihad
 // Removed all logic from asynchronous reset network
 //
@@ -132,17 +135,17 @@ reg [(ADDR_LENGTH - 1):0] rgrey_next ; // next
 wire [(ADDR_LENGTH - 2):0] calc_rgrey_next  = raddr[(ADDR_LENGTH - 1):1] ^ raddr[(ADDR_LENGTH - 2):0] ;
 
 // FFs for registered empty and full flags
-reg empty ;
-reg full ;
+wire empty ;
+wire full ;
 
 // almost_full tag
-reg almost_full ;
+wire almost_full ;
 
 // write allow wire - writes are allowed when fifo is not full
-wire wallow = wenable_in && ~full ;
+wire wallow = wenable_in && !full ;
 
 // write allow output assignment
-assign wallow_out = wallow && ~full ;
+assign wallow_out = wallow && !full ;
 
 // read allow wire
 wire rallow ;
@@ -151,7 +154,7 @@ wire rallow ;
 assign full_out  = full ;
 
 // almost full output assignment
-assign almost_full_out  = almost_full && ~full ;
+assign almost_full_out  = almost_full && !full ;
 
 // clear generation for FFs and registers
 wire clear = reset_in /*|| flush_in*/ ;     // flush not used
@@ -166,20 +169,26 @@ begin
 end
 
 // special synchronizing mechanism for different implementations - in synchronous imp., empty is prolonged for 1 clock edge if no write clock comes after initial write
-reg stretched_empty ;
-always@(posedge rclock_in or posedge clear)
-begin
-    if(clear)
-        stretched_empty <= #`FF_DELAY 1'b1 ;
-    else
-        stretched_empty <= #`FF_DELAY empty && ~wclock_nempty_detect ;
-end
+wire stretched_empty ;
+
+wire stretched_empty_flop_i = empty && !wclock_nempty_detect ;
+
+meta_flop #(1) i_meta_flop_stretched_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (stretched_empty_flop_i),
+    .meta_q_o   (stretched_empty)
+) ;
 
 // empty output is actual empty + 1 read clock cycle ( stretched empty )
 assign empty_out = empty || stretched_empty ;
 
 //rallow generation
-assign rallow = renable_in && ~empty && ~stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
+assign rallow = renable_in && !empty && !stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
 
 // rallow output assignment
 assign rallow_out = rallow ;
@@ -329,24 +338,30 @@ It is set until something is read/written from/to fifo
 //combinatorial input to Registered full FlipFlop
 wire reg_full = wallow && (wgrey_next == rgrey_minus1) || (wgrey_next == rgrey_addr) ;
 
-always@(posedge wclock_in or posedge clear)
-begin
-	if (clear)
-		full <= #`FF_DELAY 1'b0 ;
-	else
-		full <= #`FF_DELAY reg_full ;
-end
+meta_flop #(0) i_meta_flop_full
+(
+    .rst_i      (clear),
+    .clk_i      (wclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (reg_full),
+    .meta_q_o   (full)
+) ;
 
 // input for almost full latch
 wire reg_almost_full_in = wallow && (wgrey_next == rgrey_minus2) || (wgrey_next == rgrey_minus1) ;
 
-always@(posedge clear or posedge wclock_in)
-begin
-    if (clear)
-        almost_full <= #`FF_DELAY 1'b0 ;
-    else
-        almost_full <= #`FF_DELAY reg_almost_full_in ;
-end
+meta_flop #(0) i_meta_flop_almost_full
+(
+    .rst_i      (clear),
+    .clk_i      (wclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (reg_almost_full_in),
+    .meta_q_o   (almost_full)
+) ;
 
 /*------------------------------------------------------------------------------------------------------------------------------
 Registered empty control:
@@ -362,12 +377,15 @@ wire comb_almost_empty = (rgrey_next == wgrey_addr) ;
 wire comb_empty        = (rgrey_addr == wgrey_addr) ;
 wire reg_empty         = renable_in && comb_almost_empty  || comb_empty ;
 
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        empty <= #`FF_DELAY 1'b1 ;
-	else
-        empty <= #`FF_DELAY reg_empty ;
-end
+meta_flop #(1) i_meta_flop_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (reg_empty),
+    .meta_q_o   (empty)
+) ;
 
 endmodule

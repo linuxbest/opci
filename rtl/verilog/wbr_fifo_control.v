@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbr_fifo_control.v,v $
+// Revision 1.5  2002/09/30 16:03:04  mihad
+// Added meta flop module for easier meta stable FF identification during synthesis
+//
 // Revision 1.4  2002/09/25 15:53:52  mihad
 // Removed all logic from asynchronous reset network
 //
@@ -125,7 +128,7 @@ reg [(ADDR_LENGTH - 1):0] rgrey_next ; // next
 wire [(ADDR_LENGTH - 2):0] calc_rgrey_next  = raddr[(ADDR_LENGTH - 1):1] ^ raddr[(ADDR_LENGTH - 2):0] ;
 
 // FF for registered empty flag
-reg empty ;
+wire empty ;
 
 // write allow wire
 wire wallow = wenable_in ;
@@ -149,20 +152,26 @@ begin
 end
 
 // special synchronizing mechanism for different implementations - in synchronous imp., empty is prolonged for 1 clock edge if no write clock comes after initial write
-reg stretched_empty ;
-always@(posedge rclock_in or posedge clear)
-begin
-    if(clear)
-        stretched_empty <= #`FF_DELAY 1'b1 ;
-    else
-        stretched_empty <= #`FF_DELAY empty && ~wclock_nempty_detect ;
-end
+wire stretched_empty ;
+
+wire stretched_empty_flop_i = empty && !wclock_nempty_detect ;
+
+meta_flop #(1) i_meta_flop_stretched_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (1'b0),
+    .ld_val_i   (1'b0),
+    .en_i       (1'b1),
+    .d_i        (stretched_empty_flop_i),
+    .meta_q_o   (stretched_empty)
+) ;
 
 // empty output is actual empty + 1 read clock cycle ( stretched empty )
 assign empty_out = empty  || stretched_empty ;
 
 //rallow generation
-assign rallow = renable_in && ~empty && ~stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
+assign rallow = renable_in && !empty && !stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
 
 // rallow output assignment
 assign rallow_out = renable_in ;
@@ -281,14 +290,15 @@ the next read clock.
 // combinatorial input for registered emty FlipFlop
 wire reg_empty = (rallow && (rgrey_next == wgrey_addr)) || (rgrey_addr == wgrey_addr) ;
 
-always@(posedge rclock_in or posedge clear)
-begin
-    if (clear)
-        empty <= #`FF_DELAY 1'b1 ;
-    else if (flush_in)
-        empty <= #1 1'b1 ;  // when flushed, set empty to active
-	else
-        empty <= #`FF_DELAY reg_empty ;
-end
+meta_flop #(1) i_meta_flop_empty
+(
+    .rst_i      (clear),
+    .clk_i      (rclock_in),
+    .ld_i       (flush_in),
+    .ld_val_i   (1'b1),
+    .en_i       (1'b1),
+    .d_i        (reg_empty),
+    .meta_q_o   (empty)
+) ;
 
 endmodule
