@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.5  2002/08/22 09:07:06  mihad
+// Fixed a bug and provided testcase for it. Target was responding to configuration cycle type 1 transactions.
+//
 // Revision 1.4  2002/02/19 16:32:37  mihad
 // Modified testbench and fixed some bugs
 //
@@ -275,7 +278,9 @@ wire    addr_phase = (previous_frame && ~pci_frame_reg_in && ~wbu_frame_en_in) ;
             wire    read_progress   =   ( (read_completed_in && wbw_fifo_empty_in) ) ;
     `else
             // Wire tells when there is configuration (read or write) command with IDSEL signal active
-            wire    config_access = ((pci_idsel_reg_in && pci_cbe_reg_in[3]) && (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1])) ;
+            wire    config_access = (pci_idsel_reg_in && pci_cbe_reg_in[3]) && (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1]) &&     // idsel asserted with correct bus command(101x)
+                                    (pci_ad_reg_in[1:0] == 2'b00) ;        // has to be type 0 configuration cycle
+    
             // Write and read progresses are used for determining next state
             wire    write_progress  =   ( (norm_access_to_config_in) || 
             							  (read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ||
@@ -285,7 +290,9 @@ wire    addr_phase = (previous_frame && ~pci_frame_reg_in && ~wbu_frame_en_in) ;
     `endif
 `else
             // Wire tells when there is configuration (read or write) command with IDSEL signal active
-            wire    config_access = ((pci_idsel_reg_in && pci_cbe_reg_in[3]) && (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1])) ;
+            wire    config_access = (pci_idsel_reg_in && pci_cbe_reg_in[3]) && (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1]) &&     // idsel asserted with correct bus command(101x)
+                                    (pci_ad_reg_in[1:0] == 2'b00) ;        // has to be type 0 configuration cycle
+
             // Write and read progresses are used for determining next state
             wire    write_progress  =   ( (norm_access_to_config_in) || 
             							  (read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ||

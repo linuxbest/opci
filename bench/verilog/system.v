@@ -3,6 +3,15 @@
 `include "pci_testbench_defines.v"
 `include "timescale.v"
 
+`ifdef HOST
+    `ifdef NO_CNF_IMAGE
+    `else
+        `define TEST_CONF_CYCLE_TYPE1_REFERENCE
+    `endif
+`else
+    `define TEST_CONF_CYCLE_TYPE1_REFERENCE
+`endif
+
 module SYSTEM ;
 
 `include "pci_blue_constants.vh"
@@ -820,6 +829,10 @@ begin
 
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
+
+            `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
+                test_conf_cycle_type1_reference ;
+            `endif
 
             `ifdef HOST
              `ifdef NO_CNF_IMAGE
@@ -9740,6 +9753,120 @@ begin:main
 end //main
 endtask // configuration_cycle_read
 
+`ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
+task test_conf_cycle_type1_reference ;
+    reg [31:0] address ;
+    reg in_use ;
+
+    reg master_check_data_prev ;
+    reg [31:0] data ;
+    reg monitor_ok ;
+    reg master_ok ;
+begin:main
+
+    if ( in_use === 1 )
+    begin
+        $display("test_conf_cycle_type1_reference task re-entered! Time %t ", $time) ;
+        disable main ;
+    end
+
+    in_use = 1 ;
+
+    master_check_data_prev = master1_check_received_data ;
+
+    test_name = "NO RESPONSE TO CONFIGURATION CYCLE TYPE 1 READ TARGET REFERENCE" ;
+    address = `TAR0_IDSEL_ADDR ;
+
+    address[1:0] = 2'b01 ;
+
+    `ifdef HOST
+        conf_cyc_type1_target_bus_num = 255 ;
+    `endif
+    master_ok = 1 ;
+    fork
+    begin
+        PCIU_CONFIG_READ_MASTER_ABORT ("CFG_READ  ", `Test_Master_1, address, 4'hE) ;
+        do_pause(1) ;
+    end
+    begin:error_monitor1
+        @(error_event_int) ;
+        master_ok = 0 ;
+        test_fail("PCI Behavioral master signaled an error during the target reference") ;
+    end
+    begin
+        pci_transaction_progress_monitor
+        (
+            address,                                                // expected address on PCI bus
+            `BC_CONF_READ,                                          // expected bus command on PCI bus
+            0,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            monitor_ok                                              // status - 1 success, 0 failure
+        ) ;
+
+        @(posedge pci_clock);
+        #1 ;
+
+        if (master_ok)
+            disable error_monitor1 ;
+
+        if (!monitor_ok)
+            test_fail("PCI Transaction Monitor detected unexpected transaction on PCI bus") ;
+    end
+    join
+
+    if (monitor_ok && master_ok)
+        test_ok ;
+
+    test_name = "NO RESPONSE TO CONFIGURATION CYCLE TYPE 1 WRITE TARGET REFERENCE" ;
+    master_ok = 1 ;
+    fork
+    begin
+        PCIU_CONFIG_WRITE_MASTER_ABORT ("CFG_WRITE ", `Test_Master_1, address, 4'hF) ;
+        do_pause(1) ;
+    end
+    begin:error_monitor2
+        @(error_event_int) ;
+        master_ok = 0 ;
+        test_fail("PCI Behavioral master signaled an error during the target reference") ;
+    end
+    begin
+        pci_transaction_progress_monitor
+        (
+            address,                                                // expected address on PCI bus
+            `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+            0,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            monitor_ok                                              // status - 1 success, 0 failure
+        ) ;
+
+        @(posedge pci_clock);
+        #1 ;
+
+        if (master_ok)
+            disable error_monitor2 ;
+
+        if (!monitor_ok)
+            test_fail("PCI Transaction Monitor detected unexpected transaction on PCI bus") ;
+    end
+    join
+
+    master1_check_received_data = master_check_data_prev ;
+
+    if (monitor_ok && master_ok)
+        test_ok ;
+
+    in_use = 0 ;
+
+end //main
+endtask // test_conf_cycle_type1_reference
+`endif
+
 `ifdef HOST
 task generate_configuration_cycle ;
     input [7:0]  bus_num ;
@@ -11563,11 +11690,12 @@ endtask // DO_REF
 task PCIU_CONFIG_READ_MASTER_ABORT;
   input  [79:0] name;
   input  [2:0] master_number;
-  input  [9:0] size;
+  input  [31:0] address ;
+  input  [3:0] be ;
   begin
-    DO_REF (name[79:0], master_number[2:0], `NO_DEVICE_IDSEL_ADDR,
-               PCI_COMMAND_CONFIG_READ, 32'h76543210, `Test_All_Bytes, size[9:0],
-              `Test_Addr_Perr, `Test_Data_Perr, `Test_One_Zero_Master_WS,
+    DO_REF (name[79:0], master_number[2:0], address,
+               PCI_COMMAND_CONFIG_READ, 32'h76543210, ~be, 1,
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, `Test_One_Zero_Master_WS,
               `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
   end
@@ -11577,11 +11705,12 @@ endtask // PCIU_CONFIG_READ_MASTER_ABORT
 task PCIU_CONFIG_WRITE_MASTER_ABORT;
   input  [79:0] name;
   input  [2:0] master_number;
-  input  [9:0] size;
+  input  [31:0] address ;
+  input  [3:0] be ;
   begin
-    DO_REF (name[79:0], master_number[2:0], `NO_DEVICE_IDSEL_ADDR,
-               PCI_COMMAND_CONFIG_WRITE, 32'h76543210, `Test_All_Bytes, size[9:0],
-              `Test_Addr_Perr, `Test_Data_Perr, `Test_One_Zero_Master_WS,
+    DO_REF (name[79:0], master_number[2:0], address,
+               PCI_COMMAND_CONFIG_WRITE, 32'h76543210, ~be, 1,
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, `Test_One_Zero_Master_WS,
               `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
   end
