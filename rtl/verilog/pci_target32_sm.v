@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.7  2002/09/24 19:09:17  mihad
+// Number of state bits define was removed
+//
 // Revision 1.6  2002/09/24 18:30:00  mihad
 // Changed state machine encoding to true one-hot
 //
@@ -61,8 +64,6 @@
 // New project directory structure
 //
 //
-
-`define P_FSM_BITS 2 // number of bits needed for FSM states
 
 `include "pci_constants.v"
 
@@ -457,8 +458,8 @@ PCI_TARGET32_CLK_EN         pci_target_clock_en
     .clk_enable             (pcit_sm_clk_en)
 );
 
-reg [(`P_FSM_BITS - 1):0]  c_state ; //current state register
-reg [(`P_FSM_BITS - 1):0]  n_state ; //next state input to current state register
+reg [2:0]  c_state ; //current state register
+reg [2:0]  n_state ; //next state input to current state register
 
 // state machine register control
 always@(posedge clk_in or posedge reset_in)
