@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.11  2003/12/28 09:20:00  fr2201
+// Reset values for PCI, WB defined (PCI_TAx,WB_BAx,WB_TAx,WB_AMx,WB_BAx_MEM_IO)
+//
 // Revision 1.10  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -181,6 +184,16 @@
 `define PCI_BA4_MEM_IO 1'b0
 `define PCI_BA5_MEM_IO 1'b1
 
+// initial value for PCI translation addresses. The  initial values
+// are set after reset. When ADDR_TRAN_IMPL is defined then then Images 
+// are transleted to this adresses whithout access to pci_ta registers.
+`define PCI_TA0 20'h1000_0
+`define PCI_TA1 20'h2000_0
+`define PCI_TA2 20'h3000_0
+`define PCI_TA3 20'h4000_0
+`define PCI_TA4 20'h5000_0
+`define PCI_TA5 20'h6000_0
+
 // number defined here specifies how many MS bits in WB address are compared with base address, to decode
 // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of WB images,
@@ -197,10 +210,42 @@
 `define WB_IMAGE3
 `define WB_IMAGE4
 `define WB_IMAGE5
+//Address bar register defines the base address for each image.
+//To asccess bus without Software configuration.
+`define  WB_BA1	20'h1000_0
+`define  WB_BA2	20'h2000_0
+`define  WB_BA3	20'h3000_0
+`define  WB_BA4	20'h4000_0
+`define  WB_BA5	20'h5000_0
+
+// initial value for WB image maping to MEMORY or IO spaces.  If initial define is set to 0,
+// then IMAGE with that base address points to MEMORY space, othervise it points ti IO space.
+`define  WB_BA1_MEM_IO  1'b0
+`define  WB_BA2_MEM_IO  1'b0
+`define  WB_BA3_MEM_IO	1'b0
+`define  WB_BA4_MEM_IO	1'b0
+`define  WB_BA5_MEM_IO	1'b0  
+
+// initial value for WB image address masks. 
+`define  WB_AM1 20'hffff_f
+`define  WB_AM2 20'hffff_f
+`define  WB_AM3 20'hffff_f
+`define  WB_AM4 20'hffff_f
+`define  WB_AM5 20'hffff_f
+
+// initial value for WB translation addresses. The  initial values
+// are set after reset. When ADDR_TRAN_IMPL is defined then then Images 
+// are transleted to this adresses whithout access to pci_ta registers.
+`define WB_TA1 20'h2000_0
+`define WB_TA2 20'h3000_0
+`define WB_TA3 20'h4000_0
+`define WB_TA4 20'h5000_0
+`define WB_TA5 20'h6000_0
 
 // If this define is commented out, then address translation will not be implemented.
 // addresses will pass through bridge unchanged, regardles of address translation enable bits.
 // Address translation also slows down the decoding
+//When  ADDR_TRAN_IMPL this define is present then adress translation is enabled after reset.
 `define ADDR_TRAN_IMPL
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow.

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_conf_space.v,v $
+// Revision 1.5  2003/12/28 09:20:00  fr2201
+// Reset values for PCI, WB defined (PCI_TAx,WB_BAx,WB_TAx,WB_AMx,WB_BAx_MEM_IO)
+//
 // Revision 1.4  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -1599,6 +1602,7 @@ assign	w_conf_pdata_reduced[(31-`PCI_NUM_OF_DEC_ADDR_LINES): 0]	= 0 ;
 assign	w_conf_wdata_reduced[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)]	= w_conf_data_in[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
 assign	w_conf_wdata_reduced[(31-`WB_NUM_OF_DEC_ADDR_LINES): 0]	= 0 ;
 
+
 always@(posedge w_clock or posedge reset)
 begin
 	// Here are implemented all registers that are reset with RESET signal otherwise they can be normaly written!!!
@@ -1614,11 +1618,15 @@ begin
 		`ifdef		HOST
 		  `ifdef	NO_CNF_IMAGE	// if PCI bridge is HOST and IMAGE0 is assigned as general image space
 		 	`ifdef	PCI_IMAGE0
-					pci_img_ctrl0_bit2_1 <= 2'h0 ;
+			 `ifdef ADDR_TRAN_IMPL      
+			        pci_img_ctrl0_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+             `else
+			        pci_img_ctrl0_bit2_1 <= 2'h0 ;
+          	 `endif
 					pci_ba0_bit31_12 <= 20'h0000_0 ;
 					pci_ba0_bit0 <= `PCI_BA0_MEM_IO ;
 					pci_am0 <= `PCI_AM0 ; 
-					pci_ta0 <= 20'h0000_0 ;
+					pci_ta0 <= `PCI_TA0 ;//fr2201 translation address 
 		 	`endif
 		  `else
 					pci_ba0_bit31_12 <= 20'h0000_0 ;
@@ -1627,80 +1635,125 @@ begin
 					pci_ba0_bit31_12 <= 20'h0000_0 ;
 		`endif
 
-		pci_img_ctrl1_bit2_1 <= 2'h0 ;
+		`ifdef ADDR_TRAN_IMPL      
+		       pci_img_ctrl1_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+        `else
+		       pci_img_ctrl1_bit2_1 <= 2'h0 ;
+        `endif
 		pci_ba1_bit31_12 <= 20'h0000_0 ; 
 	`ifdef	HOST
 		pci_ba1_bit0 <= `PCI_BA1_MEM_IO ;
 	`endif
 		pci_am1 <= `PCI_AM1;
-		pci_ta1 <= 20'h0000_0 ;
+		pci_ta1 <=  `PCI_TA1 ;//FR2201 translation address ;
 		`ifdef	PCI_IMAGE2
-        			pci_img_ctrl2_bit2_1 <= 2'h0 ;
+			`ifdef  ADDR_TRAN_IMPL      
+			        pci_img_ctrl2_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+        	`else
+			        pci_img_ctrl2_bit2_1 <= 2'h0 ;
+        	`endif
 					pci_ba2_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba2_bit0 <= `PCI_BA2_MEM_IO ;
 			`endif
 					pci_am2 <= `PCI_AM2;
-					pci_ta2 <= 20'h0000_0 ;
+					pci_ta2 <= `PCI_TA2 ;//FR2201 translation address ;
 		`endif
 		`ifdef	PCI_IMAGE3
-					pci_img_ctrl3_bit2_1 <= 2'h0 ;
+			`ifdef  ADDR_TRAN_IMPL      
+			        pci_img_ctrl3_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+            `else
+			        pci_img_ctrl3_bit2_1 <= 2'h0 ;
+        	`endif
         			pci_ba3_bit31_12 <= 20'h0000_0 ; 
         	`ifdef	HOST
         			pci_ba3_bit0 <= `PCI_BA3_MEM_IO ;
         	`endif
         			pci_am3 <= `PCI_AM3;
-					pci_ta3 <= 20'h0000_0 ;
+					pci_ta3 <=  `PCI_TA3 ;//FR2201 translation address ;
 		`endif
 		`ifdef	PCI_IMAGE4
-					pci_img_ctrl4_bit2_1 <= 2'h0 ;
+			`ifdef  ADDR_TRAN_IMPL      
+			        pci_img_ctrl4_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+        	`else
+			        pci_img_ctrl4_bit2_1 <= 2'h0 ;
+        	`endif
 					pci_ba4_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba4_bit0 <= `PCI_BA4_MEM_IO ;
 			`endif
 					pci_am4 <= `PCI_AM4;
-					pci_ta4 <= 20'h0000_0 ;
+					pci_ta4 <= `PCI_TA4 ;//FR2201  translation address ;
 		`endif
 		`ifdef	PCI_IMAGE5
-					pci_img_ctrl5_bit2_1 <= 2'h0 ;
+			`ifdef ADDR_TRAN_IMPL      
+			        pci_img_ctrl5_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
+        	`else
+			        pci_img_ctrl5_bit2_1 <= 2'h0 ;
+        	`endif
 					pci_ba5_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba5_bit0 <= `PCI_BA5_MEM_IO ;
 			`endif
-					pci_am5 <= `PCI_AM5;
-					pci_ta5 <= 20'h0000_0 ;
+					pci_am5 <= `PCI_AM5; //FR2201  pci_am0 
+					pci_ta5 <= `PCI_TA5 ;//FR2201  translation address ;
 		`endif
 		/*pci_err_cs_bit31_24 ; pci_err_cs_bit10; pci_err_cs_bit9 ; pci_err_cs_bit8 ;*/ pci_err_cs_bit0 <= 1'h0 ;
 		/*pci_err_addr ;*/
         /*pci_err_data ;*/
 		//
-		wb_img_ctrl1_bit2_0 <= 3'h0 ;
-		wb_ba1_bit31_12 <= 20'h0000_0 ; wb_ba1_bit0 <= 1'h0 ;
-		wb_am1 <= 20'h0000_0 ;
-		wb_ta1 <= 20'h0000_0 ;
+		`ifdef ADDR_TRAN_IMPL      
+		       wb_img_ctrl1_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
+        `else
+		       wb_img_ctrl1_bit2_0 <= 3'h0 ;
+        `endif
+		wb_ba1_bit31_12 <=`WB_BA1; //FR2201 Address bar 
+		wb_ba1_bit0 <=`WB_BA1_MEM_IO;//
+		wb_am1 <= `WB_AM1 ;//FR2201 Address mask 
+		wb_ta1 <= `WB_TA1 ;//FR2201 20'h0000_0 ;
         `ifdef	WB_IMAGE2
-					wb_img_ctrl2_bit2_0 <= 3'h0 ;
-					wb_ba2_bit31_12 <= 20'h0000_0 ; wb_ba2_bit0 <= 1'h0 ;
-					wb_am2 <= 20'h0000_0 ;
-					wb_ta2 <= 20'h0000_0 ;
+			 `ifdef ADDR_TRAN_IMPL      
+			        wb_img_ctrl2_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
+        	 `else
+			        wb_img_ctrl2_bit2_0 <= 3'h0 ;
+        	 `endif
+					wb_ba2_bit31_12 <=`WB_BA2; //FR2201 Address bar  
+					wb_ba2_bit0 <=`WB_BA2_MEM_IO;//
+					wb_am2 <=`WB_AM2 ;//FR2201 Address mask
+					wb_ta2 <=`WB_TA2 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE3
-					wb_img_ctrl3_bit2_0 <= 3'h0 ;
-					wb_ba3_bit31_12 <= 20'h0000_0 ; wb_ba3_bit0 <= 1'h0 ;
-					wb_am3 <= 20'h0000_0 ;
-					wb_ta3 <= 20'h0000_0 ;
+			 `ifdef ADDR_TRAN_IMPL      
+			        wb_img_ctrl3_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
+        	 `else
+			        wb_img_ctrl3_bit2_0 <= 3'h0 ;
+        	 `endif
+					wb_ba3_bit31_12 <=`WB_BA3; //FR2201 Address bar  
+					wb_ba3_bit0 <=`WB_BA3_MEM_IO;//
+					wb_am3 <=`WB_AM3 ;//FR2201 Address mask
+					wb_ta3 <=`WB_TA3 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE4
-					wb_img_ctrl4_bit2_0 <= 3'h0 ;
-					wb_ba4_bit31_12 <= 20'h0000_0 ; wb_ba4_bit0 <= 1'h0 ;
-					wb_am4 <= 20'h0000_0 ;
-					wb_ta4 <= 20'h0000_0 ;
+			 `ifdef ADDR_TRAN_IMPL      
+			        wb_img_ctrl4_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
+        	 `else
+			        wb_img_ctrl4_bit2_0 <= 3'h0 ;
+        	 `endif
+					wb_ba4_bit31_12 <=`WB_BA4; //FR2201 Address bar 
+					wb_ba4_bit0 <=`WB_BA4_MEM_IO;//
+					wb_am4 <=`WB_AM4 ;//FR2201 Address mask
+					wb_ta4 <=`WB_TA4 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE5
-					wb_img_ctrl5_bit2_0 <= 3'h0 ;
-        			wb_ba5_bit31_12 <= 20'h0000_0 ; wb_ba5_bit0 <= 1'h0 ;
-					wb_am5 <= 20'h0000_0 ;
-					wb_ta5 <= 20'h0000_0 ;
+			 `ifdef ADDR_TRAN_IMPL      
+			        wb_img_ctrl5_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
+        	 `else
+			        wb_img_ctrl5_bit2_0 <= 3'h0 ;
+        	 `endif
+        			wb_ba5_bit31_12 <=`WB_BA5; //FR2201 Address bar  ;
+        			wb_ba5_bit0 <=`WB_BA5_MEM_IO;//FR2201 1'h0 ;
+					wb_am5 <=`WB_AM5 ;//FR2201  Address mask
+					wb_ta5 <=`WB_TA5 ;//FR2201  translation address ;
 		`endif
 		/*wb_err_cs_bit31_24 ; wb_err_cs_bit10 ; wb_err_cs_bit9 ; wb_err_cs_bit8 ;*/ wb_err_cs_bit0 <= 1'h0 ;
 		/*wb_err_addr ;*/
