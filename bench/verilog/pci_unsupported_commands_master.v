@@ -179,6 +179,7 @@ begin:main
 
         if (received_termination == normal)
         begin
+            current_address = current_address + 4 ;
             insert_waits(1'b1, wait_cycles, received_termination) ;
             if (received_termination === normal)
             begin
