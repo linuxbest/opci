@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_master.v,v $
+// Revision 1.7  2002/12/05 12:19:23  mihad
+// *** empty log message ***
+//
 // Revision 1.6  2002/10/11 14:15:29  mihad
 // Cleaned up non-blocking assignments in combinatinal logic statements
 //
@@ -539,7 +542,7 @@ begin
         end
     end
     else
-        first_data_is_burst = pciw_fifo_control_in[`BURST_BIT] && ~pciw_fifo_empty_in ;
+        first_data_is_burst = pciw_fifo_control_in[`BURST_BIT] && ~pciw_fifo_empty_in && ~pciw_fifo_control_in[`LAST_CTRL_BIT];
 end
 
 // FF for seting and reseting burst_transfer signal
