@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_wbr_fifos.v,v $
+// Revision 1.5  2003/10/17 09:11:52  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.4  2003/08/14 13:06:03  simons
 // synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
 //
@@ -57,7 +60,7 @@
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
 // Revision 1.9  2002/10/18 03:36:37  tadejm
-// Changed wrong signal name scanb_sen into scanb_en.
+// Changed wrong signal name mbist_sen into mbist_ctrl_i.
 //
 // Revision 1.8  2002/10/17 22:49:22  tadejm
 // Changed BIST signals for RAMs.
@@ -123,11 +126,9 @@ module pci_wbw_wbr_fifos
 `ifdef PCI_BIST
     ,
     // debug chain signals
-    scanb_rst,      // bist scan reset
-    scanb_clk,      // bist scan clock
-    scanb_si,       // bist scan serial in
-    scanb_so,       // bist scan serial out
-    scanb_en        // bist scan shift enable
+    mbist_si_i,       // bist scan serial in
+    mbist_so_o,       // bist scan serial out
+    mbist_ctrl_i        // bist chain shift control
 `endif                        
 ) ;
 
@@ -233,11 +234,9 @@ output wbr_empty_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   scanb_rst;      // bist scan reset
-input   scanb_clk;      // bist scan clock
-input   scanb_si;       // bist scan serial in
-output  scanb_so;       // bist scan serial out
-input   scanb_en;       // bist scan shift enable
+input   mbist_si_i;       // bist scan serial in
+output  mbist_so_o;       // bist scan serial out
+input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 /*-----------------------------------------------------------------------------------------------------------
@@ -353,8 +352,8 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     wire wbr_read_enable = 1'b1 ;
 
     `ifdef PCI_BIST
-    wire scanb_so_internal ; // wires for connection of debug ports on two rams
-    wire scanb_si_internal = scanb_so_internal ;
+    wire mbist_so_o_internal ; // wires for connection of debug ports on two rams
+    wire mbist_si_i_internal = mbist_so_o_internal ;
     `endif
 
     // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
@@ -381,11 +380,9 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .scanb_rst      (scanb_rst),
-        .scanb_clk      (scanb_clk),
-        .scanb_si       (scanb_si),
-        .scanb_so       (scanb_so_internal),
-        .scanb_en       (scanb_en)
+        .mbist_si_i       (mbist_si_i),
+        .mbist_so_o       (mbist_so_o_internal),
+        .mbist_ctrl_i       (mbist_ctrl_i)
     `endif
     );
 
@@ -412,11 +409,9 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .scanb_rst      (scanb_rst),
-        .scanb_clk      (scanb_clk),
-        .scanb_si       (scanb_si_internal),
-        .scanb_so       (scanb_so),
-        .scanb_en       (scanb_en)
+        .mbist_si_i       (mbist_si_i_internal),
+        .mbist_so_o       (mbist_so_o),
+        .mbist_ctrl_i       (mbist_ctrl_i)
     `endif
     );
 
@@ -475,11 +470,9 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .scanb_rst      (scanb_rst),
-        .scanb_clk      (scanb_clk),
-        .scanb_si       (scanb_si),
-        .scanb_so       (scanb_so),
-        .scanb_en       (scanb_en)
+        .mbist_si_i       (mbist_si_i),
+        .mbist_so_o       (mbist_so_o),
+        .mbist_ctrl_i       (mbist_ctrl_i)
     `endif
     );
 

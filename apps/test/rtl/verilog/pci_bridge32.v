@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.2  2003/10/17 09:11:47  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.1  2003/06/12 02:55:26  mihad
 // Added a test application!
 //
@@ -53,7 +56,7 @@
 // Changed BIST signal names etc..
 //
 // Revision 1.7  2002/10/18 03:36:37  tadejm
-// Changed wrong signal name scanb_sen into scanb_en.
+// Changed wrong signal name mbist_sen into mbist_ctrl_i.
 //
 // Revision 1.6  2002/10/17 22:51:50  tadejm
 // Changed BIST signals for RAMs.
@@ -190,11 +193,9 @@ module pci_bridge32
 `ifdef PCI_BIST
     ,
     // debug chain signals
-    scanb_rst,      // bist scan reset
-    scanb_clk,      // bist scan clock
-    scanb_si,       // bist scan serial in
-    scanb_so,       // bist scan serial out
-    scanb_en        // bist scan shift enable
+    mbist_si_i,       // bist scan serial in
+    mbist_so_o,       // bist scan serial out
+    mbist_ctrl_i        // bist chain shift control
 `endif
 );
 
@@ -303,11 +304,9 @@ output [31:0] pci_ad_bckp_o ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   scanb_rst;      // bist scan reset
-input   scanb_clk;      // bist scan clock
-input   scanb_si;       // bist scan serial in
-output  scanb_so;       // bist scan serial out
-input   scanb_en;       // bist scan shift enable
+input   mbist_si_i;       // bist scan serial in
+output  mbist_so_o;       // bist scan serial out
+input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 
 // internal wires for serial chain connection
 wire SO_internal ;
@@ -827,11 +826,9 @@ pci_wb_slave_unit wishbone_slave_unit
 
 `ifdef PCI_BIST
     ,
-    .scanb_rst      (scanb_rst),
-    .scanb_clk      (scanb_clk),
-    .scanb_si       (scanb_si),
-    .scanb_so       (scanb_so_internal),
-    .scanb_en       (scanb_en)
+    .mbist_si_i       (mbist_si_i),
+    .mbist_so_o       (mbist_so_o_internal),
+    .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 );
 
@@ -1009,11 +1006,9 @@ pci_target_unit pci_target_unit
 
 `ifdef PCI_BIST
     ,
-    .scanb_rst      (scanb_rst),
-    .scanb_clk      (scanb_clk),
-    .scanb_si       (scanb_so_internal),
-    .scanb_so       (scanb_so),
-    .scanb_en       (scanb_en)
+    .mbist_si_i       (mbist_so_o_internal),
+    .mbist_so_o       (mbist_so_o),
+    .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 );
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.14  2003/10/17 09:11:52  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.13  2003/08/21 20:55:14  tadejm
 // Corrected bug when writing to FIFO (now it is registered).
 //
@@ -52,7 +55,7 @@
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
 // Revision 1.10  2002/10/18 03:36:37  tadejm
-// Changed wrong signal name scanb_sen into scanb_en.
+// Changed wrong signal name mbist_sen into mbist_ctrl_i.
 //
 // Revision 1.9  2002/10/17 22:51:08  tadejm
 // Changed BIST signals for RAMs.
@@ -184,11 +187,9 @@ module pci_target_unit
 `ifdef PCI_BIST
     ,
     // debug chain signals
-    scanb_rst,      // bist scan reset
-    scanb_clk,      // bist scan clock
-    scanb_si,       // bist scan serial in
-    scanb_so,       // bist scan serial out
-    scanb_en        // bist scan shift enable
+    mbist_si_i,       // bist scan serial in
+    mbist_so_o,       // bist scan serial out
+    mbist_ctrl_i        // bist chain shift control
 `endif
 );
 
@@ -293,11 +294,9 @@ output          pciu_pciw_fifo_empty_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   scanb_rst;      // bist scan reset
-input   scanb_clk;      // bist scan clock
-input   scanb_si;       // bist scan serial in
-output  scanb_so;       // bist scan serial out
-input   scanb_en;       // bist scan shift enable
+input   mbist_si_i;       // bist scan serial in
+output  mbist_so_o;       // bist scan serial out
+input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 
@@ -586,11 +585,9 @@ pci_pciw_pcir_fifos fifos
 
 `ifdef PCI_BIST
     ,
-    .scanb_rst      (scanb_rst),
-    .scanb_clk      (scanb_clk),
-    .scanb_si       (scanb_si),
-    .scanb_so       (scanb_so),
-    .scanb_en       (scanb_en)
+    .mbist_si_i       (mbist_si_i),
+    .mbist_so_o       (mbist_so_o),
+    .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 ) ;
 

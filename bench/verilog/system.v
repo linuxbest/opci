@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.20  2003/10/17 09:11:51  markom
+// mbist signals updated according to newest convention
+//
 // Revision 1.19  2003/08/21 21:00:38  tadejm
 // Added support for WB B3. Some testcases were updated.
 //
@@ -194,11 +197,11 @@ wire        TAR2_IDSEL = AD[`TAR2_IDSEL_INDEX] ;
 wire        reset_wb ; // reset to Wb devices
 
 `ifdef PCI_BIST
-wire scanb_so ;
-reg  scanb_si ;
-reg  scanb_rst ;
-reg  scanb_en ;
-reg  scanb_clk ;
+wire mbist_so_o ;
+reg  mbist_si_i ;
+reg  mbist_rst ;
+reg  mbist_en_i ;
+reg  mbist_clk ;
 `endif
 
 wire RST ;
@@ -272,11 +275,9 @@ TOP `PCI_BRIDGE_INSTANCE
 `ifdef PCI_BIST
     ,
     // bist chain signals
-    .scanb_rst  (scanb_rst),
-    .scanb_clk  (scanb_clk),
-    .scanb_si   (scanb_si),
-    .scanb_so   (scanb_so),
-    .scanb_en   (scanb_en)
+    .mbist_si_i   (mbist_si_i),
+    .mbist_so_o   (mbist_so_o),
+    .mbist_ctrl_i   ({mbist_en_i, mbist_clk, mbist_rst})
 `endif
 ) ;
 
@@ -707,10 +708,10 @@ initial
 begin
 
 `ifdef PCI_BIST
-    scanb_si    = 0 ;
-    scanb_en    = 0 ;
-    scanb_clk   = 0 ;
-    scanb_rst   = 0 ;
+    mbist_si_i    = 0 ;
+    mbist_ctrl_i    = 0 ;
+    mbist_clk   = 0 ;
+    mbist_rst   = 0 ;
 `endif
     next_test_name[79:0] <= "Nowhere___";
     reset = 1'b1 ;
@@ -912,7 +913,7 @@ begin
     // if BIST is implemented, give it a go
 `ifdef PCI_BIST
     run_bist_test ;
-    scanb_rst <= #1 1'b1 ;
+    mbist_rst <= #1 1'b1 ;
 `endif
     test_initial_conf_values ;
 
@@ -19691,10 +19692,10 @@ begin
 
     test_name = "BIST FOR RAMS RUN" ;
 
-    scanb_en  = 0 ;
-    scanb_si  = 0 ;
-    scanb_rst = 0 ;
-    scanb_clk = 0 ;
+    mbist_ctrl_i  = 0 ;
+    mbist_si_i  = 0 ;
+    mbist_rst = 0 ;
+    mbist_clk = 0 ;
 
     fork
     begin
@@ -19708,14 +19709,14 @@ begin
     join
 
     // test is run by reseting the test logic
-    scanb_rst <= 1'b1 ;
+    mbist_rst <= 1'b1 ;
     
     // toggle scan clock for a few times
     repeat (20)
-        #50 scanb_clk = !scanb_clk ;
+        #50 mbist_clk = !mbist_clk ;
     
     // release bist reset
-    scanb_rst <= 1'b0 ;
+    mbist_rst <= 1'b0 ;
 
     bist_result_vector = 0 ;
 
@@ -19725,19 +19726,19 @@ begin
         while (bist_result_vector !== {bist_chain_length{1'b1}})
         begin
             #1 ;
-            @(posedge scanb_clk) ;
-            scanb_en <= #1 1'b1 ;
+            @(posedge mbist_clk) ;
+            mbist_ctrl_i <= #1 1'b1 ;
             for (count = 0 ; count < bist_chain_length ; count = count + 1'b1)
             begin
-                @(posedge scanb_clk) ;
-                bist_result_vector[count] = scanb_so ;
+                @(posedge mbist_clk) ;
+                bist_result_vector[count] = mbist_so_o ;
             end
 
-            scanb_en <= #1 1'b0 ;
+            mbist_ctrl_i <= #1 1'b0 ;
         end
         #1 disable deadlock ;
-        @(negedge scanb_clk) ;
-        #1 disable scanb_clk_gen ;
+        @(negedge mbist_clk) ;
+        #1 disable mbist_clk_gen ;
         test_ok ;
     end
     begin:deadlock
@@ -19748,15 +19749,15 @@ begin
         end
 
         test_fail("BIST Test didn't finish as expected") ;
-        scanb_en <= #1 1'b0 ;
+        mbist_ctrl_i <= #1 1'b0 ;
         disable scan ;
-        @(negedge scanb_clk) ;
+        @(negedge mbist_clk) ;
         #1 ;
-        disable scanb_clk_gen ;
+        disable mbist_clk_gen ;
     end
-    begin:scanb_clk_gen
+    begin:mbist_clk_gen
         forever
-            #50 scanb_clk = !scanb_clk ;
+            #50 mbist_clk = !mbist_clk ;
     end
     join
 end
