@@ -1,6 +1,16 @@
 #!/bin/csh -f
 
-set arg_num = $#; # number of arguments
+set arg_num = $#argv; # number of arguments
+
+if ($arg_num > 4) then
+    echo "    Too many parameters ( $arg_num )"
+    echo "    Maximum number of parameters is 4:"
+    echo "      - xilinx"
+    echo "      - artisan"
+    echo "      - regression"
+    echo "      - waves"
+    exit
+endif
 
 # current iterration
 set iter = 1;
@@ -21,180 +31,36 @@ set arg_xilinx = 0;
 set arg_artisan = 0;
 set arg_waves = 0;
 
-if ($arg_num == 0) then
-		  @ arg_regression = 0;
-else 
-  if ($arg_num == 1) then
-          if ($1 == "regression") then
-		  @ arg_regression = 1;
-          else 
-            if ($1 == "xilinx") then
-		  @ arg_xilinx = 1;
-            else 
-              if ($1 == "artisan") then
-		  @ arg_artisan = 1;
-              else
-                if ($1 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-  else
-    if ($arg_num == 2) then
-          if ($1 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($1 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($1 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($1 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif                                                                    
-          if ($2 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($2 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($2 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($2 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif                                                                                                          
-    else
-      if ($arg_num == 3) then
-          if ($1 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($1 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($1 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($1 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-          if ($2 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($2 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($2 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($2 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif  
-          if ($3 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($3 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($3 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($3 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-      else
-        if ($arg_num == 4) then
-          if ($1 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($1 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($1 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($1 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-          if ($2 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($2 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($2 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($2 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-          if ($3 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($3 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($3 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($3 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-          if ($4 == "regression") then
-                  @ arg_regression = 1;
-          else
-            if ($4 == "xilinx") then
-                  @ arg_xilinx = 1;
-            else
-              if ($4 == "artisan") then
-                  @ arg_artisan = 1;
-              else
-                if ($4 == "waves") then
-                  @ arg_waves = 1;
-                endif
-              endif
-            endif
-          endif
-        else
-          echo "    Too many parameters ( $arg_num )"
-          echo "    Maximum number of parameters is 4:"
-          echo "      - xilinx"
-          echo "      - artisan"
-          echo "      - regression"
-          echo "      - waves"
-          exit
-        endif
-      endif
-    endif
-  endif
-endif
+@ arg_num     = 1
+set arg_check = 0
 
+while($arg_num <= $#argv)
+    if ($argv[$arg_num] == "regression") then
+        @ arg_regression = 1
+        @ arg_check      = $arg_check + 1
+    endif
+    
+    if ($argv[$arg_num] == "xilinx") then
+        @ arg_xilinx = 1
+        @ arg_check      = $arg_check + 1
+    endif
+
+    if($argv[$arg_num] == "artisan") then
+        @ arg_artisan = 1
+        @ arg_check      = $arg_check + 1
+    endif
+         
+    if ($argv[$arg_num] == "waves") then
+        @ arg_waves = 1
+        @ arg_check      = $arg_check + 1
+    endif
+
+    if ($arg_check != $arg_num) then
+        echo "Invalid argument found"
+        exit
+    endif
+    @ arg_num = $arg_num + 1
+end
 
 # ITERATION LOOP
 iteration:
@@ -643,7 +509,8 @@ else
 endif
 echo "worklib.bridge32:fun" >> ./ncsim.args
 
-ncsim -file ./ncsim.args > /dev/null
+ncsim -file ./ncsim.args #> /dev/null
+
 if ($status != 0) then
   echo ""
   echo "TESTS couldn't start due to Errors!"
@@ -687,6 +554,8 @@ echo ""
 @ iter += 1;
 
 if (($arg_regression == 1) && ($iter <= $all_iterations)) then
+    rm -f ../bin/INCA_libs/worklib/*
+    rm -f ../bin/INCA_libs/worklib/.*
     goto iteration
 else
     rm ./defines.args

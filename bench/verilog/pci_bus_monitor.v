@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.2 2002/03/21 07:35:50 mihad Exp $
+// $Id: pci_bus_monitor.v,v 1.3 2002/08/13 11:03:51 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -666,8 +666,12 @@ endtask
       stop_prev <= stop_now;
       perr_prev <= perr_now ;
 
-      if (frame_now & ~frame_prev
-                && (pci_ext_cbe_l[PCI_BUS_CBE_RANGE:0] != PCI_COMMAND_DUAL_ADDRESS_CYCLE))
+      if (frame_now & ~frame_prev)
+      begin
+        address_phase_prev <= 1'b1;
+        read_operation_prev <= ~pci_ext_cbe_l[0];  // reads have LSB == 0;
+      end
+      else if(address_phase_prev && (cbe_l_prev[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_DUAL_ADDRESS_CYCLE))
       begin
         address_phase_prev <= 1'b1;
         read_operation_prev <= ~pci_ext_cbe_l[0];  // reads have LSB == 0;

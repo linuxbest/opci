@@ -43,6 +43,21 @@
     `define BEH_TAR2_MEM_END   32'hE000_0FFF
     `define BEH_TAR2_IO_START  32'hF000_0001
     `define BEH_TAR2_IO_END    32'hF000_0FFF
+
+    // IDSEL lines of each individual Target is connected to one address line
+    // following defines set the address line IDSEL is connected to
+    // TAR0 = DUT - bridge
+    // TAR1 = behavioral target 1
+    // TAR2 = behavioral target 2
+
+    `define TAR0_IDSEL_INDEX    11          
+    `define TAR1_IDSEL_INDEX    12
+    `define TAR2_IDSEL_INDEX    13
+
+    // next 3 defines are derived from previous three defines
+    `define TAR0_IDSEL_ADDR     (32'h0000_0001 << `TAR0_IDSEL_INDEX)
+    `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
+    `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 `endif
 
 //===================================================================================

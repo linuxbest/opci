@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_options.vh,v 1.1 2002/02/01 13:39:43 mihad Exp $
+// $Id: pci_blue_options.vh,v 1.2 2002/08/13 11:03:51 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -252,7 +252,7 @@
 `define PCI_BASE_ADDR0_MATCH_RANGE             31:20
 `define PCI_BASE_ADDR0_ALL_ZEROS               8'h00
 // Match plus Fill plus Qual must together be 32 bits
-`define PCI_BASE_ADDR0_FILL                    (20'h00000)
+`define PCI_BASE_ADDR0_FILL                    (16'h0000)
 // Address Map Qualifier, described in the PCI specification,
 // Revision 2.2, section 6.2.5.1.  The value 0x8 indicates
 //   that the Base Address size is 32 bits, that it is a Memory
@@ -267,12 +267,12 @@
 `define PCI_BASE_ADDR1_MATCH_RANGE             31:20
 `define PCI_BASE_ADDR1_ALL_ZEROS               7'h00
 // Match plus Fill plus Qual must together be 32 bits
-`define PCI_BASE_ADDR1_FILL                    (21'h000000)
+`define PCI_BASE_ADDR1_FILL                    (16'h0000)
 // Address Map Qualifier, described in the PCI specification,
 // Revision 2.2, section 6.2.5.1.  The value 0x8 indicates
 //   that the Base Address size is 32 bits, that it is a Memory
 //   mapped Base Address Register, and that data is pre-fetchable
-`define PCI_BASE_ADDR1_MAP_QUAL                (4'h8)
+`define PCI_BASE_ADDR1_MAP_QUAL                (4'h1)
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
 
 // nothing checked after this point

@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.3  2002/08/13 11:03:53  mihad
+// Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
+//
 // Revision 1.2  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -92,8 +95,8 @@
 
 // HOST/GUEST implementation selection - see design document and specification for description of each implementation
 // only one can be defined at same time
-//`define GUEST
-`define HOST
+`define GUEST
+//`define HOST
 
 // if NO_CNF_IMAGE is commented out, then READ-ONLY access to configuration space is ENABLED:
 // - ENABLED Read-Only access from WISHBONE for GUEST bridges
@@ -106,7 +109,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define PCI_NUM_OF_DEC_ADDR_LINES 3
+`define PCI_NUM_OF_DEC_ADDR_LINES 20
 
 // no. of PCI Target IMAGES
 // - PCI provides 6 base address registers for image implementation.
@@ -124,9 +127,9 @@
     `endif
 `endif
 
-//`define PCI_IMAGE2
+`define PCI_IMAGE2
 `define PCI_IMAGE3
-//`define PCI_IMAGE4
+`define PCI_IMAGE4
 `define PCI_IMAGE5
 
 // initial value for PCI image address masks. Address masks can be defined in enabled state,
@@ -134,22 +137,22 @@
 // memory space. If initial mask for an image is defined as 0, then device independent software
 // won't detect base address implemented and device dependent software will have to configure
 // address masks as well as base addresses!
-`define PCI_AM0 20'hffff_f
-`define PCI_AM1 20'hffff_f
-`define PCI_AM2 20'hffff_f
-`define PCI_AM3 20'hffff_f
-`define PCI_AM4 20'hffff_f
-`define PCI_AM5 20'hffff_f
+`define PCI_AM0 20'hffff_e
+`define PCI_AM1 20'hffff_c
+`define PCI_AM2 20'hffff_8
+`define PCI_AM3 20'hffff_0
+`define PCI_AM4 20'hfffe_0
+`define PCI_AM5 20'h0000_0
 
 // initial value for PCI image maping to MEMORY or IO spaces.  If initial define is set to 0,
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
 // Device independent software sets the base addresses acording to MEMORY or IO maping!
 `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-`define PCI_BA1_MEM_IO 1'b0
+`define PCI_BA1_MEM_IO 1'b1
 `define PCI_BA2_MEM_IO 1'b0
-`define PCI_BA3_MEM_IO 1'b0
+`define PCI_BA3_MEM_IO 1'b1
 `define PCI_BA4_MEM_IO 1'b0
-`define PCI_BA5_MEM_IO 1'b0
+`define PCI_BA5_MEM_IO 1'b1
 
 // number defined here specifies how many MS bits in WB address are compared with base address, to decode
 // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
@@ -180,7 +183,7 @@
 //`define WB_DECODE_SLOW
 
 // Base address for Configuration space access from WB bus. This value cannot be changed during runtime
-`define WB_CONFIGURATION_BASE 20'h0000_0
+`define WB_CONFIGURATION_BASE 20'hF300_0
 
 // Turn registered WISHBONE slave outputs on or off
 // all outputs from WB Slave state machine are registered, if this is defined - WB bus outputs as well as

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.3 2002/03/21 07:35:50 mihad Exp $
+// $Id: pci_behaviorial_target.v,v 1.4 2002/08/13 11:03:51 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -594,8 +594,10 @@ endtask
 // Drive SRAM Data onto AD bus, and increment Read Pointer
 task Fetch_SRAM_Data_For_Read_Onto_AD_Bus;
   output [PCI_BUS_DATA_RANGE:0] target_read_data;
+  reg fetch_from0 ;
   begin
-    Read_Test_Device_SRAM (hold_target_address[11:2], ~cbe_l_now, target_read_data[PCI_BUS_DATA_RANGE:0]);
+    fetch_from0 = (hold_target_command == PCI_COMMAND_INTERRUPT_ACKNOWLEDGE) ;
+    Read_Test_Device_SRAM (fetch_from0 ? 0 : hold_target_address[11:2], ~cbe_l_now, target_read_data[PCI_BUS_DATA_RANGE:0]);
     hold_target_address[11:2] = hold_target_address[11:2] + 10'h001;  // addr++
   end
 endtask
@@ -1437,20 +1439,25 @@ endtask
           Execute_Target_PCI_Ref (`TEST_TARGET_DOING_CONFIG_WRITE,
                                                  saw_fast_back_to_back);
         end
-        else if (~frame_prev & frame_now & Target_En
-`ifdef SIMULTANEOUS_MASTER_TARGET
-// Don't check for reads to self
-`else // SIMULTANEOUS_MASTER_TARGET
-// Check for, and don't respond to, reads to self
-`endif //SIMULTANEOUS_MASTER_TARGET
-            & (   (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ)
-                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
-                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE) )
-            & (   (ad_now[`PCI_BASE_ADDR0_MATCH_RANGE] == BAR0[`PCI_BASE_ADDR0_MATCH_RANGE])
+        else if (~frame_prev & frame_now & Target_En &
+                    (   
+                        (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_INTERRUPT_ACKNOWLEDGE) |
+                        (
+                            (   
+                                  (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ)
+                                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_MULTIPLE)
+                                | (cbe_l_now[PCI_BUS_CBE_RANGE:0] == PCI_COMMAND_MEMORY_READ_LINE) 
+                            ) 
+                            &
+                            (   
+                                  (ad_now[`PCI_BASE_ADDR0_MATCH_RANGE] == BAR0[`PCI_BASE_ADDR0_MATCH_RANGE])
 `ifdef PCI_BASE_ADDR1_MATCH_ENABLE
-                | (ad_now[`PCI_BASE_ADDR1_MATCH_RANGE] == BAR1[`PCI_BASE_ADDR1_MATCH_RANGE])
+                                | (ad_now[`PCI_BASE_ADDR1_MATCH_RANGE] == BAR1[`PCI_BASE_ADDR1_MATCH_RANGE])
 `endif  // PCI_BASE_ADDR1_MATCH_ENABLE
-              ) )
+                            )
+                        )
+                    )
+                )
         begin
           Execute_Target_PCI_Ref (`TEST_TARGET_DOING_SRAM_READ,
                                                  saw_fast_back_to_back);

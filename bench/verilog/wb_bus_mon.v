@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: wb_bus_mon.v,v $
+// Revision 1.2  2002/08/13 11:03:51  mihad
+// Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
+//
 // Revision 1.1  2002/02/01 13:39:43  mihad
 // Initial testbench import. Still under development
 //
@@ -158,10 +161,35 @@ end
 reg [`WB_DATA_WIDTH-1:0] previous_data ;
 reg [`WB_ADDR_WIDTH-1:0] previous_address ;
 reg [`WB_SEL_WIDTH-1:0] previous_sel ;
+reg                     previous_stb ;
+reg                     previous_ack ;
+reg                     previous_err ;
+reg                     previous_rty ;
+reg                     previous_cyc ;
 reg can_change ;
 
-// cycle monitor
 always@(posedge CLK_I or posedge RST_I)
+begin
+    if (RST_I)
+    begin
+        previous_stb <= 1'b0 ;
+        previous_ack <= 1'b0 ;
+        previous_err <= 1'b0 ;
+        previous_rty <= 1'b0 ;
+        previous_cyc <= 1'b0 ;
+    end
+    else
+    begin
+        previous_stb <= STB_O ;
+        previous_ack <= ACK_I ;
+        previous_err <= ERR_I ;
+        previous_rty <= RTY_I ;
+        previous_cyc <= CYC_O ;
+    end
+end
+
+// cycle monitor
+always@(posedge CLK_I)
 begin
     if (CYC_O && ~RST_I) // cycle in progress
     begin
@@ -230,9 +258,25 @@ begin
                 $fdisplay(log_file_desc, "RTY_I asserted during cycle without STB_O") ;
             end
 
+            if ((previous_ack !== 1) && (previous_err !== 1) && (previous_rty !== 1) && (previous_stb !== 0))
+            begin
+                $display("STB_O de-asserted without reception of slave response") ;
+                $fdisplay(log_file_desc, "STB_O de-asserted without reception of slave response") ;
+            end
+
             can_change = 1 ;
         end   // ~STB_O
     end // cycle in progress
+    else if (!RST_I)
+    begin
+        // cycle not in progress anymore
+        can_change = 1 ;
+        if ((previous_ack !== 1) && (previous_err !== 1) && (previous_rty !== 1) && (previous_stb !== 0))
+        begin
+            $display("STB_O de-asserted without reception of slave response") ;
+            $fdisplay(log_file_desc, "STB_O de-asserted without reception of slave response") ;
+        end
+    end
 end // cycle monitor
 
 // CAB_O monitor - CAB_O musn't change during one cycle

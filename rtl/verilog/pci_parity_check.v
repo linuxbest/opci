@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_parity_check.v,v $
+// Revision 1.4  2002/08/13 11:03:53  mihad
+// Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -300,7 +303,7 @@ begin
 end
 
 // assign output for parity error detected bit
-assign par_err_detect_out = ~pci_serr_out_in || ~pci_perr_out_in || perr_sampled ;
+assign par_err_detect_out = ~pci_serr_out_in || ~pci_perr_out_in ;//|| perr_sampled ; MihaD - removed - detected parity error is set only during Master Reads or Target Writes
 
 // FF indicating that that last operation was done as bus master
 reg frame_and_irdy_en_prev      ;

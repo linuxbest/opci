@@ -34,9 +34,9 @@ wire MAS3_GNT = ~arb_grant_out[3] ;
 
 pullup(FRAME) ;
 pullup(IRDY) ;
-wire        TAR0_IDSEL = AD[11] ;
-`define     TAR0_IDSEL_INDEX    11
-`define     TAR0_IDSEL_ADDR     32'h0000_0800
+
+wire        TAR0_IDSEL = AD[`TAR0_IDSEL_INDEX] ;
+
 pullup(DEVSEL) ;
 pullup(TRDY) ;
 pullup(STOP) ;
@@ -73,12 +73,10 @@ wire        CAB_O ;
 wire        ACK_I ;
 wire        RTY_I ;
 wire        ERR_I ;
-wire        TAR1_IDSEL = AD[12] ;
-`define     TAR1_IDSEL_INDEX    12
-`define     TAR1_IDSEL_ADDR     32'h0000_1000
-wire        TAR2_IDSEL = AD[13] ;
-`define     TAR2_IDSEL_INDEX    13
-`define     TAR2_IDSEL_ADDR     32'h0000_2000
+
+wire        TAR1_IDSEL = AD[`TAR1_IDSEL_INDEX] ;
+
+wire        TAR2_IDSEL = AD[`TAR2_IDSEL_INDEX] ;
 
 wire        reset_wb ; // reset to Wb devices
 
@@ -219,24 +217,6 @@ WB_BUS_MON pciu_wb_mon(
                     .CAB_O(CAB_O),
                     .log_file_desc( pciu_mon_log_file_desc )
                   ) ;
-
-reg irq_respond ;
-reg [31:0] irq_vector ;
-PCI_BEHAVIORAL_IACK_TARGET interrupt_control
-(
-    .CLK              ( pci_clock),
-    .AD               ( AD ),
-    .CBE              ( CBE ),
-    .RST              ( RST ),
-    .FRAME            ( FRAME ),
-    .IRDY             ( IRDY ),
-    .DEVSEL           ( DEVSEL ),
-    .TRDY             ( TRDY ),
-    .STOP             ( STOP ),
-    .PAR              ( PAR ),
-    .respond          ( irq_respond ),
-    .interrupt_vector ( irq_vector)
-);
 
 // some aditional signals are needed here because of the arbiter
 reg [3:0] pci_ext_req_prev ;
@@ -483,6 +463,35 @@ pci_unsupported_commands_master ipci_unsupported_commands_master
     .PAR    ( PAR )
 ) ;
 
+`ifdef HOST
+
+reg     [1:0]   conf_cyc_type1_target_response ;
+reg     [31:0]  conf_cyc_type1_target_data ;
+reg     [7:0]   conf_cyc_type1_target_bus_num ;
+wire    [31:0]  conf_cyc_type1_target_data_from_PCI ;
+
+pci_behavioral_pci2pci_bridge i_pci_behavioral_pci2pci_bridge
+(
+    .CLK              ( pci_clock),
+    .AD               ( AD ),
+    .CBE              ( CBE ),
+    .RST              ( RST ),
+    .FRAME            ( FRAME ),
+    .IRDY             ( IRDY ),
+    .DEVSEL           ( DEVSEL ),
+    .TRDY             ( TRDY ),
+    .STOP             ( STOP ),
+    .PAR              ( PAR ),
+
+    .response         ( conf_cyc_type1_target_response ),
+    .data_out         ( conf_cyc_type1_target_data ),
+    .data_in          ( conf_cyc_type1_target_data_from_PCI ),
+    .devsel_speed     ( test_target_response[`TARGET_ENCODED_DEVSEL_SPEED] ),
+    .wait_states      ( test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] ),
+    .bus_number       ( conf_cyc_type1_target_bus_num )
+);
+`endif
+
 // pci clock generator
 always
 `ifdef PCI33
@@ -596,8 +605,11 @@ begin
     master1_check_received_data = 0 ;
     master2_check_received_data = 0 ;
 
-    irq_respond = 1 ;
-    irq_vector  = 32'hAAAA_AAAA ;
+    `ifdef HOST
+        conf_cyc_type1_target_response = 0 ;
+        conf_cyc_type1_target_data = 0 ;
+        conf_cyc_type1_target_bus_num = 255 ;
+    `endif    
 
     // fill memory and IO data with random values
     fill_memory ;
@@ -723,6 +735,8 @@ task run_tests ;
 begin
     // first - reset logic
     do_reset ;
+    test_initial_conf_values ;
+
     next_test_name[79:0] <= "Initing...";
     test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
 
@@ -741,6 +755,8 @@ begin
                 `ifdef HOST
                     configure_bridge_target ;
                     find_pci_devices ;
+                    test_configuration_cycle_target_abort ;
+                    test_configuration_cycle_type1_generation ;
                 `endif
 
                 @(posedge pci_clock) ;
@@ -890,6 +906,14 @@ begin
 
     reset <= 1'b0 ;
 
+    `ifdef HOST
+        @(posedge wb_clock) ;
+    `else
+    `ifdef GUEST
+        @(posedge pci_clock) ;
+    `endif
+    `endif
+
 end
 endtask
 
@@ -899,26 +923,29 @@ WB SLAVE UNIT tasks
 ############################################################################*/
 
 task configure_target ;
-    input [1:0]  device_num ;
+    input [1:0]  beh_dev_num ;
     reg   [31:0] base_address1 ;
     reg   [31:0] base_address2 ;
     reg   [2:0]  Master_ID;
     reg   [31:0] Target_Config_Addr;
+    reg   [4:0]  device_num ;
 begin
-    if (device_num === 1)
+    if (beh_dev_num === 1)
     begin
         base_address1       = `BEH_TAR1_MEM_START ;
         base_address2       = `BEH_TAR1_IO_START  ;
         Master_ID           = `Test_Master_2 ;
         Target_Config_Addr  = `TAR1_IDSEL_ADDR ;
+        device_num          = `TAR1_IDSEL_INDEX - 'd11 ;
     end
     else
-    if (device_num === 2)
+    if (beh_dev_num === 2)
     begin
         base_address1       = `BEH_TAR2_MEM_START ;
         base_address2       = `BEH_TAR2_IO_START  ;
         Master_ID           = `Test_Master_1 ;
         Target_Config_Addr  = `TAR2_IDSEL_ADDR ;
+        device_num          = `TAR2_IDSEL_INDEX - 'd11 ;
     end
 
     // write target's base addresses
@@ -2409,13 +2436,13 @@ begin:main
     test_name = "MASTER ABORT ERROR HANDLING DURING WB TO PCI WRITES" ;
     // first disable target 1
 
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0000  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0000             // data
                              ) ;
 
     fork
@@ -2735,13 +2762,13 @@ begin:main
     test_name = "CHECK NORMAL WRITING/READING FROM WISHBONE TO PCI AFTER ERRORS WERE PRESENTED" ;
     ok = 1 ;
     // enable target
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0007  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0007             // data
                              ) ;
     // prepare data for ok write
     for ( i = 0 ; i < 3 ; i = i + 1 )
@@ -2796,13 +2823,13 @@ begin:main
 
     $display("Introducing master abort error to single read!") ;
     // disable target
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0000  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0000             // data
                              ) ;
     // set read data
     read_data`READ_ADDRESS = target_address ;
@@ -2853,16 +2880,16 @@ begin:main
         test_ok ;
 
     // now check normal read operation
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0007  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0007             // data
                              ) ;
 
-    test_name = "CHECK NORMAL READ AFTER ERROR TERMINATED READ" ;
+    test_name = "CHECK NORMAL READ AFTER MASTER ABORT TERMINATED READ" ;
     read_data`READ_ADDRESS = target_address ;
     read_data`READ_SEL     = 4'hF ;
 
@@ -2885,7 +2912,7 @@ begin:main
         test_ok ;
 
     // check PCI status register
-    test_name = "CHECK PCI DEVICE STATUS REGISTER VALUE AFTER TARGET ABORT ON DELAYED READ" ;
+    test_name = "CHECK PCI DEVICE STATUS REGISTER VALUE AFTER MASTER ABORT ON DELAYED READ" ;
     ok = 1 ;
 
     config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
@@ -2912,13 +2939,13 @@ begin:main
     $display("Introducing master abort error to CAB read!") ;
     test_name = "MASTER ABORT ERROR DURING CAB READ FROM WB TO PCI" ;
 
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0000  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0000             // data
                              ) ;
 
     for ( i = 0 ; i < 3 ; i = i + 1 )
@@ -2988,13 +3015,13 @@ begin:main
     // disable error reporting and interrupts
     test_name = "SETUP BRIDGE FOR TARGET ABORT HANDLING TESTS" ;
 
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0007  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0007             // data
                              ) ;
 
     config_write( err_cs_offset, 32'h0000_0000, 4'hF, ok) ;
@@ -4000,23 +4027,23 @@ begin:main
     write_data`WRITE_SEL     = 4'b1111 ;
 
     // enable target's 1 response to parity errors
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0047  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0047             // data
                              ) ;
 
     // disable target's 2 response to parity errors
-    configuration_cycle_write(0,             // bus number
-                              2,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0007  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR2_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0007             // data
                              ) ;
 
     test_target_response[`TARGET_ENCODED_DATA_PAR_ERR] = 1 ;
@@ -4078,11 +4105,11 @@ begin:main
     test_name = "CHECK PCI DEVICE STATUS REGISTER VALUE AFTER PARITY ERROR DURING MASTER WRITE" ;
     ok = 1 ;
     config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
-    if ( temp_val1[31] !== 1 )
+    if ( temp_val1[31] !== 0 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set after parity error on PCI bus!") ;
-        test_fail("Detected Parity Error bit was not set after Write Master Data Parity Error") ;
+        $display("Detected Parity Error bit was set when the PCI Bridge was the Master of PCI Write!") ;
+        test_fail("Detected Parity Error bit was set when Data Parity Error was signaled during Master Write") ;
         ok = 0 ;
     end
 
@@ -4172,11 +4199,11 @@ begin:main
     test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER PARITY ERROR DURING MASTER WRITE - PAR. ERR. RESPONSE ENABLED" ;
     ok = 1 ;
     config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
-    if ( temp_val1[31] !== 1 )
+    if ( temp_val1[31] !== 0 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set after parity error on PCI bus!") ;
-        test_fail("Detected Parity Error bit was not set after parity error on PCI bus") ;
+        $display("Detected Parity Error bit was set after data parity error on PCI bus during Master Write!") ;
+        test_fail("Detected Parity Error bit was set after data parity error on PCI bus during Master Write") ;
         ok = 0 ;
     end
 
@@ -4191,8 +4218,8 @@ begin:main
     if ( temp_val1[24] !== 1 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Master Data Parity Error bit wasn't set even though Parity Error Response bit was set!") ;
-        test_fail("Master Data Parity Error bit wasn't set after Parity Error on PCI bus, even though Parity Error Response bit was set") ;
+        $display("Master Data Parity Error bit wasn't set even though Parity Error Response bit was set and data parity error occured during Master write!") ;
+        test_fail("Master Data Parity Error bit wasn't set after Data Parity Error during Write on PCI bus, even though Parity Error Response bit was set") ;
         ok = 0 ;
     end
 
@@ -4374,8 +4401,8 @@ begin:main
     if ( temp_val1[31] !== 1 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set when parity error was presented on Read transaction!") ;
-        test_fail("Detected Parity Error bit was not set when parity error was presented on Read transaction") ;
+        $display("Detected Parity Error bit was not set when parity error was presented on Master Read transaction!") ;
+        test_fail("Detected Parity Error bit was not set when parity error was presented on Master Read transaction") ;
         ok = 0 ;
     end
 
@@ -4390,8 +4417,8 @@ begin:main
     if ( temp_val1[24] !== 1 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Master Data Parity Error bit was not set when parity error was presented during read transaction!") ;
-        test_fail("Master Data Parity Error bit was not set when parity error was presented during read transaction and Parity Error Response was enabled") ;
+        $display("Master Data Parity Error bit was not set when parity error was presented during Master Read transaction!") ;
+        test_fail("Master Data Parity Error bit was not set when parity error was presented during Master Read transaction and Parity Error Response was enabled") ;
         ok = 0 ;
     end
 
@@ -4486,8 +4513,8 @@ begin:main
 
         perr_asserted = 1 ;
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Bridge asserted PERR during read transaction when Parity Error response was disabled!") ;
-        test_fail("Bridge asserted PERR during read transaction when Parity Error response was disabled") ;
+        $display("Bridge asserted PERR during Master Read transaction when Parity Error response was disabled!") ;
+        test_fail("Bridge asserted PERR during Master Read transaction when Parity Error response was disabled") ;
     end
     begin
         pci_transaction_progress_monitor(target_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok) ;
@@ -4555,7 +4582,7 @@ begin:main
     if ( temp_val1[31] !== 1 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set when parity error was presented on Read transaction!") ;
+        $display("Detected Parity Error bit was not set when parity error was presented on Master Read transaction!") ;
         test_fail("Detected Parity Error bit was not set when parity error was presented on PCI Master Read transaction") ;
         ok = 0 ;
     end
@@ -4571,7 +4598,7 @@ begin:main
     if ( temp_val1[24] !== 0 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Master Data Parity Error bit was set when parity error was presented during read transaction, but Parity Response was disabled!") ;
+        $display("Master Data Parity Error bit was set when parity error was presented during Master Read transaction, but Parity Response was disabled!") ;
         test_fail("Master Data Parity Error bit was set, but Parity Response was disabled");
         ok = 0 ;
     end
@@ -6138,8 +6165,8 @@ begin:main
     if ( temp_val1[31] !== 1 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set after Target detected parity error!") ;
-        test_fail("Detected Parity Error bit was not set after Target detected parity error") ;
+        $display("Detected Parity Error bit was not set after data parity error was presented during Target Write Transaction!") ;
+        test_fail("Detected Parity Error bit was not set after data parity error was presented during Target Write Transaction") ;
         ok = 0 ;
     end
 
@@ -6300,11 +6327,11 @@ begin:main
     config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
     test_name = "PCI DEVICE STATUS REGISTER VALUE AFTER PARITY ERROR ON TARGET READ REFERENCE" ;
     ok = 1 ;
-    if ( temp_val1[31] !== 1 )
+    if ( temp_val1[31] !== 0 )
     begin
         $display("Parity checker testing failed! Time %t ", $time) ;
-        $display("Detected Parity Error bit was not set after Target receive PERR asserted!") ;
-        test_fail("Detected Parity Error bit was not set after Target received PERR asserted on read reference") ;
+        $display("Detected Parity Error bit was set after data parity error during Target Read Transaction!") ;
+        test_fail("Detected Parity Error bit was set after Target received PERR asserted during Read Transaction") ;
         ok = 0 ;
     end
 
@@ -6365,7 +6392,7 @@ begin:main
         disable main ;
     end
 
-    config_write( p_am_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
+    config_write( p_am_offset, 32'h0000_0000, 4'hF, ok ) ;
     if ( ok !== 1 )
     begin
         $display("Parity checker testing failed! Failed to write W_AM1 register! Time %t ", $time) ;
@@ -6374,13 +6401,13 @@ begin:main
     end
 
     // disable target's 1 response to parity errors
-    configuration_cycle_write(0,             // bus number
-                              1,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              4'b0001,       // byte enables
-                              32'h0000_0007  // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR1_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              4'b0001,                  // byte enables
+                              32'h0000_0007             // data
                              ) ;
 
     $display("**************************** DONE testing Parity Checker functions ******************************") ;
@@ -7595,7 +7622,15 @@ task iack_cycle ;
 
     reg [31:0] temp_var ;
     reg ok ;
+    reg ok_wb ;
+    reg ok_pci ;
+
+    reg [31:0] irq_vector ;
 begin
+
+    ok     = 1 ;
+    ok_wb  = 1 ;
+    ok_pci = 1 ;
 
     $display(" Testing Interrupt Acknowledge cycle generation!") ;
 
@@ -7609,54 +7644,90 @@ begin
 
     flags`WB_TRANSFER_AUTO_RTY = 1 ;
 
-    irq_respond = 0 ;
     irq_vector  = 32'hAAAA_AAAA ;
     test_name = "INTERRUPT ACKNOWLEDGE CYCLE GENERATION WITH MASTER ABORT" ;
+
+    // disable both pci blue behavioral targets
+    configuration_cycle_write
+    (
+        0,                          // bus number [7:0]
+        `TAR1_IDSEL_INDEX - 11,     // device number [4:0]
+        0,                          // function number [2:0]
+        1,                          // register number [5:0]
+        0,                          // type [1:0]
+        4'h1,                       // byte enables [3:0]
+        32'h0000_0044               // data to write [31:0]
+    ) ;
+
+    configuration_cycle_write
+    (
+        0,                          // bus number [7:0]
+        `TAR2_IDSEL_INDEX - 11,     // device number [4:0]
+        0,                          // function number [2:0]
+        1,                          // register number [5:0]
+        0,                          // type [1:0]
+        4'h1,                       // byte enables [3:0]
+        32'h0000_0044               // data to write [31:0]
+    ) ;
 
     fork
     begin
         wishbone_master.wb_single_read( read_data, flags, read_status ) ;
     end
     begin
-        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 0, 0, 1'b1, 1'b0, 0, ok) ;
-        if ( ok !== 1 )
+        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 0, 0, 1'b1, 1'b0, 0, ok_pci) ;
+        if ( ok_pci !== 1 )
            test_fail("bridge did invalid Interrupt Acknowledge read transaction or none at all or behavioral target didn't respond as expected") ;
     end
     join
 
     if ( read_status`CYC_ACTUAL_TRANSFER !== 0 || read_status`CYC_ERR !== 1 )
     begin
+        ok_wb = 0 ;
         $display(" Interrupt acknowledge cycle generation failed! Time %t ", $time ) ;
         $display(" It should be terminated by master abort on PCI and therefore by error on WISHBONE bus!") ;
         test_fail("bridge didn't handle Interrupt Acknowledge cycle as expected") ;
     end
-    else
-    if ( ok )
-        test_ok ;
-	// clearing the status bits
-	config_write(12'h4, 32'hFFFF_0000, 4'hC, ok);
 
-    irq_respond = 1 ;
-    irq_vector  = 32'h5555_5555 ;
+    if ( ok_pci && ok_wb )
+        test_ok ;
+	
+    ok_wb = 1 ;
+    ok_pci = 1 ;
+    ok = 1 ;
+
+    irq_vector  = 32'hAAAA_AAAA ;
+    pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[0] = irq_vector ;
 
     test_name = "INTERRUPT ACKNOWLEDGE CYCLE GENERATION WITH NORMAL COMPLETION" ;
+    // enable pci blue behavioral target 1
+    configuration_cycle_write
+    (
+        0,                          // bus number [7:0]
+        `TAR1_IDSEL_INDEX - 11,     // device number [4:0]
+        0,                          // function number [2:0]
+        1,                          // register number [5:0]
+        0,                          // type [1:0]
+        4'h1,                       // byte enables [3:0]
+        32'h0000_0047               // data to write [31:0]
+    ) ;
     fork
     begin
         wishbone_master.wb_single_read( read_data, flags, read_status ) ;
     end
     begin
-        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 1, 0, 1'b1, 1'b0, 0, ok) ;
-        if ( ok !== 1 )
+        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 1, 0, 1'b1, 1'b0, 0, ok_pci) ;
+        if ( ok_pci !== 1 )
            test_fail("bridge did invalid Interrupt Acknowledge read transaction or none at all or behavioral target didn't respond as expected") ;
     end
     join
 
     if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
     begin
+        ok_wb = 0 ;
         $display(" Interrupt acknowledge cycle generation failed! Time %t ", $time ) ;
         $display(" Bridge failed to process Interrupt Acknowledge cycle!") ;
         test_fail("bridge didn't handle Interrupt Acknowledge cycle as expected") ;
-        ok = 0 ;
     end
 
     if ( read_status`READ_DATA !== irq_vector )
@@ -7664,22 +7735,28 @@ begin
         $display(" Time %t ", $time ) ;
         $display(" Expected interrupt acknowledge vector was %h, actualy read value was %h ! ", irq_vector, read_status`READ_DATA ) ;
         test_fail("Interrupt Acknowledge returned unexpected data") ;
-        ok = 0 ;
+        ok_wb = 0 ;
     end
 
-    if ( ok )
+    if ( ok_pci && ok_wb )
         test_ok ;
 
+    ok_pci = 1 ;
+    ok_wb  = 1 ;
+    ok     = 1 ;
+
     read_data`READ_SEL = 4'b0101 ;
-    irq_vector  = 32'hAAAA_AAAA ;
+    irq_vector  = 32'h5555_5555 ;
+    pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[0] = irq_vector ;
+
     test_name = "INTERRUPT ACKNOWLEDGE CYCLE GENERATION WITH NORMAL COMPLETION AND FUNNY BYTE ENABLES" ;
     fork
     begin
         wishbone_master.wb_single_read( read_data, flags, read_status ) ;
     end
     begin
-        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 1, 0, 1'b1, 1'b0, 0, ok) ;
-        if ( ok !== 1 )
+        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 1, 0, 1'b1, 1'b0, 0, ok_pci) ;
+        if ( ok_pci !== 1 )
            test_fail("bridge did invalid Interrupt Acknowledge read transaction or none at all or behavioral target didn't respond as expected") ;
     end
     join
@@ -7689,20 +7766,88 @@ begin
         $display(" Interrupt acknowledge cycle generation failed! Time %t ", $time ) ;
         $display(" Bridge failed to process Interrupt Acknowledge cycle!") ;
         test_fail("bridge didn't handle Interrupt Acknowledge cycle as expected") ;
-        ok = 0 ;
+        ok_wb = 0 ;
     end
 
-    if ( read_status`READ_DATA !== 32'h00AA_00AA )
+    if ( read_status`READ_DATA !== 32'h0055_0055 )
     begin
         $display(" Time %t ", $time ) ;
-        $display(" Expected interrupt acknowledge vector was %h, actualy read value was %h ! ", 32'h00AA_00AA, read_status`READ_DATA ) ;
+        $display(" Expected interrupt acknowledge vector was %h, actualy read value was %h ! ", 32'h0055_0055, read_status`READ_DATA ) ;
         test_fail("Interrupt Acknowledge returned unexpected data") ;
-        ok = 0 ;
+        ok_wb = 0 ;
     end
 
-    if ( ok )
+    if (ok_pci && ok_wb)
         test_ok ;
 
+    ok_pci = 1 ;
+    ok_wb  = 1 ;
+    ok     = 1 ;
+
+    test_name = "INTERRUPT ACKNOWLEDGE CYCLE GENERATION WITH TARGET ABORT" ;
+    
+    // set target to terminate with target abort
+    test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Abort ;
+    test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
+
+    fork
+    begin
+        wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+    end
+    begin
+        pci_transaction_progress_monitor( 32'h0000_0000, `BC_IACK, 0, 0, 1'b1, 1'b0, 0, ok_pci) ;
+        if ( ok_pci !== 1 )
+           test_fail("bridge did invalid Interrupt Acknowledge read transaction or none at all or behavioral target didn't respond as expected") ;
+    end
+    join
+
+    if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+    begin
+        $display(" Interrupt acknowledge cycle generation failed! Time %t ", $time ) ;
+        $display(" Bridge failed to process Interrupt Acknowledge cycle!") ;
+        test_fail("Interrupt Acknowledge Cycle terminated with Target Abort on PCI was not terminated with ERR on WISHBONE") ;
+        ok_wb = 0 ;
+    end
+
+    // set target to terminate with target abort
+    test_target_response[`TARGET_ENCODED_TERMINATION]  = `Test_Target_Normal_Completion ;
+    test_target_response[`TARGET_ENCODED_TERMINATE_ON] = 0 ;
+
+    // enable pci blue behavioral target 2
+    configuration_cycle_write
+    (
+        0,                          // bus number [7:0]
+        `TAR2_IDSEL_INDEX - 11,     // device number [4:0]
+        0,                          // function number [2:0]
+        1,                          // register number [5:0]
+        0,                          // type [1:0]
+        4'h1,                       // byte enables [3:0]
+        32'h0000_0047               // data to write [31:0]
+    ) ;
+
+    // read PCI Device status
+    config_read(12'h4, 4'hC, temp_var) ;
+    if (temp_var[29] !== 1)
+    begin
+        $display("Time %t", $time) ;
+        $display("Received Master Abort bit in PCI Device Status register was not set after Interrupt Acknowledge Cycle was terminated with Master Abort!") ;
+        test_fail("Received Master Abort bit in PCI Device Status register was not set after Interrupt Acknowledge Cycle was terminated with Master Abort") ;
+        ok_wb = 0 ;
+    end
+
+    if (temp_var[28] !== 1)
+    begin
+        $display("Time %t", $time) ;
+        $display("Received Target Abort bit in PCI Device Status register was not set after Interrupt Acknowledge Cycle was terminated with Target Abort!") ;
+        test_fail("Received Target Abort bit in PCI Device Status register was not set after Interrupt Acknowledge Cycle was terminated with Target Abort") ;
+        ok_wb = 0 ;
+    end
+
+    // clearing the status bits
+	config_write(12'h4, temp_var, 4'hC, ok);
+
+    if ( ok && ok_pci && ok_wb )
+        test_ok ;
 
 end
 endtask //iack_cycle
@@ -9253,13 +9398,19 @@ begin
 end
 endfunction //wb_to_pci_addr_convert
 
+`ifdef HOST
 task find_pci_devices ;
     integer device_num ;
     reg     found ;
     reg [11:0] pci_ctrl_offset ;
     reg ok ;
     reg [31:0] data ;
+    reg [31:0] expected_data ;
+
+    reg [5:0]  reg_num ;
 begin:main
+    
+    test_name = "HOST BRIDGE CONFIGURATION CYCLE TYPE 0 GENERATION" ;
     pci_ctrl_offset = 12'h004 ;
 
     // enable master & target operation
@@ -9268,11 +9419,11 @@ begin:main
     if ( ok !== 1 )
     begin
         $display("Couldn't enable master! PCI device search cannot proceede! Time %t ", $time) ;
-        $stop ;
+        test_fail("PCI Bridge Master could not be enabled with configuration space access via WISHBONE bus") ;
         disable main ;
     end
     // find all possible devices on pci bus by performing configuration cycles
-    for ( device_num = 0 ; device_num <= 20 ; device_num = device_num + 1 )
+    for ( device_num = 0 ; device_num <= 31 ; device_num = device_num + 1 )
     begin
         find_device ( device_num, found ) ;
 
@@ -9280,11 +9431,12 @@ begin:main
         config_read( pci_ctrl_offset, 4'hF, data ) ;
 
         if ( (data[29] !== 0) && (found !== 0) )
-    begin
+        begin
             $display( "Time %t ", $time ) ;
             $display( "Target responded to Configuration cycle, but Received Master Abort bit was set!") ;
             $display( "Value read from device status register: %h ", data[31:16] ) ;
-            #20 $stop ;
+            test_fail("PCI Target responded to configuration cycle and Received Master Abort bit was set") ;
+            ok = 0 ;
         end
 
         if ( (data[29] !== 1) && (found !== 1) )
@@ -9292,7 +9444,8 @@ begin:main
             $display( "Time %t ", $time ) ;
             $display( "Target didn't respond to Configuration cycle, but Received Master Abort bit was not set!") ;
             $display( "Value read from device status register: %h ", data[31:16] ) ;
-            #20 $stop ;
+            test_fail("PCI Target didn't respond to Configuration cycle, but Received Master Abort bit was not set") ;
+            ok = 0 ;
         end
 
         // clear Master Abort status if set
@@ -9300,7 +9453,78 @@ begin:main
         begin
             config_write( pci_ctrl_offset, 32'hFFFF_0000, 4'b1000, ok) ;
         end
+
+        if (found === 1)
+        begin
+            // first check if found target is supposed to exist
+            if (((32'h0000_0800 << device_num) !== `TAR1_IDSEL_ADDR) && ((32'h0000_0800 << device_num) !== `TAR2_IDSEL_ADDR))
+            begin
+                $display("Time %t", $time) ;
+                $display("Unknown Target responded to Type 0 Configuration Cycle generated with HOST Bridge") ;
+                test_fail("unknown PCI Target responded to Type 0 Configuration Cycle generated with HOST Bridge");
+                ok = 0 ;
+            end
+            else
+            begin
+                for (reg_num = 4 ; reg_num <= 9 ; reg_num = reg_num + 1)
+                begin
+                
+                    data = 32'hFFFF_FFFF ;
+
+                    expected_data = 0 ;
+
+                    if (reg_num == 4)
+                    begin
+                        expected_data[`PCI_BASE_ADDR0_MATCH_RANGE] = data ;
+                        expected_data[3:0]                         = `PCI_BASE_ADDR0_MAP_QUAL ;
+                    end
+                    else if (reg_num == 5) 
+                    begin
+                        expected_data[`PCI_BASE_ADDR1_MATCH_RANGE] = data ;
+                        expected_data[3:0]                         = `PCI_BASE_ADDR1_MAP_QUAL ;
+                    end
+
+                    // write base address 0
+                    generate_configuration_cycle
+                    (
+                        'h0,            //bus_num
+                        device_num,     //device_num
+                        'h0,            //func_num
+                        reg_num,        //reg_num
+                        'h0,            //type
+                        4'hF,           // byte_enables
+                        data,           //data
+                        1'b1            //read0_write1
+                    );
+         
+                    // read data back
+                    generate_configuration_cycle
+                    (
+                        'h0,            //bus_num
+                        device_num,     //device_num
+                        'h0,            //func_num
+                        reg_num,        //reg_num
+                        'h0,            //type
+                        4'hF,           // byte_enables
+                        data,           //data
+                        1'b0            //read0_write1
+                    );
+     
+                    if (data !== expected_data)
+                    begin
+                        $display("All 1s written to BAR0 of behavioral PCI Target!") ;
+                        $display("Data read back not as expected!");
+                        $display("Expected Data: %h, Actual Data %h", expected_data, data) ;
+                        test_fail("data read from BAR of behavioral PCI Target was not as expected") ;
+                        ok = 0 ;
+                    end
+                end
+            end
+        end
     end
+
+    if (ok)
+        test_ok ;
 end //main
 endtask //find_pci_devices
 
@@ -9313,7 +9537,7 @@ begin
     found = 1'b0 ;
 
     configuration_cycle_read ( 8'h00, device_num[4:0], 3'h0, 6'h00, 2'h0, 4'hF, read_data) ;
-    if ( read_data == 32'hFFFF_FFFF)
+    if ( read_data === 32'hFFFF_FFFF)
         $display("Device %d not present on PCI bus!", device_num) ;
     else
     begin
@@ -9322,6 +9546,7 @@ begin
     end
 end
 endtask //find_device
+`endif
 
 /*task set_bridge_parameters ;
     reg [11:0] current_offset ;
@@ -9399,31 +9624,30 @@ task configuration_cycle_write ;
     input [3:0]  byte_enables ;
     input [31:0] data ;
 
-    `ifdef HOST
-    reg `WRITE_STIM_TYPE write_data ;
-    reg `WB_TRANSFER_FLAGS write_flags ;
-    reg `WRITE_RETURN_TYPE write_status ;
-    `endif
-
     reg [31:0] write_address ;
-    reg [31:0] temp_var ;
     reg in_use ;
     reg ok ;
 begin:main
 
     if ( in_use === 1 )
     begin
-        $display(" Task conf_write re-entered! Time %t ", $time ) ;
+        $display(" Task configuration_cycle_write re-entered! Time %t ", $time ) ;
         disable main ;
     end
 
-    if ( device_num > 20 )
+    if ( (device_num > 20) && (type === 0) )
     begin
         $display("Configuration cycle generation only supports access to 21 devices!") ;
         disable main ;
     end
 
     in_use = 1 ;
+
+
+`ifdef HOST
+    generate_configuration_cycle(bus_num, device_num, func_num, reg_num, type, byte_enables, data, 1'b1) ;
+`else
+`ifdef GUEST
 
     if ( type )
         write_address = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
@@ -9433,73 +9657,23 @@ begin:main
         write_address[10:0] = { func_num, reg_num, type } ;
         write_address[11 + device_num] = 1'b1 ;
     end
-
-fork
-begin
-    `ifdef HOST
-    // setup write flags
-    write_flags                    = 0 ;
-    write_flags`INIT_WAITS         = tb_init_waits ;
-    write_flags`SUBSEQ_WAITS       = tb_subseq_waits ;
-    write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
-
-    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
-    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
-    write_data`WRITE_DATA     = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
-    write_data`WRITE_SEL      = 4'hF ;
-    write_data`WRITE_TAG_STIM = 0 ;
-
-    wishbone_master.wb_single_write(write_data, write_flags, write_status) ;
-
-    // check if write succeeded
-    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+        
+    fork
     begin
-        $display("Configuration cycle generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
-        $stop ;
+        PCIU_CONFIG_WRITE ("CFG_WRITE ", `Test_Master_2,
+                            write_address,
+                            data, ~byte_enables,
+                            1, `Test_No_Master_WS, `Test_No_Target_WS,
+                            `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+        do_pause(1) ;
     end
-
-    // write to configuration data register
-    write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
-
-    write_data`WRITE_ADDRESS = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
-    write_data`WRITE_DATA    = data ;
-    write_data`WRITE_SEL     = byte_enables ;
-
-    wishbone_master.wb_single_write(write_data, write_flags, write_status) ;
-
-    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
     begin
-        $display("Configuration cycle generation failed! Time %t ", $time) ;
-        $stop ;
+        pci_transaction_progress_monitor( write_address, `BC_CONF_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ;
     end
-
-    `else
-    `ifdef GUEST
-
-     if ( type )
-         write_address = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
-     else
-     begin
-         write_address = 0 ;
-         write_address[10:0] = { func_num, reg_num, type } ;
-         write_address[11 + device_num] = 1'b1 ;
-     end
-     PCIU_CONFIG_WRITE ("CFG_WRITE ", `Test_Master_2,
-                 write_address,
-                 data, ~byte_enables,
-                 1, `Test_No_Master_WS, `Test_No_Target_WS,
-                 `Test_Devsel_Medium, `Test_Target_Normal_Completion);
-     do_pause(1) ;
-    `endif
-    `endif
-end
-begin
-    pci_transaction_progress_monitor( write_address, `BC_CONF_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ;
-end
-join
-
+    join
+`endif
+`endif
+    
     in_use = 0 ;
 end
 endtask // configuration_cycle_write
@@ -9513,17 +9687,9 @@ task configuration_cycle_read ;
     input [3:0]  byte_enables ;
     output [31:0] data ;
 
-    reg `READ_STIM_TYPE read_data ;
-    reg `WB_TRANSFER_FLAGS  flags ;
-    reg `READ_RETURN_TYPE   read_status ;
-
-    reg `WRITE_STIM_TYPE   write_data ;
-    reg `WRITE_RETURN_TYPE write_status ;
-
     reg [31:0] read_address ;
     reg in_use ;
 
-    reg [31:0] temp_var ;
     reg master_check_data_prev ;
 begin:main
 
@@ -9534,61 +9700,12 @@ begin:main
         disable main ;
     end
 
-    if ( device_num > 20 )
-    begin
-        $display("Configuration cycle generation only supports access to 20 devices!") ;
-        data = 32'hxxxx_xxxx ;
-        disable main ;
-    end
-
     in_use = 1 ;
 
-    `ifdef HOST
-    // setup flags
-    flags = 0 ;
-
-    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
-    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-
-    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
-    write_data`WRITE_DATA     = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
-    write_data`WRITE_SEL      = 4'hF ;
-    write_data`WRITE_TAG_STIM = 0 ;
-
-    wishbone_master.wb_single_write(write_data, flags, write_status) ;
-
-    // check if write succeeded
-    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
-    begin
-        $display("Configuration cycle generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
-        $stop ;
-        data = 32'hFFFF_FFFF ;
-        disable main ;
-    end
-
-    // read from configuration data register
-    // setup flags for wb master to handle retries
-    flags`WB_TRANSFER_AUTO_RTY = 1 ;
-
-    read_data`READ_ADDRESS  = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
-    read_data`READ_SEL      = 4'hF ;
-    read_data`READ_TAG_STIM = 0 ;
-
-    wishbone_master.wb_single_read(read_data, flags, read_status) ;
-
-    // check if read succeeded
-    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
-    begin
-        $display("Configuration cycle generation failed! Configuration read not processed correctly by the bridge! Time %t ", $time) ;
-        $stop ;
-        data = 32'hFFFF_FFFF ;
-        disable main ;
-    end
-
-
-    data = read_status`READ_DATA ;
-    `else
-    `ifdef GUEST
+`ifdef HOST
+    generate_configuration_cycle(bus_num, device_num, func_num, reg_num, type, byte_enables, data, 1'b0) ;    
+`else
+`ifdef GUEST
      master_check_data_prev = master1_check_received_data ;
      if ( type )
          read_address = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
@@ -9615,13 +9732,1711 @@ begin:main
      join
 
     master1_check_received_data = master_check_data_prev ;
-    `endif
-    `endif
+`endif
+`endif
 
     in_use = 0 ;
 
 end //main
 endtask // configuration_cycle_read
+
+`ifdef HOST
+task generate_configuration_cycle ;
+    input [7:0]  bus_num ;
+    input [4:0]  device_num ;
+    input [2:0]  func_num ;
+    input [5:0]  reg_num ;
+    input [1:0]  type ;
+    input [3:0]  byte_enables ;
+    inout [31:0] data ;
+    input        read0_write1 ;
+
+    reg `READ_STIM_TYPE read_data ;
+    reg `WB_TRANSFER_FLAGS  flags ;
+    reg `READ_RETURN_TYPE   read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+
+    reg [31:0] pci_address ;
+    reg in_use ;
+    reg ok ;
+
+    reg [31:0] temp_var ;
+begin:main
+
+    if ( in_use === 1 )
+    begin
+        $display("generate_configuration_cycle task re-entered! Time %t ", $time) ;
+        data = 32'hxxxx_xxxx ;
+        disable main ;
+    end
+
+    in_use = 1 ;
+
+    if ( type )
+        pci_address = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
+    else
+    begin
+        pci_address = 0 ;
+        pci_address[10:0] = { func_num, reg_num, type } ;
+        if (device_num <= 20)
+            pci_address[11 + device_num] = 1'b1 ;
+    end
+
+    // setup flags
+    flags = 0 ;
+    flags`INIT_WAITS   = tb_init_waits ;
+    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_DATA     = { 8'h00, bus_num, device_num, func_num, reg_num, type } ;
+    write_data`WRITE_SEL      = 4'hF ;
+    write_data`WRITE_TAG_STIM = 0 ;
+
+    wishbone_master.wb_single_write(write_data, flags, write_status) ;
+
+    // check if write succeeded
+    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        $display("Configuration cycle generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
+        data = 32'hxxxx_xxxx ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    // setup flags for wb master to handle retries and read and write data
+    flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
+    read_data`READ_SEL          = byte_enables ;
+    write_data`WRITE_SEL        = byte_enables ;
+    read_data`READ_TAG_STIM     = 0 ;
+    write_data`WRITE_TAG_STIM   = 0 ;
+    write_data`WRITE_DATA       = data ;
+
+    ok = 0 ;
+
+    fork
+    begin
+        if (read0_write1 === 0)
+            wishbone_master.wb_single_read(read_data, flags, read_status) ;
+        else
+        if (read0_write1 === 1)
+            wishbone_master.wb_single_write(write_data, flags, write_status) ;
+    end
+    begin
+        pci_transaction_progress_monitor
+        ( 
+            pci_address,                                            // expected address on PCI bus
+            read0_write1 ? `BC_CONF_WRITE : `BC_CONF_READ,          // expected bus command on PCI bus
+            1,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b0,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok                                                      // status - 1 success, 0 failure
+        ) ;
+    end
+    join
+
+    // check if transfer succeeded
+    if ((read0_write1 ? write_status`CYC_ACTUAL_TRANSFER : read_status`CYC_ACTUAL_TRANSFER) !== 1)
+    begin
+        $display("Configuration cycle generation failed! Configuration cycle not processed correctly by the bridge! Time %t ", $time) ;
+        data = 32'hxxxx_xxxx ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    if (!ok)
+    begin
+        data = 32'hxxxx_xxxx ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    if (read0_write1 === 0)
+        data = read_status`READ_DATA ;
+
+    in_use = 0 ;
+end
+endtask // generate_configuration_cycle
+
+task test_configuration_cycle_target_abort ;
+    reg `READ_STIM_TYPE read_data ;
+    reg `WB_TRANSFER_FLAGS  flags ;
+    reg `READ_RETURN_TYPE   read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+
+    reg [31:0] pci_address ;
+    reg in_use ;
+    reg ok_pci ;
+    reg ok_wb  ;
+    reg ok     ;
+
+    reg [31:0] temp_var ;
+
+begin:main
+
+    test_name = "TARGET ABORT HANDLING DURING CONFIGURATION CYCLE GENERATION" ;
+
+    if ( in_use === 1 )
+    begin
+        $display("test_configuration_cycle_target_abort task re-entered! Time %t ", $time) ;
+        disable main ;
+    end
+
+    in_use = 1 ;
+
+    pci_address = `TAR1_IDSEL_ADDR ;
+
+    // setup flags
+    flags = 0 ;
+    flags`INIT_WAITS   = tb_init_waits ;
+    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    temp_var                  = 0 ;
+    temp_var[15:11]           = `TAR1_IDSEL_INDEX - 11 ; // device number field
+    write_data`WRITE_DATA     = temp_var ;
+    write_data`WRITE_SEL      = 4'hF ;
+    write_data`WRITE_TAG_STIM = 0 ;
+
+    wishbone_master.wb_single_write(write_data, flags, write_status) ;
+
+    // check if write succeeded
+    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        $display("Configuration cycle generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
+        test_fail("write to configuration cycle address register was not possible") ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    // setup flags for wb master to handle retries and read and write data
+    flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
+    read_data`READ_SEL          = 4'hF ;
+    write_data`WRITE_SEL        = 4'hF ;
+    read_data`READ_TAG_STIM     = 0 ;
+    write_data`WRITE_TAG_STIM   = 0 ;
+    write_data`WRITE_DATA       = 32'hAAAA_AAAA ;
+
+    ok_pci = 0 ;
+    ok_wb  = 1 ;
+
+    // set target to terminate with target abort
+    test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Abort ;
+    test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
+    fork
+    begin
+        wishbone_master.wb_single_read(read_data, flags, read_status) ;
+        if ((read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1))
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Read was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus!") ;
+            test_fail("Configuration Cycle Read was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Read was terminated with Target Abort!") ;
+            test_fail("Received Master Abort bit was set when Configuration Read was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 1 )
+        begin
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was not set when Configuration Read was terminated with Target Abort!") ;
+            test_fail("Received Target Abort bit was not set when Configuration Read was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+
+        wishbone_master.wb_single_write(write_data, flags, write_status) ;
+        if ((write_status`CYC_ACTUAL_TRANSFER !== 0 || write_status`CYC_ERR !== 1))
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Write was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus!") ;
+            test_fail("Configuration Cycle Write was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Write was terminated with Target Abort!") ;
+            test_fail("Received Master Abort bit was set when Configuration Write was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 1 )
+        begin
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was not set when Configuration Write was terminated with Target Abort!") ;
+            test_fail("Received Target Abort bit was not set when Configuration Write was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Target Abort termination of Configuration Cycle testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+    end
+    begin
+        pci_transaction_progress_monitor
+        (
+            pci_address,                                            // expected address on PCI bus
+            `BC_CONF_READ,                                          // expected bus command on PCI bus
+            0,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok_pci                                                  // status - 1 success, 0 failure
+        ) ;
+
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor
+            (
+                pci_address,                                            // expected address on PCI bus
+                `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+                0,                                                      // expected number of succesfull data phases
+                0,                                                      // expected number of cycles the transaction will take on PCI bus
+                1'b1,                                                   // monitor checking/not checking number of transfers
+                1'b0,                                                   // monitor checking/not checking number of cycles
+                0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+                ok_pci                                                  // status - 1 success, 0 failure
+            ) ;
+        end
+
+        if (!ok_pci)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+            test_fail("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+        end
+    end
+    join
+
+    if (ok_pci && ok_wb)
+    begin
+        test_ok ;
+    end
+
+    in_use = 0 ;
+
+    // set target to terminate normally
+    test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Normal_Completion ;
+    test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 0 ;
+end
+endtask // test_configuration_cycle_target_abort
+
+task test_configuration_cycle_type1_generation ;
+    reg `READ_STIM_TYPE read_data ;
+    reg `WB_TRANSFER_FLAGS  flags ;
+    reg `READ_RETURN_TYPE   read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+
+    reg [31:0] pci_address ;
+    reg in_use ;
+    reg ok_pci ;
+    reg ok_wb  ;
+    reg ok     ;
+
+    reg [31:0] temp_var ;
+
+begin:main
+
+    conf_cyc_type1_target_response = 0 ;    // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+    conf_cyc_type1_target_data = 0 ;
+    conf_cyc_type1_target_bus_num = 0;
+
+    test_name = "MASTER ABORT HANDLING DURING CONFIGURATION CYCLE TYPE1 GENERATION" ;
+
+    if ( in_use === 1 )
+    begin
+        $display("test_configuration_cycle_type1_generation task re-entered! Time %t ", $time) ;
+        disable main ;
+    end
+
+    in_use = 1 ;
+
+    pci_address        = 32'hAAAA_AAAA ;
+    pci_address[1:0]   = 2'b01 ; // indicate Type 1 configuration cycle
+
+    // setup flags
+    flags = 0 ;
+    flags`INIT_WAITS   = tb_init_waits ;
+    flags`SUBSEQ_WAITS = tb_subseq_waits ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_DATA     = pci_address ;
+    write_data`WRITE_SEL      = 4'hF ;
+    write_data`WRITE_TAG_STIM = 0 ;
+
+    wishbone_master.wb_single_write(write_data, flags, write_status) ;
+
+    // check if write succeeded
+    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        $display("Configuration cycle Type1 generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
+        test_fail("write to configuration cycle address register was not possible") ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    // setup flags for wb master to handle retries and read and write data
+    flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
+    read_data`READ_SEL          = 4'hF ;
+    write_data`WRITE_SEL        = 4'hF ;
+    read_data`READ_TAG_STIM     = 0 ;
+    write_data`WRITE_TAG_STIM   = 0 ;
+    write_data`WRITE_DATA       = 32'hAAAA_AAAA ;
+
+    ok_pci = 0 ;
+    ok_wb  = 1 ;
+
+    // bridge sets reserved bits of configuration address to 0 - set pci_address for comparison
+    pci_address[31:24] = 0 ;
+    fork
+    begin
+        wishbone_master.wb_single_read(read_data, flags, read_status) ;
+        if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Read was terminated with Master Abort on PCI Bus but didn't terminate with ACK on WB Bus!") ;
+            test_fail("Configuration Cycle Type 1 Read was terminated with Master Abort on PCI Bus but didn't terminate with ACK on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 1 )
+        begin
+            $display("Master Abort termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was not set when Configuration Type1 Read was terminated with Master Abort!") ;
+            test_fail("Received Master Abort bit was not set when Configuration Type1 Read was terminated with Master Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 0 )
+        begin
+            $display("Master Abort termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was set when Configuration Type1 Read was terminated with Master Abort!") ;
+            test_fail("Received Target Abort bit was set when Configuration Type1 Read was terminated with Master Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Master Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+
+        wishbone_master.wb_single_write(write_data, flags, write_status) ;
+        if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Write was terminated with Master Abort on PCI Bus but didn't terminate with ACK on WB Bus!") ;
+            test_fail("Configuration Cycle Type1 Write was terminated with Master Abort on PCI Bus but didn't terminate with ACK on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 1 )
+        begin
+            $display("Master Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was not set when Configuration Type1 Write was terminated with Master Abort!") ;
+            test_fail("Received Master Abort bit was not set when Configuration Type1 Write was terminated with Master Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 0 )
+        begin
+            $display("Master Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was set when Configuration Type1 Write was terminated with Master Abort!") ;
+            test_fail("Received Target Abort bit was set when Configuration Type1 Write was terminated with Master Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Master Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+    end
+    begin
+        pci_transaction_progress_monitor
+        (
+            pci_address,                                            // expected address on PCI bus
+            `BC_CONF_READ,                                          // expected bus command on PCI bus
+            0,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok_pci                                                  // status - 1 success, 0 failure
+        ) ;
+
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor
+            (
+                pci_address,                                            // expected address on PCI bus
+                `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+                0,                                                      // expected number of succesfull data phases
+                0,                                                      // expected number of cycles the transaction will take on PCI bus
+                1'b1,                                                   // monitor checking/not checking number of transfers
+                1'b0,                                                   // monitor checking/not checking number of cycles
+                0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+                ok_pci                                                  // status - 1 success, 0 failure
+            ) ;
+        end
+
+        if (!ok_pci)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+            test_fail("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+        end
+    end
+    join
+
+    if (ok_pci && ok_wb)
+    begin
+        test_ok ;
+    end
+
+    conf_cyc_type1_target_response = 2'b11 ; // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+    conf_cyc_type1_target_data = 0 ;
+    conf_cyc_type1_target_bus_num = 8'h55;
+
+    pci_address      = 32'h5555_5555 ;
+    pci_address[1:0] = 2'b01 ; // indicate Type1 Configuration Cycle
+
+    test_name = "TARGET ABORT HANDLING DURING CONFIGURATION CYCLE TYPE1 GENERATION" ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_DATA     = pci_address ;
+    write_data`WRITE_SEL      = 4'hF ;
+    write_data`WRITE_TAG_STIM = 0 ;
+
+    wishbone_master.wb_single_write(write_data, flags, write_status) ;
+
+    // check if write succeeded
+    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        $display("Configuration cycle Type1 generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
+        test_fail("write to configuration cycle address register was not possible") ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    // setup flags for wb master to handle retries and read and write data
+    flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
+    read_data`READ_SEL          = 4'hF ;
+    write_data`WRITE_SEL        = 4'hF ;
+    read_data`READ_TAG_STIM     = 0 ;
+    write_data`WRITE_TAG_STIM   = 0 ;
+    write_data`WRITE_DATA       = 32'hAAAA_AAAA ;
+
+    ok_pci = 0 ;
+    ok_wb  = 1 ;
+
+    // bridge sets reserved bits of configuration address to 0 - set pci_address for comparison
+    pci_address[31:24] = 0 ;
+    fork
+    begin
+        wishbone_master.wb_single_read(read_data, flags, read_status) ;
+        if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Read was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus!") ;
+            test_fail("Configuration Cycle Type 1 Read was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Target Abort termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Type1 Read was terminated with Target Abort!") ;
+            test_fail("Received Master Abort bit was set when Configuration Type1 Read was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 1 )
+        begin
+            $display("Target Abort termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was not set when Configuration Type1 Read was terminated with Target Abort!") ;
+            test_fail("Received Target Abort bit was not set when Configuration Type1 Read was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Target Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+
+        wishbone_master.wb_single_write(write_data, flags, write_status) ;
+        if ( (write_status`CYC_ACTUAL_TRANSFER !== 0) || (write_status`CYC_ERR !== 1) )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Write was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus!") ;
+            test_fail("Configuration Cycle Type1 Write was terminated with Target Abort on PCI Bus but didn't terminate with ERR on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Target Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Type1 Write was terminated with Target Abort!") ;
+            test_fail("Received Master Abort bit was set when Configuration Type1 Write was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 1 )
+        begin
+            $display("Target Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was not set when Configuration Type1 Write was terminated with Target Abort!") ;
+            test_fail("Received Target Abort bit was not set when Configuration Type1 Write was terminated with Target Abort") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Target Abort termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+    end
+    begin
+        pci_transaction_progress_monitor
+        (
+            pci_address,                                            // expected address on PCI bus
+            `BC_CONF_READ,                                          // expected bus command on PCI bus
+            0,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok_pci                                                  // status - 1 success, 0 failure
+        ) ;
+
+        if (ok_pci)
+        begin
+            pci_transaction_progress_monitor
+            (
+                pci_address,                                            // expected address on PCI bus
+                `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+                0,                                                      // expected number of succesfull data phases
+                0,                                                      // expected number of cycles the transaction will take on PCI bus
+                1'b1,                                                   // monitor checking/not checking number of transfers
+                1'b0,                                                   // monitor checking/not checking number of cycles
+                0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+                ok_pci                                                  // status - 1 success, 0 failure
+            ) ;
+        end
+
+        if (!ok_pci)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+            test_fail("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+        end
+    end
+    join
+
+    if (ok_pci && ok_wb)
+    begin
+        test_ok ;
+    end
+
+    test_name = "NORMAL CONFIGURATION CYCLE TYPE1 GENERATION" ;
+
+    conf_cyc_type1_target_response = 2'b10 ;  // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+    conf_cyc_type1_target_data = 32'h5555_5555 ;
+    conf_cyc_type1_target_bus_num = 8'hAA;
+
+    pci_address      = 32'hAAAA_AAAA ;
+    pci_address[1:0] = 2'b01 ; // indicate Type1 Configuration Cycle
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    write_data`WRITE_ADDRESS  = temp_var + { 4'h1, `CNF_ADDR_ADDR, 2'b00 } ;
+    write_data`WRITE_DATA     = pci_address ;
+    write_data`WRITE_SEL      = 4'hF ;
+    write_data`WRITE_TAG_STIM = 0 ;
+
+    wishbone_master.wb_single_write(write_data, flags, write_status) ;
+
+    // check if write succeeded
+    if (write_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        $display("Configuration cycle Type1 generation failed! Couldn't write to configuration address register! Time %t ", $time) ;
+        test_fail("write to configuration cycle address register was not possible") ;
+        in_use = 0 ;
+        disable main ;
+    end
+
+    // setup flags for wb master to handle retries and read and write data
+    flags`WB_TRANSFER_AUTO_RTY = 1 ;
+
+    temp_var                                     = { `WB_CONFIGURATION_BASE, 12'h000 } ;
+    temp_var[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    read_data`READ_ADDRESS      = temp_var + {4'b0001, `CNF_DATA_ADDR, 2'b00} ;
+    write_data`WRITE_ADDRESS    = read_data`READ_ADDRESS ;
+    read_data`READ_SEL          = 4'b0101 ;
+    write_data`WRITE_SEL        = 4'b1010 ;
+    read_data`READ_TAG_STIM     = 0 ;
+    write_data`WRITE_TAG_STIM   = 0 ;
+    write_data`WRITE_DATA       = 32'hAAAA_AAAA ;
+
+    ok_pci = 0 ;
+    ok_wb  = 1 ;
+
+    // bridge sets reserved bits of configuration address to 0 - set pci_address for comparison
+    pci_address[31:24] = 0 ;
+
+    fork
+    begin
+        wishbone_master.wb_single_read(read_data, flags, read_status) ;
+        if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Read was terminated normaly on PCI Bus but didn't terminate with ACK on WB Bus!") ;
+            test_fail("Configuration Cycle Type 1 Read was terminated normaly on PCI Bus but didn't terminate with ACK on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Normal termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Type1 Read was terminated normaly!") ;
+            test_fail("Received Master Abort bit was set when Configuration Type1 Read was terminated normaly") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 0 )
+        begin
+            $display("Normal termination of Configuration Cycle Type 1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was set when Configuration Type1 Read was terminated normaly!") ;
+            test_fail("Received Target Abort bit was set when Configuration Type1 Read was terminated normaly") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+
+        if (read_status`READ_DATA !== 32'hDE55_BE55)
+        begin
+            ok_wb = 0 ;
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Read Data provided by the bridge was not as expected!") ;
+            test_fail("Read Data provided by the bridge was not as expected") ;
+        end
+
+        wishbone_master.wb_single_write(write_data, flags, write_status) ;
+        if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+        begin
+            $display("Time %t", $time) ;
+            $display("Configuration Cycle Type1 Write was terminated normaly on PCI Bus but didn't terminate with ACK on WB Bus!") ;
+            test_fail("Configuration Cycle Type1 Write was terminated normaly on PCI Bus but didn't terminate with ACK on WB Bus") ;
+            ok_wb = 0 ;
+        end
+
+        config_read( 12'h4, 4'hF, temp_var ) ;
+        if ( temp_var[29] !== 0 )
+        begin
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Master Abort bit was set when Configuration Type1 Write was terminated normaly!") ;
+            test_fail("Received Master Abort bit was set when Configuration Type1 Write was terminated normaly") ;
+            ok_wb = 0 ;
+        end
+
+        if ( temp_var[28] !== 0 )
+        begin
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Received Target Abort bit was set when Configuration Type1 Write was terminated normaly!") ;
+            test_fail("Received Target Abort bit was set when Configuration Type1 Write was terminated normaly") ;
+            ok_wb = 0 ;
+        end
+
+        config_write( 12'h4, temp_var, 4'b1100, ok ) ;
+
+        if (ok !== 1)
+        begin
+            ok_wb = 0 ;
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Write to PCI Device Status Register failed") ;
+            test_fail("Write to PCI Device Status Register failed") ;
+        end
+    
+        if (conf_cyc_type1_target_data_from_PCI !== 32'hAAAD_AAAF)
+        begin
+            ok_wb = 0 ;
+            $display("Normal termination of Configuration Cycle Type1 testing failed! Time %t ", $time) ;
+            $display("Data written by the bridge was not as expected!") ;
+            test_fail("Data written by the bridge was not as expected") ;
+        end
+        
+    end
+    begin
+        ok = 1 ;
+        repeat(8)
+        begin
+            pci_transaction_progress_monitor
+            (
+                pci_address,                                            // expected address on PCI bus
+                `BC_CONF_READ,                                          // expected bus command on PCI bus
+                0,                                                      // expected number of succesfull data phases
+                0,                                                      // expected number of cycles the transaction will take on PCI bus
+                1'b1,                                                   // monitor checking/not checking number of transfers
+                1'b0,                                                   // monitor checking/not checking number of cycles
+                0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+                ok_pci                                                  // status - 1 success, 0 failure
+            ) ;
+            
+            if (!ok_pci)
+            begin
+                ok = 0 ;
+                $display("Time %t", $time) ;
+                $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+            end
+        end
+
+        conf_cyc_type1_target_response = 2'b01 ;    // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+
+        pci_transaction_progress_monitor
+        (
+            pci_address,                                            // expected address on PCI bus
+            `BC_CONF_READ,                                          // expected bus command on PCI bus
+            1,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok_pci                                                  // status - 1 success, 0 failure
+        ) ;
+
+        if (!ok_pci)
+        begin
+            ok = 0 ;
+            $display("Time %t", $time) ;
+            $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+        end
+
+        conf_cyc_type1_target_response = 2'b10 ;              // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+        repeat(8)
+        begin
+            pci_transaction_progress_monitor
+            (
+                pci_address,                                            // expected address on PCI bus
+                `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+                0,                                                      // expected number of succesfull data phases
+                0,                                                      // expected number of cycles the transaction will take on PCI bus
+                1'b1,                                                   // monitor checking/not checking number of transfers
+                1'b0,                                                   // monitor checking/not checking number of cycles
+                0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+                ok_pci                                                  // status - 1 success, 0 failure
+            ) ;
+
+            if (!ok_pci)
+            begin
+                ok = 0 ;
+                $display("Time %t", $time) ;
+                $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+            end
+        end
+
+        conf_cyc_type1_target_response = 2'b00 ;            // 0 = normal completion, 1 = disconnect with data, 2 = retry, 3 = Target Abort
+        pci_transaction_progress_monitor
+        (
+            pci_address,                                            // expected address on PCI bus
+            `BC_CONF_WRITE,                                         // expected bus command on PCI bus
+            1,                                                      // expected number of succesfull data phases
+            0,                                                      // expected number of cycles the transaction will take on PCI bus
+            1'b1,                                                   // monitor checking/not checking number of transfers
+            1'b0,                                                   // monitor checking/not checking number of cycles
+            0,                                                      // tell to monitor if it has to expect a fast back to back transaction
+            ok_pci                                                  // status - 1 success, 0 failure
+        ) ;
+
+        if (!ok_pci)
+        begin
+            ok = 0 ;
+            $display("Time %t", $time) ;
+            $display("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+        end
+
+        if (!ok)
+            test_fail("PCI Transaction Progress Monitor detected invalid transaction during testing") ;
+    end
+    join
+
+    if (ok_pci && ok_wb)
+    begin
+        test_ok ;
+    end
+
+    in_use = 0 ;
+end
+endtask // test_configuration_cycle_type1_generation
+`endif
+
+task test_initial_conf_values ;
+    reg [11:0] register_offset ;
+    reg [31:0] expected_value ;
+    reg        failed ;
+`ifdef HOST
+    reg `READ_STIM_TYPE    read_data ;
+    reg `WB_TRANSFER_FLAGS flags ;
+    reg `READ_RETURN_TYPE  read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+begin
+    failed     = 0 ;
+    test_name  = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
+    flags      = 0 ;
+    read_data  = 0 ;
+    write_data = 0 ;
+
+    read_data`READ_SEL = 4'hF ;
+
+    flags`INIT_WAITS           = tb_init_waits ;
+    flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    
+    // test MEM/IO map bit initial value in each PCI BAR
+    register_offset = {1'b1, `P_BA0_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef NO_CNF_IMAGE
+        `ifdef PCI_IMAGE0
+            if (`PCI_AM0)
+                expected_value = `PCI_BA0_MEM_IO ;
+            else
+                expected_value = 32'h0000_0000 ;
+        `else
+            expected_value = 32'h0000_0000 ;
+        `endif
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA0 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA0 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_BA1_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    if (`PCI_AM1)
+        expected_value = `PCI_BA1_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA1 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA1 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+    
+    register_offset = {1'b1, `P_BA2_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE2
+        if (`PCI_AM2)
+            expected_value = `PCI_BA2_MEM_IO ;
+        else
+            expected_value = 32'h0000_0000 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA2 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA2 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_BA3_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE3
+        if (`PCI_AM3)
+            expected_value = `PCI_BA3_MEM_IO ;
+        else
+            expected_value = 32'h0000_0000 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA3 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA3 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_BA4_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE4
+        if (`PCI_AM4)
+            expected_value = `PCI_BA4_MEM_IO ;
+        else
+            expected_value = 32'h0000_0000 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA4 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA4 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_BA5_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE5
+        if(`PCI_AM5)
+            expected_value = `PCI_BA5_MEM_IO ;
+        else
+            expected_value = 32'h0000_0000 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_BA5 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("BA5 MEM/IO initial bit value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    // test Address Mask initial values
+    register_offset = {1'b1, `P_AM0_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef NO_CNF_IMAGE
+        `ifdef PCI_IMAGE0
+            expected_value = {`PCI_AM0, 12'h000};
+
+            expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+        `else
+            expected_value = 32'h0000_0000 ;
+        `endif
+    `else
+        expected_value = 32'hFFFF_FFFF ;
+
+        expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM0 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM0 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_AM1_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    expected_value = {`PCI_AM1, 12'h000};
+
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM1 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM1 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_AM2_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE2
+        expected_value = {`PCI_AM2, 12'h000};
+
+        expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM2 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM2 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+    
+    register_offset = {1'b1, `P_AM3_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE3
+        expected_value = {`PCI_AM3, 12'h000};
+
+        expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM3 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM3 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_AM4_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE4
+        expected_value = {`PCI_AM4, 12'h000};
+
+        expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM4 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM4 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+    register_offset = {1'b1, `P_AM5_ADDR, 2'b00} ;
+
+    read_data`READ_ADDRESS = {`WB_CONFIGURATION_BASE, register_offset} ;
+
+    wishbone_master.wb_single_read(read_data, flags, read_status) ;
+
+    `ifdef PCI_IMAGE5
+        expected_value = {`PCI_AM5, 12'h000};
+
+        expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    `else
+        expected_value = 32'h0000_0000 ;
+    `endif
+
+    if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+    begin
+        test_fail("read from P_AM5 register didn't succeede") ;
+        failed = 1 ;
+    end
+    else
+    begin
+        if (read_status`READ_DATA !== expected_value)
+        begin
+            test_fail("AM5 initial value was not set as defined");
+            failed = 1 ;
+        end
+    end
+
+`endif
+
+`ifdef GUEST
+    reg [31:0] read_data ;
+begin
+    test_name = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
+    failed    = 0 ;
+    
+    // check all images' BARs
+
+    // BAR0
+    configuration_cycle_read 
+    ( 
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h4,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    expected_value = 32'h0000_0000 ;
+    
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR0 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // BAR1
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h5,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    if (`PCI_AM1)
+        expected_value = `PCI_BA1_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR1 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // BAR2
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h6,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    `ifdef PCI_IMAGE2
+    if (`PCI_AM2)
+        expected_value = `PCI_BA2_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+    `else
+    expected_value = 32'h0 ;
+    `endif
+
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR2 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // BAR3
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h7,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    `ifdef PCI_IMAGE3
+    if(`PCI_AM3)
+        expected_value = `PCI_BA3_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+    `else
+    expected_value = 32'h0 ;
+    `endif
+
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR3 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // BAR4
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h8,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    `ifdef PCI_IMAGE4
+    if (`PCI_AM4)
+        expected_value = `PCI_BA4_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+    `else
+    expected_value = 32'h0 ;
+    `endif
+
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR4 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // BAR5
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h9,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data returned from configuration read [31:0]
+    ) ;
+
+    `ifdef PCI_IMAGE5
+    if(`PCI_AM5)
+        expected_value = `PCI_BA5_MEM_IO ;
+    else
+        expected_value = 32'h0000_0000 ;
+    `else
+    expected_value = 32'h0 ;
+    `endif
+
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR5 register not as expected") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR0
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR0
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h4,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    expected_value = 32'hFFFF_FFFF ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h4,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR0 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR1
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR1
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h5,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    expected_value = {`PCI_AM1, 12'h000} ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    if (`PCI_AM1)
+        expected_value[0] = `PCI_BA1_MEM_IO ;
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h5,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR1 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR2
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR2
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h6,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+`ifdef PCI_IMAGE2
+    expected_value = {`PCI_AM2, 12'h000} ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    if (`PCI_AM2)
+        expected_value[0] = `PCI_BA2_MEM_IO ;
+`else
+    expected_value = 0 ;
+`endif
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h6,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR2 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR3
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR3
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h7,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+`ifdef PCI_IMAGE3
+    expected_value = {`PCI_AM3, 12'h000} ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    if(`PCI_AM3)
+        expected_value[0] = `PCI_BA3_MEM_IO ;
+`else
+    expected_value = 0 ;
+`endif
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h7,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR3 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR4
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR4
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h8,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+`ifdef PCI_IMAGE4
+    expected_value = {`PCI_AM4, 12'h000} ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    if(`PCI_AM4)
+        expected_value[0] = `PCI_BA4_MEM_IO ;
+`else
+    expected_value = 0 ;
+`endif
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h8,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR4 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+
+    // write all 1s to BAR5
+    read_data = 32'hFFFF_FFFF ;
+
+    // BAR5
+    configuration_cycle_write
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h9,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+`ifdef PCI_IMAGE5
+    expected_value = {`PCI_AM5, 12'h000} ;
+    expected_value[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    if(`PCI_AM5)
+        expected_value[0] = `PCI_BA5_MEM_IO ;
+`else
+    expected_value = 0 ;
+`endif
+
+    configuration_cycle_read
+    (
+        8'h00,                          // bus number [7:0]
+        `TAR0_IDSEL_INDEX - 11,         // device number [4:0]
+        3'h0,                           // function number [2:0]
+        6'h9,                           // register number [5:0]
+        2'h0,                           // type [1:0]
+        4'hF,                           // byte enables [3:0]
+        read_data                       // data to write [31:0]
+    ) ;
+
+    if ( read_data !== expected_value )
+    begin
+        test_fail("BAR5 value was not masked correctly during configuration read") ;
+        failed = 1 ;
+    end
+`endif
+
+    if (!failed)
+        test_ok ;
+end
+endtask
 
 task display_warning;
     input [31:0] error_address ;
@@ -10164,25 +11979,25 @@ begin
     data            = 32'h0000_0007 ; // enable master & target operation
     byte_enables    = 4'hF ;
     $display(" bridge target - Enabling master and target operation!");
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
 
     data = Target_Base_Addr_R[0] ; // `TAR0_BASE_ADDR_0 = 32'h1000_0000
     $display(" bridge target - Setting base address P_BA0 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              4,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              4,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
 
 `endif
@@ -10341,88 +12156,88 @@ begin
     data            = 32'h0000_0007 ; // enable master & target operation
     byte_enables    = 4'hF ;
     $display(" bridge target - Enabling master and target operation!");
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              1,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              1,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
 
     data = Target_Base_Addr_R[0] ; // `TAR0_BASE_ADDR_0 = 32'h1000_0000
     $display(" bridge target - Setting base address P_BA0 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              4,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              4,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
 
     data = Target_Base_Addr_R[1] ; // `TAR0_BASE_ADDR_1 = 32'h2000_0000
     $display(" bridge target - Setting base address P_BA1 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              5,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              5,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
  `ifdef PCI_IMAGE2
     data = Target_Base_Addr_R[2] ; // `TAR0_BASE_ADDR_2 = 32'h3000_0000
     $display(" bridge target - Setting base address P_BA2 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              6,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              6,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
  `endif
  `ifdef PCI_IMAGE3
     data = Target_Base_Addr_R[3] ; // `TAR0_BASE_ADDR_3 = 32'h4000_0000
     $display(" bridge target - Setting base address P_BA3 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              7,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              7,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
  `endif
  `ifdef PCI_IMAGE4
     data = Target_Base_Addr_R[4] ; // `TAR0_BASE_ADDR_4 = 32'h5000_0000
     $display(" bridge target - Setting base address P_BA4 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              8,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              8,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
  `endif
  `ifdef PCI_IMAGE5
     data = Target_Base_Addr_R[5] ; // `TAR0_BASE_ADDR_5 = 32'h6000_0000
     $display(" bridge target - Setting base address P_BA5 to    32'h %h !", data);
     byte_enables = 4'hf ;
-    configuration_cycle_write(0,             // bus number
-                              0,             // device number
-                              0,             // function number
-                              9,             // register number
-                              0,             // type of configuration cycle
-                              byte_enables,  // byte enables
-                              data           // data
+    configuration_cycle_write(0,                        // bus number
+                              `TAR0_IDSEL_INDEX - 11,   // device number
+                              0,                        // function number
+                              9,                        // register number
+                              0,                        // type of configuration cycle
+                              byte_enables,             // byte enables
+                              data                      // data
                              ) ;
  `endif
 `endif
@@ -12481,7 +14296,7 @@ begin:main
             test_ok ;
 
         test_name = "DISABLE IMAGE" ;
-        config_write( am_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Erroneous PCI Target read testing failed! Failed to write PCI Address Mask register! Time %t ", $time);
@@ -12722,7 +14537,7 @@ begin:main
         end
 
         test_name = "DISABLE IMAGE" ;
-        config_write( am_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Erroneous PCI Target read testing failed! Failed to write PCI Address Mask register! Time %t ", $time);
@@ -13238,7 +15053,7 @@ begin:main
 
     test_name = "DISABLE IMAGE" ;
 
-    config_write( am_offset, Target_Addr_Mask_R[image_num] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+    config_write( am_offset, Target_Addr_Mask_R[image_num] & 32'h0000_0000, 4'hF, ok ) ;
     if ( ok !== 1 )
     begin
         $display("Target Abort testing failed! Failed to write P_AM%d register! Time %t ",1 ,$time);
@@ -14088,7 +15903,7 @@ begin
     target_unsupported_cmds( Target_Base_Addr_R[image_num], image_num ) ;
 
     // disable the image
-    config_write( am_offset, Target_Addr_Mask_R[image_num] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+    config_write( am_offset, Target_Addr_Mask_R[image_num] & 32'h0000_0000, 4'hF, ok ) ;
 end
 endtask //test_pci_image
 
@@ -14196,13 +16011,13 @@ begin:main
         end
 
         // enable master 1 fast_b2b
-        configuration_cycle_write(0,             // bus number
-                                  1,             // device number
-                                  0,             // function number
-                                  1,             // register number
-                                  0,             // type of configuration cycle
-                                  4'b1111,       // byte enables
-                                  32'hFFFF_FFFF  // data
+        configuration_cycle_write(0,                        // bus number
+                                  `TAR1_IDSEL_INDEX - 11,   // device number
+                                  0,                        // function number
+                                  1,                        // register number
+                                  0,                        // type of configuration cycle
+                                  4'b1111,                  // byte enables
+                                  32'hFFFF_FFFF             // data
                                  ) ;
 
         wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 0) ;
@@ -14384,7 +16199,7 @@ begin:main
             test_ok ;
 
         test_name = "DISABLING MEM IMAGE" ;
-        config_write( am_offset, Target_Addr_Mask_R[target_mem_image] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, Target_Addr_Mask_R[target_mem_image] & 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Fast B2B testing failed! Failed to write P_AM%d register! Time %t ",1 ,$time);
@@ -14483,13 +16298,13 @@ begin:main
         end
 
         // enable master 1 fast_b2b
-        configuration_cycle_write(0,             // bus number
-                                  1,             // device number
-                                  0,             // function number
-                                  1,             // register number
-                                  0,             // type of configuration cycle
-                                  4'b1111,       // byte enables
-                                  32'hFFFF_FFFF  // data
+        configuration_cycle_write(0,                        // bus number
+                                  `TAR1_IDSEL_INDEX - 11,   // device number
+                                  0,                        // function number
+                                  1,                        // register number
+                                  0,                        // type of configuration cycle
+                                  4'b1111,                  // byte enables
+                                  32'hFFFF_FFFF             // data
                                  ) ;
 
         wishbone_slave.cycle_response(3'b100, tb_subseq_waits, 0) ;
@@ -14625,7 +16440,7 @@ begin:main
             test_ok ;
 
         test_name = "DISABLING IO IMAGE" ;
-        config_write( am_offset, Target_Addr_Mask_R[target_io_image] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, Target_Addr_Mask_R[target_io_image] & 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Fast B2B testing failed! Failed to write P_AM%d register! Time %t ",1 ,$time);
@@ -14720,7 +16535,7 @@ begin:main
 
         data = 32'h0000_08_08 ;
 
-        test_name = "TARGET DISCONNECT ON BURST WRITE TO CONFIGURATION SPACE" ;
+        test_name = "TARGET DISCONNECT ON BURST MEMORY WRITE TO CONFIGURATION SPACE" ;
         byte_enables = 4'b0000 ;
 
         fork
@@ -14767,7 +16582,9 @@ begin:main
         else if ( ok )
             test_ok ;
 
-        pci_address  = {20'h0000_0, 1'b1, 11'h00C} ;
+        test_name = "TARGET DISCONNECT ON BURST CONFIGURATION WRITE" ;
+
+        pci_address  = `TAR0_IDSEL_ADDR + 'hC ;
         data         = 32'h0000_0808 ;
         byte_enables = 4'h0 ;
         fork
@@ -14821,7 +16638,7 @@ begin:main
 
         data = 32'h0000_04_04 ;
 
-        test_name = "TARGET DISCONNECT ON BURST READ FROM CONFIGURATION SPACE" ;
+        test_name = "TARGET DISCONNECT ON BURST MEMORY READ FROM CONFIGURATION SPACE" ;
         byte_enables = 4'b0000 ;
 
         fork
@@ -14863,7 +16680,9 @@ begin:main
         if ( ok )
             test_ok ;
 
-        pci_address  = {20'h0000_0, 1'b1, 11'h00C} ;
+
+        test_name = "TARGET DISCONNECT ON BURST CONFIGURATION READ" ;
+        pci_address  = `TAR0_IDSEL_ADDR + 'hC ;
         fork
         begin
             DO_REF ("CFG_READ  ", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
@@ -15436,7 +17255,7 @@ begin:main
 
         // disable the image
         test_name = "DISABLING MEMORY IMAGE" ;
-        config_write( am_offset, Target_Addr_Mask_R[target_mem_image] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, Target_Addr_Mask_R[target_mem_image] & 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Target Disconnect testing failed! Failed to write P_AM%d register! Time %t ",1 ,$time);
@@ -15731,7 +17550,7 @@ begin:main
             test_ok ;
 
         test_name = "DISABLING IO IMAGE" ;
-        config_write( am_offset, Target_Addr_Mask_R[target_io_image] & 32'h7FFF_FFFF, 4'hF, ok ) ;
+        config_write( am_offset, Target_Addr_Mask_R[target_io_image] & 32'h0000_0000, 4'hF, ok ) ;
         if ( ok !== 1 )
         begin
             $display("Target Disconnect testing failed! Failed to write P_AM%d register! Time %t ",1 ,$time);
@@ -15748,12 +17567,34 @@ task target_unsupported_cmds ;
 	input [2:0]  image_num ;
     reg          ok ;
 begin:main
-	// PCI IACK behavioral Target must NOT respond!!!
-    irq_respond = 0 ;
 
     $display("  ") ;
     $display("  Master abort testing with unsuported bus command to image %d (BC is IACK)!", image_num) ;
     test_name = "MASTER ABORT WHEN ACCESSING TARGET WITH UNSUPPORTED BUS COMMAND - IACK" ;
+
+    // disable pci blue behavioral targets 1 and 2, so no device except the bridge can respond to this
+    configuration_cycle_write
+    (
+        0,                        // bus number
+        `TAR1_IDSEL_INDEX - 11,   // device number
+        0,                        // function number
+        1,                        // register number
+        0,                        // type of configuration cycle
+        4'b0001,                  // byte enables
+        32'h0000_0044             // data
+    ) ;
+
+    configuration_cycle_write
+    (
+        0,                        // bus number
+        `TAR2_IDSEL_INDEX - 11,   // device number
+        0,                        // function number
+        1,                        // register number
+        0,                        // type of configuration cycle
+        4'b0001,                  // byte enables
+        32'h0000_0044             // data
+    ) ;
+
     ipci_unsupported_commands_master.master_reference
     (
         Address,      		// first part of address in dual address cycle
@@ -15908,8 +17749,28 @@ begin:main
         test_fail("PCI Target shouldn't responded on unsuported bus command DUAL_ADDR_CYC") ;
     end
 
-    irq_respond = 1 ;
-
+    // enable pci blue behavioral targets 1 and 2
+    configuration_cycle_write
+    (
+        0,                        // bus number
+        `TAR1_IDSEL_INDEX - 11,   // device number
+        0,                        // function number
+        1,                        // register number
+        0,                        // type of configuration cycle
+        4'b0001,                  // byte enables
+        32'h0000_0047             // data
+    ) ;
+ 
+    configuration_cycle_write
+    (
+        0,                        // bus number
+        `TAR2_IDSEL_INDEX - 11,   // device number
+        0,                        // function number
+        1,                        // register number
+        0,                        // type of configuration cycle
+        4'b0001,                  // byte enables
+        32'h0000_0047             // data
+    ) ;
 end
 endtask // target_unsupported_cmds
 
@@ -16423,6 +18284,9 @@ begin:main
     end
     
     test_name = "NO RESPONSE COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
+    $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
+    $fdisplay(pciu_mon_log_file_desc,
+    "********************************************  Monitor should complain in following section for two times about STB de-asserted without slave response  ************************************************") ;
     ok_pci = 1 ;
     wishbone_slave.cycle_response(3'b000, tb_subseq_waits, 8'd255);
  
@@ -16537,10 +18401,6 @@ begin:main
             PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'h8765_6789, 4'h0, 1, `Test_Target_Normal_Completion) ;
 
         do_pause(1) ;
-        
-        $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
-        $fdisplay(pciu_mon_log_file_desc,
-        "********************************************  Monitor will complain in following section for a few times - testbench is intentionally causing no response  *********************************************") ;
     end 
     begin
         wb_transaction_progress_monitor( pci_image_base, 1'b1, 0, 1'b1, ok_wb ) ;
@@ -16634,7 +18494,7 @@ begin:main
     end
     
     // disable current image - write address mask register
-    config_write( pci_am_offset, 32'h7FFF_FFFF, 4'hF, ok ) ;
+    config_write( pci_am_offset, 32'h0000_0000, 4'hF, ok ) ;
 end
 endtask // target_completion_expired
 

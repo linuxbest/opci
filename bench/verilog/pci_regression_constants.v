@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.3  2002/08/13 11:03:51  mihad
+// Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
+//
 // Revision 1.2  2002/02/19 16:32:29  mihad
 // Modified testbench and fixed some bugs
 //
@@ -77,15 +80,15 @@
         `define XILINX
         
         `define WB_RAM_DONT_SHARE
-        //`define PCI_RAM_DONT_SHARE
+        `define PCI_RAM_DONT_SHARE
         
         `ifdef FPGA
             `ifdef XILINX
-                `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
+                `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition
                 `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition
-                `define PCI_XILINX_RAMB4
+                //`define PCI_XILINX_RAMB4
                 //`define WB_XILINX_RAMB4
-                //`define PCI_XILINX_DIST_RAM
+                `define PCI_XILINX_DIST_RAM
                 `define WB_XILINX_DIST_RAM
             `endif
         `else
@@ -218,39 +221,85 @@
     // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
     // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
     // smaller the number here, faster the decoder operation
-    `ifdef PCI_DECODE_MIN
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 3
-    `else
-     `ifdef PCI_DECODE_MED
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 12
-     `else
-      `ifdef PCI_DECODE_MAX
-    	`define PCI_NUM_OF_DEC_ADDR_LINES 20
-      `endif
-     `endif
-    `endif
-    
+
     // initial value for PCI image address masks. Address masks can be defined in enabled state,
     // to allow device independent software to detect size of image and map base addresses to
     // memory space. If initial mask for an image is defined as 0, then device independent software
     // won't detect base address implemented and device dependent software will have to configure
     // address masks as well as base addresses!
-    `define PCI_AM0 20'hffff_f
-    `define PCI_AM1 20'hffff_f
-    `define PCI_AM2 20'hffff_f
-    `define PCI_AM3 20'hffff_f
-    `define PCI_AM4 20'hffff_f
-    `define PCI_AM5 20'hffff_f
-    
+
     // initial value for PCI image maping to MEMORY or IO spaces.  If initial define is set to 0,
     // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
     // Device independent software sets the base addresses acording to MEMORY or IO maping!
-    `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-    `define PCI_BA1_MEM_IO 1'b0
-    `define PCI_BA2_MEM_IO 1'b0
-    `define PCI_BA3_MEM_IO 1'b0
-    `define PCI_BA4_MEM_IO 1'b1
-    `define PCI_BA5_MEM_IO 1'b1
+
+    `ifdef PCI_DECODE_MIN
+
+    	`define PCI_NUM_OF_DEC_ADDR_LINES 3
+
+
+        // don't disable AM0 if GUEST bridge, otherwise there is no other way of accesing configuration space
+        `ifdef HOST
+            `define PCI_AM0 20'h0000_0
+        `else
+            `define PCI_AM0 20'hE000_0
+        `endif
+
+        `define PCI_AM1 20'hE000_0
+        `define PCI_AM2 20'h0000_0
+        `define PCI_AM3 20'hE000_0
+        `define PCI_AM4 20'h0000_0
+        `define PCI_AM5 20'hE000_0
+
+        `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
+        `define PCI_BA1_MEM_IO 1'b0
+        `define PCI_BA2_MEM_IO 1'b1
+        `define PCI_BA3_MEM_IO 1'b0
+        `define PCI_BA4_MEM_IO 1'b1
+        `define PCI_BA5_MEM_IO 1'b0
+
+    `else
+     `ifdef PCI_DECODE_MED
+
+    	`define PCI_NUM_OF_DEC_ADDR_LINES 12
+
+        `define PCI_AM0 20'hfff0_0
+        `define PCI_AM1 20'h0000_0
+        `define PCI_AM2 20'hfff0_0
+        `define PCI_AM3 20'h0000_0
+        `define PCI_AM4 20'hfff0_0
+        `define PCI_AM5 20'h0000_0
+
+        `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
+        `define PCI_BA1_MEM_IO 1'b0
+        `define PCI_BA2_MEM_IO 1'b1
+        `define PCI_BA3_MEM_IO 1'b0
+        `define PCI_BA4_MEM_IO 1'b1
+        `define PCI_BA5_MEM_IO 1'b0
+
+     `else
+      `ifdef PCI_DECODE_MAX
+
+    	`define PCI_NUM_OF_DEC_ADDR_LINES 20
+
+        `define PCI_AM0 20'hffff_e
+        `define PCI_AM1 20'hffff_c
+        `define PCI_AM2 20'hffff_8
+        `define PCI_AM3 20'hfffe_0
+        `define PCI_AM4 20'hfffc_0
+        `define PCI_AM5 20'hfff8_0
+
+        `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
+        `define PCI_BA1_MEM_IO 1'b0
+        `define PCI_BA2_MEM_IO 1'b1
+        `define PCI_BA3_MEM_IO 1'b1
+        `define PCI_BA4_MEM_IO 1'b0
+        `define PCI_BA5_MEM_IO 1'b0
+
+      `endif
+     `endif
+    `endif
+    
+    
     
     // number defined here specifies how many MS bits in WB address are compared with base address, to decode
     // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
@@ -345,6 +394,20 @@
     `define BEH_TAR2_IO_START  32'hF000_0001
     `define BEH_TAR2_IO_END    32'hF000_0FFF
 
+    // IDSEL lines of each individual Target is connected to one address line
+    // following defines set the address line IDSEL is connected to
+    // TAR0 = DUT - bridge
+    // TAR1 = behavioral target 1
+    // TAR2 = behavioral target 2
+
+    `define TAR0_IDSEL_INDEX    31
+    `define TAR1_IDSEL_INDEX    29
+    `define TAR2_IDSEL_INDEX    30
+
+    // next 3 defines are derived from previous three defines
+    `define TAR0_IDSEL_ADDR     (32'h0000_0001 << `TAR0_IDSEL_INDEX)
+    `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
+    `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 /*=======================================================================================
   Following defines are used in a script file for regression testing !!!
 =========================================================================================
