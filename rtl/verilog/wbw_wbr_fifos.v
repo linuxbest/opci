@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
+// Revision 1.8  2002/10/17 22:49:22  tadejm
+// Changed BIST signals for RAMs.
+//
 // Revision 1.7  2002/10/11 10:09:01  mihad
 // Added additional testcase and changed rst name in BIST to trst
 //
@@ -103,13 +106,11 @@ module WBW_WBR_FIFOS
 `ifdef PCI_BIST
     ,
     // debug chain signals
-    trst       ,
-    SO         ,
-    SI         ,
-    shift_DR   ,
-    capture_DR ,
-    extest     ,
-    tck        
+    scanb_rst,      // bist scan reset
+    scanb_clk,      // bist scan clock
+    scanb_si,       // bist scan serial in
+    scanb_so,       // bist scan serial out
+    scanb_sen       // bist scan shift enable
 `endif                        
 ) ;
 
@@ -215,13 +216,11 @@ output wbr_empty_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   trst ;
-output  SO ;
-input   SI ;
-input   shift_DR ;
-input   capture_DR ;
-input   extest ;
-input   tck ;
+input   scanb_rst;      // bist scan reset
+input   scanb_clk;      // bist scan clock
+input   scanb_si;       // bist scan serial in
+output  scanb_so;       // bist scan serial out
+input   scanb_sen;      // bist scan shift enable
 `endif
 
 /*-----------------------------------------------------------------------------------------------------------
@@ -337,8 +336,8 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     wire wbr_read_enable = 1'b1 ;
 
     `ifdef PCI_BIST
-    wire SO_internal ; // wires for connection of debug ports on two rams
-    wire SI_internal = SO_internal ;
+    wire scanb_so_internal ; // wires for connection of debug ports on two rams
+    wire scanb_si_internal = scanb_so_internal ;
     `endif
 
     // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
@@ -365,13 +364,11 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .trst       (trst),
-        .SO         (SO_internal),
-        .SI         (SI),
-        .shift_DR   (shift_DR),
-        .capture_DR (capture_DR),
-        .extest     (extest),
-        .tck        (tck)
+        .scanb_rst      (scanb_rst),
+        .scanb_clk      (scanb_clk),
+        .scanb_si       (scanb_si),
+        .scanb_so       (scanb_so_internal),
+        .scanb_sen      (scanb_sen)
     `endif
     );
 
@@ -398,13 +395,11 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .trst       (trst),
-        .SO         (SO),
-        .SI         (SI_internal),
-        .shift_DR   (shift_DR),
-        .capture_DR (capture_DR),
-        .extest     (extest),
-        .tck        (tck)
+        .scanb_rst      (scanb_rst),
+        .scanb_clk      (scanb_clk),
+        .scanb_si       (scanb_si_internal),
+        .scanb_so       (scanb_so),
+        .scanb_sen      (scanb_sen)
     `endif
     );
 
@@ -463,13 +458,11 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
     `ifdef PCI_BIST
         ,
-        .trst       (trst),
-        .SO         (SO),
-        .SI         (SI),
-        .shift_DR   (shift_DR),
-        .capture_DR (capture_DR),
-        .extest     (extest),
-        .tck        (tck)
+        .scanb_rst      (scanb_rst),
+        .scanb_clk      (scanb_clk),
+        .scanb_si       (scanb_si),
+        .scanb_so       (scanb_so),
+        .scanb_sen      (scanb_sen)
     `endif
     );
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.7  2002/10/17 22:49:22  tadejm
+// Changed BIST signals for RAMs.
+//
 // Revision 1.6  2002/10/11 10:09:01  mihad
 // Added additional testcase and changed rst name in BIST to trst
 //
@@ -159,13 +162,11 @@ module WB_SLAVE_UNIT
 `ifdef PCI_BIST
     ,
     // debug chain signals
-    trst       ,
-    SO         ,
-    SI         ,
-    shift_DR   ,
-    capture_DR ,
-    extest     ,
-    tck
+    scanb_rst,      // bist scan reset
+    scanb_clk,      // bist scan clock
+    scanb_si,       // bist scan serial in
+    scanb_so,       // bist scan serial out
+    scanb_sen       // bist scan shift enable
 `endif
 );
 
@@ -272,13 +273,11 @@ output          wbu_ad_load_on_transfer_out ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input trst ;
-output  SO ;
-input   SI ;
-input   shift_DR ;
-input   capture_DR ;
-input   extest ;
-input   tck ;
+input   scanb_rst;      // bist scan reset
+input   scanb_clk;      // bist scan clock
+input   scanb_si;       // bist scan serial in
+output  scanb_so;       // bist scan serial out
+input   scanb_sen;      // bist scan shift enable
 `endif
 
 // pci master interface outputs
@@ -582,13 +581,11 @@ WBW_WBR_FIFOS fifos
 
 `ifdef PCI_BIST
     ,
-    .trst       (trst),
-    .SO         (SO),
-    .SI         (SI),
-    .shift_DR   (shift_DR),
-    .capture_DR (capture_DR),
-    .extest     (extest),
-    .tck        (tck)
+    .scanb_rst      (scanb_rst),
+    .scanb_clk      (scanb_clk),
+    .scanb_si       (scanb_si),
+    .scanb_so       (scanb_so),
+    .scanb_sen      (scanb_sen)
 `endif
 ) ;
 
