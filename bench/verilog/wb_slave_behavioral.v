@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_behavioral.v,v $
+// Revision 1.6  2003/08/21 21:00:39  tadejm
+// Added support for WB B3. Some testcases were updated.
+//
 // Revision 1.5  2003/07/29 08:19:47  mihad
 // Found and simulated the problem in the synchronization logic.
 // Repaired the synchronization logic in the FIFOs.
@@ -78,7 +81,8 @@ module WB_SLAVE_BEHAVIORAL
 	SEL_I,
 	STB_I,
 	WE_I,
-	CAB_I
+        CTI_I,
+        BTE_I
 );
 
 /*------------------------------------------------------------------------------------------------------
@@ -96,7 +100,8 @@ output                  RTY_O;
 input   `WB_SEL_TYPE    SEL_I;
 input                   STB_I;
 input                   WE_I;
-input                   CAB_I;
+input    [2:0]          CTI_I;
+input    [1:0]          BTE_I;
 
 reg     `WB_DATA_TYPE   DAT_O;
 

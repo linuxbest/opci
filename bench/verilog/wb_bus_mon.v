@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: wb_bus_mon.v,v $
+// Revision 1.4  2003/08/21 21:00:38  tadejm
+// Added support for WB B3. Some testcases were updated.
+//
 // Revision 1.3  2003/08/03 18:04:44  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -77,6 +80,7 @@ module WB_BUS_MON(
                     TAG_I,
                     TAG_O,
                     CAB_O,
+                    check_CTI,
                     log_file_desc
                   ) ;
 
@@ -95,6 +99,7 @@ input                           WE_O   ;
 input   [(`WB_TAG_WIDTH-1):0] TAG_I  ;
 input   [(`WB_TAG_WIDTH-1):0] TAG_O  ;
 input                           CAB_O  ;
+input                           check_CTI ;
 input [31:0] log_file_desc ;
 
 always@(posedge CLK_I)
@@ -342,6 +347,49 @@ begin
         end
     end
 end // CAB_O monitor
+
+// CTI_O[2:0] (TAG_O[4:2]) monitor for bursts
+reg [2:0] first_cti_val ;
+always@(posedge CLK_I or posedge RST_I)
+begin
+    if (RST_I)
+        first_cti_val <= 3'b000 ;
+    // logging for burst cycle
+    else if ( check_CTI && ((CYC_O === 0) && (first_cti_val == 3'b011) && ~(previous_rty || previous_err)))
+    begin
+        message_out("Master violated WISHBONE protocol by NOT changing the CTI_O signals to '111' when end of burst!") ;
+        $display("CTI_O didn't change to '111' when end of burst") ;
+        $fdisplay(log_file_desc, "CTI_O didn't change to '111' when end of burst") ;
+        first_cti_val <= 3'b000 ;
+    end
+    else if (CYC_O === 0)
+        first_cti_val <= 3'b000 ;
+    else
+    begin
+        if ((first_cti_val == 3'b000) && (TAG_O[4:2] === 3'b000) && (ACK_I || ERR_I || RTY_I))
+            first_cti_val <= 3'b001 ;
+        else if ((first_cti_val == 3'b000) && (TAG_O[4:2] === 3'b111) && (ACK_I || ERR_I || RTY_I))
+            first_cti_val <= 3'b010 ;
+        else if ((first_cti_val == 3'b000) && (TAG_O[4:2] === 3'b010) && (ACK_I || ERR_I || RTY_I))
+            first_cti_val <= 3'b011 ;
+        else if ((first_cti_val == 3'b011) && (TAG_O[4:2] === 3'b111) && (ACK_I || ERR_I || RTY_I))
+            first_cti_val <= 3'b010 ;
+        // logging for clasic cycles
+        else if (check_CTI && ((first_cti_val == 3'b001) && (TAG_O[4:2] !== 3'b000)))
+        begin
+            message_out("Master violated WISHBONE protocol by changing the CTI_O signals during CYC_O when clasic cycle!") ;
+            $display("CTI_O change during CYC_O when clasic cycle") ;
+            $fdisplay(log_file_desc, "CTI_O change during CYC_O when clasic cycle") ;
+        end
+        // logging for end of burs cycle
+        else if (check_CTI && (first_cti_val == 3'b010))
+        begin
+            message_out("Master violated WISHBONE protocol by changing the CTI_O signals to '111' before end of burst!") ;
+            $display("CTI_O change to '111' before end of burst") ;
+            $fdisplay(log_file_desc, "CTI_O change to '111' before end of burst") ;
+        end
+    end
+end
 
 // WE_O monitor for consecutive address bursts
 reg [1:0] first_we_val ;

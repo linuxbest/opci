@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.19  2003/08/21 21:00:38  tadejm
+// Added support for WB B3. Some testcases were updated.
+//
 // Revision 1.18  2003/08/03 18:04:44  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -177,7 +180,9 @@ wire [3:0]  SEL_O ;
 wire        CYC_O ;
 wire        STB_O ;
 wire        WE_O ;
-wire        CAB_O ;
+wire [2:0]  CTI_O ;
+wire [1:0]  BTE_O ;
+wire        CAB_O = 1'b0 ;
 wire        ACK_I ;
 wire        RTY_I ;
 wire        ERR_I ;
@@ -258,7 +263,8 @@ TOP `PCI_BRIDGE_INSTANCE
     .CYC_O  ( CYC_O ),
     .STB_O  ( STB_O ),
     .WE_O   ( WE_O ),
-    .CAB_O  ( CAB_O ),
+    .CTI_O  ( CTI_O),
+    .BTE_O  ( BTE_O),
     .ACK_I  ( ACK_I ),
     .RTY_I  ( RTY_I ),
     .ERR_I  ( ERR_I )
@@ -307,7 +313,8 @@ WB_SLAVE_BEHAVIORAL wishbone_slave
     .SEL_I              (SEL_O),
     .STB_I              (STB_O),
     .WE_I               (WE_O),
-    .CAB_I              (CAB_O)
+    .CTI_I              (CTI_O),
+    .BTE_I              (BTE_O)
 );
 
 integer wbu_mon_log_file_desc ;
@@ -328,6 +335,7 @@ WB_BUS_MON wbu_wb_mon(
                     .TAG_I({`WB_TAG_WIDTH{1'b0}}),
                     .TAG_O({CTI_I, BTE_I}),
                     .CAB_O(CAB_I),
+                    .check_CTI(1'b0),
                     .log_file_desc ( wbu_mon_log_file_desc )
                   ) ;
 
@@ -345,8 +353,9 @@ WB_BUS_MON pciu_wb_mon(
                     .STB_O(STB_O),
                     .WE_O (WE_O),
                     .TAG_I({`WB_TAG_WIDTH{1'b0}}),
-                    .TAG_O({`WB_TAG_WIDTH{1'b0}}),
-                    .CAB_O(CAB_O),
+                    .TAG_O({CTI_O, BTE_O}),
+                    .CAB_O(1'b0),
+                    .check_CTI(1'b1),
                     .log_file_desc( pciu_mon_log_file_desc )
                   ) ;
 
@@ -9458,13 +9467,38 @@ begin:main
 end
 endtask //pci_transaction_progress_monitor
 
-reg CYC_O_previous ;
+reg         CYC_O_previous ;
+reg         WE_O_previous ;
+reg  [3:0]  SEL_O_previous ;
+reg  [2:0]  CTI_O_previous ;
+reg  [1:0]  BTE_O_previous ;
+reg [31:0]  ADR_O_previous ;
+reg  [2:0]  ACK_ERR_RTY_previous ;
 always@(posedge wb_clock or posedge reset)
 begin
     if ( reset )
+    begin
         CYC_O_previous <= #1 1'b0 ;
+        WE_O_previous  <= #1 1'b0 ;
+        SEL_O_previous <= #1 4'h0 ;
+        CTI_O_previous <= #1 3'h0 ;
+        BTE_O_previous <= #1 2'h0 ;
+        ADR_O_previous <= #1 32'h0 ;
+        ACK_ERR_RTY_previous <= #1 3'h0;
+    end
     else
+    begin
         CYC_O_previous <= #1 CYC_O ;
+        if (CYC_O)
+        begin
+            WE_O_previous  <= #1 WE_O ;
+            SEL_O_previous <= #1 SEL_O ;
+            CTI_O_previous <= #1 CTI_O ;
+            BTE_O_previous <= #1 BTE_O ;
+            ADR_O_previous <= #1 ADR_O ;
+            ACK_ERR_RTY_previous <= #1 {ACK_I, ERR_I, RTY_I} ;
+        end
+    end
 end
 
 task wb_transaction_progress_monitor ;
@@ -9475,6 +9509,7 @@ task wb_transaction_progress_monitor ;
     output ok ;
     reg in_use ;
     integer transfer_counter ;
+    integer wait_counter ;
     integer deadlock_max_val ;
     reg [2:0] slave_termination ;
     reg       cab_asserted ;
@@ -9542,6 +9577,7 @@ begin:main
     end
     begin:transfer_checker
         transfer_counter = 0 ;
+        wait_counter = 0 ;
         @(posedge wb_clock) ;
         while ( CYC_O !== 0 && CYC_O_previous !== 0)
             @(posedge wb_clock) ;
@@ -9549,11 +9585,17 @@ begin:main
         while( CYC_O !== 1 )
             @(posedge wb_clock) ;
 
-        while( (CYC_O === 1) && ((transfer_counter <= `PCIW_DEPTH) || (transfer_counter <= `PCIR_DEPTH)) )
+        while( ((CYC_O === 1) && ((transfer_counter <= `PCIW_DEPTH) || (transfer_counter <= `PCIR_DEPTH))) ||
+               ((CYC_O === 0) && (ACK_ERR_RTY_previous === 3'b100) && (wait_counter < 2) && 
+                 (WE_O_previous === 1) && (CTI_O_previous === 3'b111)) ||
+               ((CYC_O === 1) && (SEL_O_previous !== SEL_O) && (CTI_O_previous === 3'b111) && 
+                 ((ADR_O_previous + 4) === ADR_O) && (WE_O_previous === 1) && (WE_O === 1)) )
         begin
 
             if (!cab_asserted)
-                cab_asserted = (CAB_O !== 1'b0) ;
+                cab_asserted = ( ((CYC_O === 1) && (CTI_O === 3'b010)) || 
+                                 ((CYC_O === 1) && (SEL_O_previous !== SEL_O) && (CTI_O_previous === 3'b111) &&
+                                  ((ADR_O_previous + 4) === ADR_O) && (WE_O_previous === 1) && (WE_O === 1)) ) ;
 
             if (STB_O === 1)
             begin
@@ -9561,7 +9603,14 @@ begin:main
                 if (ACK_I)
                     transfer_counter = transfer_counter + 1 ;
             end
+
+            if (CYC_O === 0)
+                wait_counter = wait_counter + 1 ;
+            else
+                wait_counter = 0 ;
+
             @(posedge wb_clock) ;
+
         end
 
         if (cab_asserted)
@@ -9621,7 +9670,10 @@ task wb_transaction_progress_monitor_backup ;
     output ok ;
     reg in_use ;
     integer transfer_counter ;
+    integer wait_counter ;
     integer deadlock_max_val ;
+    reg [2:0] slave_termination ;
+    reg       cab_asserted ;
 begin:main
     if ( in_use === 1 )
     begin
@@ -9644,8 +9696,9 @@ begin:main
     deadlock_max_val = deadlock_max_val + (`WBW_DEPTH * 10 * `WB_PERIOD) ;
     deadlock_max_val = deadlock_max_val + (`WBR_DEPTH * 30 * `WB_PERIOD) ;
 
-    in_use = 1 ;
-    ok     = 1 ;
+    in_use       = 1 ;
+    ok           = 1 ;
+    cab_asserted = 0 ;
 
     fork
     begin:wait_start
@@ -9657,7 +9710,7 @@ begin:main
     end //wait_start
     begin:addr_monitor
         @(posedge wb_clock) ;
-        while ( CYC_O !== 0 )
+        while ( CYC_O !== 0 && CYC_O_previous !== 0)
             @(posedge wb_clock) ;
 
         while( CYC_O !== 1 )
@@ -9685,18 +9738,71 @@ begin:main
     end
     begin:transfer_checker
         transfer_counter = 0 ;
+        wait_counter = 0 ;
         @(posedge wb_clock) ;
-        while ( CYC_O !== 0 )
+        while ( CYC_O !== 0 && CYC_O_previous !== 0)
             @(posedge wb_clock) ;
 
         while( CYC_O !== 1 )
             @(posedge wb_clock) ;
 
-        while( CYC_O === 1 )
+        while( ((CYC_O === 1) && ((transfer_counter <= `PCIW_DEPTH) || (transfer_counter <= `PCIR_DEPTH))) ||
+               ((CYC_O === 0) && (ACK_ERR_RTY_previous === 3'b100) && (wait_counter < 2) && 
+                 (WE_O_previous === 1) && (CTI_O_previous === 3'b111)) ||
+               ((CYC_O === 1) && (SEL_O_previous !== SEL_O) && (CTI_O_previous === 3'b111) && 
+                 ((ADR_O_previous + 4) === ADR_O) && (WE_O_previous === 1) && (WE_O === 1)) )
         begin
-            if ( (STB_O === 1) && (ACK_I === 1) )
-                transfer_counter = transfer_counter + 1 ;
+
+            if (!cab_asserted)
+                cab_asserted = ( ((CYC_O === 1) && (CTI_O === 3'b010)) || 
+                                 ((CYC_O === 1) && (SEL_O_previous !== SEL_O) && (CTI_O_previous === 3'b111) &&
+                                  ((ADR_O_previous + 4) === ADR_O) && (WE_O_previous === 1) && (WE_O === 1)) ) ;
+
+            if (STB_O === 1)
+            begin
+                slave_termination = {ACK_I, ERR_I, RTY_I} ;
+                if (ACK_I)
+                    transfer_counter = transfer_counter + 1 ;
+            end
+
+            if (CYC_O === 0)
+                wait_counter = wait_counter + 1 ;
+            else
+                wait_counter = 0 ;
+
             @(posedge wb_clock) ;
+
+        end
+
+        if (cab_asserted)
+        begin
+            // cab was sampled asserted
+            // if number of transfers was less than 2 - check for extraordinary terminations
+            if (transfer_counter < 2)
+            begin
+                // if cycle was terminated because of no response, error or retry, than it is OK to have CAB_O asserted while transfering 0 or 1 data.
+                // any other cases are wrong
+                case (slave_termination)
+                3'b000:begin end
+                3'b001:begin end
+                3'b010:begin end
+                default:begin
+                            ok = 0 ;
+                            $display("Time %t", $time) ;
+                            $display("WB_MASTER asserted CAB_O for single transfer") ;
+                        end
+                endcase
+            end
+        end
+        else
+        begin
+            // if cab is not asserted, then WB_MASTER should not read more than one data.
+            if (transfer_counter > 1)
+            begin
+                ok = 0 ;
+                $display("Time %t", $time) ;
+                $display("WB_MASTER didn't assert CAB_O for consecutive block transfer") ;
+            end
         end
 
         if ( check_transfers === 1 )
@@ -9715,12 +9821,115 @@ begin:main
 end
 endtask // wb_transaction_progress_monitor_backup
 
+//    input [31:0] address ;
+//    input        write ;
+//    input [31:0] num_of_transfers ;
+//    input check_transfers ;
+//    output ok ;
+//    reg in_use ;
+//    integer transfer_counter ;
+//    integer deadlock_max_val ;
+//begin:main
+//    if ( in_use === 1 )
+//    begin
+//        $display("wb_transaction_progress_monitor task re-entered! Time %t ", $time) ;
+//        ok = 0 ;
+//        disable main ;
+//    end
+//
+//    // number of ns to wait before timeout occurs
+//    deadlock_max_val = `PCIW_DEPTH * 10 ;
+//    deadlock_max_val = deadlock_max_val + `PCIR_DEPTH * 30 ;
+//
+//    // time used for maximum transaction length on PCI
+//    `ifdef PCI33
+//    deadlock_max_val = deadlock_max_val * ( 30 ) ;
+//    `else
+//    deadlock_max_val = deadlock_max_val * ( 15 ) ;
+//    `endif
+//
+//    deadlock_max_val = deadlock_max_val + (`WBW_DEPTH * 10 * `WB_PERIOD) ;
+//    deadlock_max_val = deadlock_max_val + (`WBR_DEPTH * 30 * `WB_PERIOD) ;
+//
+//    in_use = 1 ;
+//    ok     = 1 ;
+//
+//    fork
+//    begin:wait_start
+//        #(deadlock_max_val) ;
+//        $display("%m timeout! Time %t ", $time) ;
+//        in_use = 0 ;
+//        ok     = 0 ;
+//        disable main ;
+//    end //wait_start
+//    begin:addr_monitor
+//        @(posedge wb_clock) ;
+//        while ( CYC_O !== 0 )
+//            @(posedge wb_clock) ;
+//
+//        while( CYC_O !== 1 )
+//            @(posedge wb_clock) ;
+//
+//        while (STB_O !== 1 )
+//            @(posedge wb_clock) ;
+//
+//        if ( WE_O !== write )
+//        begin
+//            $display("wb_transaction_progress_monitor detected unexpected transaction on WB bus! Time %t ", $time) ;
+//            if ( write !== 1 )
+//                $display("Expected read transaction, WE_O signal value %b ", WE_O) ;
+//            else
+//                $display("Expected write transaction, WE_O signal value %b ", WE_O) ;
+//        end
+//
+//        if ( ADR_O !== address )
+//        begin
+//            $display("wb_transaction_progress_monitor detected unexpected address on WB bus! Time %t ", $time) ;
+//            $display("Expected address = %h, detected address = %h ", address, ADR_O) ;
+//            ok = 0 ;
+//        end
+//        disable wait_start ;
+//    end
+//    begin:transfer_checker
+//        transfer_counter = 0 ;
+//        @(posedge wb_clock) ;
+//        while ( CYC_O !== 0 )
+//            @(posedge wb_clock) ;
+//
+//        while( CYC_O !== 1 )
+//            @(posedge wb_clock) ;
+//
+//        while( CYC_O === 1 )
+//        begin
+//            if ( (STB_O === 1) && (ACK_I === 1) )
+//                transfer_counter = transfer_counter + 1 ;
+//            @(posedge wb_clock) ;
+//        end
+//
+//        if ( check_transfers === 1 )
+//        begin
+//            if ( transfer_counter !== num_of_transfers )
+//            begin
+//                $display("wb_transaction_progress_monitor detected unexpected transaction! Time %t ", $time) ;
+//                $display("Expected transfers in transaction = %d, actual transfers = %d ", num_of_transfers, transfer_counter) ;
+//                ok = 0 ;
+//            end
+//        end
+//    end //transfer_checker
+//    join
+//
+//    in_use = 0 ;
+//end
+//endtask // wb_transaction_progress_monitor_backup
+
 task wb_transaction_stop ;
     input [31:0] num_of_transfers ;
     integer transfer_counter ;
+    integer wait_counter ;
 begin:main
     begin:transfer_checker
         transfer_counter = 0 ;
+        wait_counter = 0 ;
         @(posedge wb_clock) ;
         while ( (CYC_O !== 0) & (CYC_O_previous !== 0) )
             @(posedge wb_clock) ;
@@ -9731,8 +9940,16 @@ begin:main
         if ( (STB_O === 1) && (ACK_I === 1) )
             transfer_counter = transfer_counter + 1 ;
 
-        while( (transfer_counter < num_of_transfers) && (CYC_O === 1) )
+        while( ((transfer_counter < num_of_transfers) && (CYC_O === 1)) ||
+               ((transfer_counter < num_of_transfers) && (CYC_O === 0) && (wait_counter < 2) && 
+                 (WE_O_previous === 1) && (CTI_O_previous === 3'b111)) ||
+               ((transfer_counter < num_of_transfers) && (CYC_O === 1) && (SEL_O_previous !== SEL_O) && 
+                 (CTI_O_previous === 3'b111) && ((ADR_O_previous + 4) === ADR_O) && (WE_O_previous === 1) && (WE_O === 1)) )
         begin
+            if (CYC_O === 0)
+                wait_counter = wait_counter + 1 ;
+            else
+                wait_counter = 0 ; 
             @(posedge wb_clock) ;
             if ( (STB_O === 1) && (ACK_I === 1) )
                 transfer_counter = transfer_counter + 1 ;
