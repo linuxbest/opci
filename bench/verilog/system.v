@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.25  2004/03/19 16:36:26  mihad
+// Single PCI Master write fix.
+//
 // Revision 1.24  2004/01/24 11:54:16  mihad
 // Update! SPOCI Implemented!
 //
@@ -1628,6 +1631,8 @@ begin:main
         integer pause_between_writes ;
         integer rnd_seed ;
         reg     [31:0] cur_wb_adr ;
+        reg     generate_pci_traffic ;
+        reg     [31:0] target2_address ;
 
         write_data`WRITE_SEL             = 4'hF ;
         write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
@@ -1706,10 +1711,101 @@ begin:main
 
             write_flags`WB_FAST_B2B = 1'b1 ;
         end
-    end
 
-    if (ok === 1)
-        test_ok ;
+        if (ok === 1)
+            test_ok ;
+
+        test_name = "MULTIPLE FAST BACK2BACK SINGLE WRITES/READS THROUGH WISHBONE SLAVE UNIT" ;
+        generate_pci_traffic = 1'b1 ;
+        target2_address  = `BEH_TAR2_MEM_START ;
+
+        write_data`WRITE_SEL             = 4'hF ;
+        write_flags`WB_TRANSFER_CAB      = 1'b0 ;
+        write_flags`WB_FAST_B2B          = 1'b0 ;
+
+        fork
+        begin
+            for (pause_between_writes = 128 ; pause_between_writes > 0 ; pause_between_writes = pause_between_writes - 1)
+            begin
+                cur_wb_adr               = target_address + pause_between_writes * 4 ;
+                write_data`WRITE_ADDRESS = cur_wb_adr + ({$random} % 4) ;
+                write_data`WRITE_DATA    = cur_wb_adr ;
+
+                write_flags`WB_TRANSFER_AUTO_RTY = 1'b0 ;
+
+                wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
+                if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+                begin
+                    $display("Image testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
+                    test_fail("WB Slave state machine failed to post single memory write");
+                    ok = 0 ;
+                    disable non_consecutive_single_writes_test_blk ;
+                end
+
+                write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
+
+                if (pause_between_writes < 128)
+                begin
+                    cur_wb_adr             = target_address + (pause_between_writes + 1) * 4 ;
+                    read_data`READ_ADDRESS = cur_wb_adr + ({$random} % 4) ;
+                    wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
+                    if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+                    begin
+                        $display("Image testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+                        test_fail("Bridge failed to process single memory read");
+                        ok = 0 ;
+                        disable non_consecutive_single_writes_test_blk ;
+                    end
+
+                    if (read_status`READ_DATA !== cur_wb_adr)
+                    begin
+                        $display("Time %t", $time) ;
+                        $display("Single memory read through WB Slave unit returned unexpected data value!") ;
+                        test_fail("Single memory read through WB Slave unit returned unexpected data value") ;
+                        ok = 1'b0 ;
+                        disable non_consecutive_single_writes_test_blk ;
+                    end
+                end
+            end
+
+            generate_pci_traffic = 1'b0 ;
+        end
+        begin:pci_traffic_gen_blk
+            integer         transfered      ;
+            reg     [ 2: 0] termination     ;
+            reg     [31: 0] cur_dat         ;
+
+            while(generate_pci_traffic)
+            begin
+
+                cur_dat = $random ;
+
+                ipci_unsupported_commands_master.single_transfer
+                (
+                    target2_address ,   //  start address
+                    `BC_MEM_WRITE   ,   //  bus command
+                    cur_dat         ,   //  data
+                    4'hf            ,   //  byte enable - active high
+                    transfered      ,   //  actual transfer count
+                    termination         //  target signaled termination
+                ) ;
+
+                if (transfered !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Trafic generator failed. Failed to write single word to behavioral PCI Target") ;
+                    test_fail("PCI Traffic generator detected an error") ;
+                    ok = 1'b0 ;
+                    disable non_consecutive_single_writes_test_blk ;
+                end
+            end
+        end
+        join
+
+        if (ok === 1)
+            test_ok ;
+
+    end
 
     write_flags`WB_FAST_B2B = 1'b0 ;
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
+// Revision 1.7  2004/03/19 16:36:55  mihad
+// Single PCI Master write fix.
+//
 // Revision 1.6  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -366,7 +369,7 @@ wire     [31:0] new_address = ( ~req_out && do_posted_write ) ? wbw_fifo_addr_da
 wire     [3:0]  new_bc      = ( ~req_out && do_posted_write ) ? wbw_fifo_cbe_in : del_bc_in ;
 
 // address counter enable - only for posted writes when data is actually transfered
-wire addr_count_en = ~wait_in && posted_write_req && rtransfer_in ;
+wire addr_count_en = !wait_in && posted_write_req && rtransfer_in ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
@@ -702,9 +705,19 @@ reg [3:0] next_be_out   ;
 reg write_next_last ;
 reg [3:0] write_next_be ;
 
-always@(rtransfer_in or intermediate_data or intermediate_be or intermediate_last or wbw_fifo_addr_data_in or wbw_fifo_cbe_in or wlast)
+always@
+(
+    rtransfer_in            or 
+    intermediate_data       or 
+    intermediate_be         or 
+    intermediate_last       or 
+    wbw_fifo_addr_data_in   or 
+    wbw_fifo_cbe_in         or 
+    wlast                   or
+    wait_in
+)
 begin
-    if( rtransfer_in )
+    if( rtransfer_in & ~wait_in )
     begin
         next_data_out   = wbw_fifo_addr_data_in ;
         write_next_last = wlast ;
@@ -767,8 +780,8 @@ assign del_rty_exp_out = 1'b0 ;
 
 assign del_error_out   = ~wait_in && (del_write_req || del_read_req) && ( (mabort_in && ~conf_cyc_bc) || rerror_in ) ;
 
-wire   del_write_complete = del_write_req && ( rtransfer_in || rerror_in || mabort_in ) ;
-wire   del_read_complete  = del_read_req  && ( rerror_in || mabort_in || ( last_transfered ) || ( retry_in && ~first_in ) ) ;
+wire   del_write_complete = del_write_req && ~wait_in && ( rtransfer_in || rerror_in || mabort_in ) ;
+wire   del_read_complete  = del_read_req  && ~wait_in && ( rerror_in || mabort_in || last_transfered || ( retry_in && ~first_in ) ) ;
 
 assign del_complete_out = ~wait_in && ( del_write_complete || del_read_complete ) ;
 
