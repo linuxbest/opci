@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_addr_mux.v,v $
+// Revision 1.4  2002/08/19 16:54:25  mihad
+// Got rid of undef directives
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -143,15 +146,15 @@ assign hit_out = hit ;
 `ifdef GUEST
     `ifdef NO_CNF_IMAGE
     `else
-        `define DEC0_INCLUDE
+        `define PCI_WB_ADDR_MUX_DEC0_INCLUDE
     `endif
 `else
 `ifdef HOST
-    `define DEC0_INCLUDE
+    `define PCI_WB_ADDR_MUX_DEC0_INCLUDE
 `endif
 `endif
 
-`ifdef DEC0_INCLUDE
+`ifdef PCI_WB_ADDR_MUX_DEC0_INCLUDE
     DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec0
     (
      .hit       (hit[0]),
@@ -162,7 +165,6 @@ assign hit_out = hit ;
      .tran_addr (ta0_in),
      .at_en     (1'b0)
     ) ;
-    `undef DEC0_INCLUDE
 `else
     // configuration image not implemented
     assign hit[0] = 1'b0 ;

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave.v,v $
+// Revision 1.4  2002/08/19 16:54:25  mihad
+// Got rid of undef directives
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -547,11 +550,6 @@ reg ack, rty, err ;
 wire wattempt = ( CYC_I && STB_I && WE_I ) && (!ACK_O && !ERR_O && !RTY_O) ;
 wire rattempt = ( CYC_I && STB_I && ~WE_I ) && (!ACK_O && !ERR_O && !RTY_O) ;
 
-`ifdef WB_DECODE_FAST
-    `undef WB_DECODE_FAST
-    `define WB_DECODE_MEDIUM
-`endif
-
 `else
 // wire for write attempt - 1 when external WB master is attempting a write
 // wire for read attempt  - 1 when external master is attempting a read
@@ -615,6 +613,20 @@ wire image_access_error = (map && (burst_transfer || sel_error)) ||   // IO writ
 `endif
 `endif
 
+`ifdef WB_DECODE_FAST
+    `ifdef REGISTER_WBS_OUTPUTS
+        `define PCI_WB_SLAVE_S_DEC1
+    `endif
+`endif
+
+`ifdef WB_DECODE_MEDIUM
+    `define PCI_WB_SLAVE_S_DEC1
+`endif
+
+`ifdef WB_DECODE_SLOW
+    `define PCI_WB_SLAVE_S_DEC1
+    `define PCI_WB_SLAVE_S_DEC2
+`endif
 // state machine logic
 always@(
         c_state                     or
@@ -680,32 +692,37 @@ begin
     S_IDLE: begin
                 if ( wattempt || rattempt )
                 begin
-                    `ifdef WB_DECODE_FAST
+                
+                `ifdef PCI_WB_SLAVE_S_DEC1
+                    n_state = S_DEC1 ;
+                `else
                     decode_en = 1'b1 ;
                     n_state = S_START ;
-                    `else
-                    n_state = S_DEC1 ;
-                    `endif
+                `endif
+                    
                     sample_address_out = 1'b1 ;
                 end
                 else
                     n_state = S_IDLE ;
             end
-
+`ifdef PCI_WB_SLAVE_S_DEC1
     S_DEC1: begin
                 if ( wattempt || rattempt )
                 begin
-                    `ifdef WB_DECODE_MEDIUM
+
+                `ifdef PCI_WB_SLAVE_S_DEC2
+                    n_state = S_DEC2 ;
+                `else
                     decode_en = 1'b1 ;
                     n_state = S_START ;
-                    `else
-                    n_state = S_DEC2 ;
-                    `endif
+                `endif
+
                 end
                 else
                     n_state = S_IDLE ;
             end
-
+`endif
+`ifdef PCI_WB_SLAVE_S_DEC2
     S_DEC2: begin
 
                 if ( wattempt || rattempt )
@@ -716,7 +733,7 @@ begin
                 else
                     n_state = S_IDLE ;
             end
-
+`endif
     S_START:begin
                 if (wb_conf_hit) // configuration space hit
                 begin
@@ -999,15 +1016,15 @@ end
 `ifdef GUEST
     `ifdef NO_CNF_IMAGE
     `else
-        `define DO_OUT_MUX
+        `define PCI_WB_SLAVE_DO_OUT_MUX
     `endif
 `else
 `ifdef HOST
-    `define DO_OUT_MUX ;
+    `define PCI_WB_SLAVE_DO_OUT_MUX ;
 `endif
 `endif
 
-`ifdef DO_OUT_MUX
+`ifdef PCI_WB_SLAVE_DO_OUT_MUX
     reg [31:0] sdata_source ;
 
     // WISHBONE data output select lines for output multiplexor
@@ -1030,7 +1047,6 @@ end
             CONF_SEL:sdata_source = wb_conf_data_in ;
         endcase
     end
-    `undef DO_OUT_MUX
 `else
     wire [31:0] sdata_source = wbr_fifo_data_in ;
 `endif
