@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: async_reset_flop.v,v 1.2 2002/02/25 15:15:43 mihad Exp $
+// $Id: async_reset_flop.v,v 1.3 2002/08/14 16:44:19 mihad Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -54,6 +54,9 @@
 // CVS Revision History
 //
 // $Log: async_reset_flop.v,v $
+// Revision 1.3  2002/08/14 16:44:19  mihad
+// Include statement was enclosed in synosys translate off/on directive - repaired
+//
 // Revision 1.2  2002/02/25 15:15:43  mihad
 // Added include statement that was missing and causing errors
 //
@@ -65,8 +68,9 @@
 
 // synopsys translate_off
 `include "timescale.v"
-`include "pci_constants.v"
 // synopsys translate_on
+
+`include "pci_constants.v"
 
 module async_reset_flop (
   data_in, clk_in, async_reset_data_out, reset_in
