@@ -17,7 +17,6 @@
 -DEFINE WB_CNF_BASE_ZERO            
 -DEFINE NO_CNF_IMAGE                
 -DEFINE PCI_CLOCK_FOLLOWS_WB_CLOCK=2
--DEFINE DISABLE_COMPLETION_EXPIRED_TESTS
 ../../../rtl/verilog/pci_parity_check.v
 ../../../rtl/verilog/pci_target_unit.v
 ../../../rtl/verilog/pci_wb_addr_mux.v
@@ -62,7 +61,7 @@
 ../../../rtl/verilog/pci_mas_ad_load_crit.v
 ../../../rtl/verilog/pci_master32_sm.v
 ../../../rtl/verilog/pci_target32_stop_crit.v
-../../../rtl/verilog/synchronizer_flop.v
+../../../rtl/verilog/pci_synchronizer_flop.v
 ../../../rtl/verilog/pci_async_reset_flop.v
 ../../../rtl/verilog/pci_mas_ch_state_crit.v
 ../../../rtl/verilog/pci_master32_sm_if.v
@@ -84,7 +83,3 @@
 ../../../bench/verilog/wb_bus_mon.v
 ../../../bench/verilog/pci_unsupported_commands_master.v
 ../../../bench/verilog/pci_behavioral_pci2pci_bridge.v
-../../../../../../lib/xilinx/lib/glbl/glbl.v
-../../../../../../lib/xilinx/lib/unisims/RAMB4_S16_S16.v
-../../../../../../lib/xilinx/lib/unisims/RAM16X1D.v
-../../../rtl/verilog/pci_ram_16x40d.v

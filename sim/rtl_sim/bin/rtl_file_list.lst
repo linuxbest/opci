@@ -42,7 +42,7 @@
 ../../../rtl/verilog/pci_mas_ad_load_crit.v
 ../../../rtl/verilog/pci_master32_sm.v
 ../../../rtl/verilog/pci_target32_stop_crit.v
-../../../rtl/verilog/synchronizer_flop.v
+../../../rtl/verilog/pci_synchronizer_flop.v
 ../../../rtl/verilog/pci_async_reset_flop.v
 ../../../rtl/verilog/pci_mas_ch_state_crit.v
 ../../../rtl/verilog/pci_master32_sm_if.v

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_master.v,v $
+// Revision 1.5  2003/10/24 09:35:40  tadejm
+// Added missing signals to 2 sensitivity lists. Everything works the same as before.
+//
 // Revision 1.4  2003/08/21 20:56:40  tadejm
 // WB Master is now WISHBONE B3 compatible.
 //
@@ -743,6 +746,9 @@ always@(c_state or
         set_retry or 
         last_data_to_pcir_fifo or 
         first_wb_data_access or
+        pciw_fifo_control_in or 
+        pciw_fifo_empty_in or 
+        burst_transfer or 
         last_data_from_pciw_fifo_reg
         )
 begin
