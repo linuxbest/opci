@@ -4037,11 +4037,10 @@ begin:main
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
 
-        while ( PERR === 1 )
+        while ( PERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( PERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
 
     end
     begin
@@ -4050,10 +4049,12 @@ begin:main
         if ( ok !== 1 )
             test_fail("bridge failed to process single memory write correctly, or target didn't respond to it") ;
 
-        repeat(3)
+        repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr1 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr1 ;
     end
     join
 
@@ -4130,11 +4131,10 @@ begin:main
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
 
-        while ( PERR === 1 )
+        while ( PERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( PERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
 
     end
     begin
@@ -4143,10 +4143,12 @@ begin:main
         if ( ok !== 1 )
             test_fail("bridge failed to process single memory write correctly, or target didn't respond to it") ;
 
-        repeat(3)
+        repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr2 ;
+        #1 ;
+        if (!perr_asserted)
+            disable wait_perr2 ;
     end
     join
 
@@ -4289,11 +4291,10 @@ begin:main
     begin:wait_perr4
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while ( PERR === 1 )
+        while ( PERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( PERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
 
     end
     begin
@@ -4305,7 +4306,9 @@ begin:main
         repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr4 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr4 ;
     end
     join
 
@@ -4495,7 +4498,9 @@ begin:main
         repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr5 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr5 ;
     end
     join
 
@@ -4632,7 +4637,9 @@ begin:main
         repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr6 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr6 ;
     end
     join
 
@@ -4733,7 +4740,8 @@ begin:main
         if ( ok !== 1 )
             test_fail("behavioral master failed to start expected transaction or behavioral target didn't respond") ;
 
-        disable wait_serr7 ;
+        if ( !perr_asserted )
+            disable wait_serr7 ;
     end
     join
 
@@ -4788,7 +4796,8 @@ begin:main
             1'b0,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr8 ;
+        if ( !perr_asserted )
+            disable wait_serr8 ;
     end
     begin:wait_serr8
         perr_asserted = 0 ;
@@ -4821,7 +4830,8 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr9 ;
+        if ( !perr_asserted )
+            disable wait_serr9 ;
     end
     begin:wait_serr9
         perr_asserted = 0 ;
@@ -4888,7 +4898,8 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr10 ;
+        if ( !perr_asserted )
+            disable wait_serr10 ;
     end
     begin:wait_serr10
         perr_asserted = 0 ;
@@ -5011,11 +5022,10 @@ begin:main
     begin:wait_serr11
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while( SERR === 1 )
+        while( SERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( SERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
     end
     begin
         pci_transaction_progress_monitor(target_address, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 0, ok) ;
@@ -5023,8 +5033,9 @@ begin:main
             test_fail("behavioral PCI Master failed to start expected transaction or behavioral PCI target failed to respond to it") ;
 
         @(posedge pci_clock) ;
-        #2 ;
-        disable wait_serr11 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_serr11 ;
     end
     join
 
@@ -5153,16 +5164,16 @@ begin:main
             1'b0,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr14 ;
+        if ( !perr_asserted )
+            disable wait_serr14 ;
     end
     begin:wait_serr14
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while( SERR === 1 )
+        while( SERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( SERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
     end
     join
 
@@ -5291,16 +5302,16 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr15 ;
+        if ( !perr_asserted )
+            disable wait_serr15 ;
     end
     begin:wait_serr15
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while( SERR === 1 )
+        while( SERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( SERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
     end
     join
 
@@ -5429,16 +5440,16 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr16 ;
+        if ( !perr_asserted )
+            disable wait_serr16 ;
     end
     begin:wait_serr16
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while( SERR === 1 )
+        while( SERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( SERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
     end
     join
 
@@ -5580,7 +5591,10 @@ begin:main
         if ( ok !== 1 )
             test_fail("behavioral PCI Master failed to start expected transaction or behavioral PCI target failed to respond to it") ;
 
-        disable wait_serr12 ;
+        @(posedge pci_clock) ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_serr12 ;
     end
     join
 
@@ -5693,7 +5707,8 @@ begin:main
             1'b0,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr17 ;
+        if ( !perr_asserted )
+            disable wait_serr17 ;
     end
     begin:wait_serr17
         perr_asserted = 0 ;
@@ -5726,7 +5741,8 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr18 ;
+        if ( !perr_asserted )
+            disable wait_serr18 ;
     end
     begin:wait_serr18
         perr_asserted = 0 ;
@@ -5793,7 +5809,8 @@ begin:main
             1'b1,               // make address parity error on second phase of dual address
             ok                  // result of operation
         ) ;
-        disable wait_serr19 ;
+        if ( !perr_asserted )
+            disable wait_serr19 ;
     end
     begin:wait_serr19
         perr_asserted = 0 ;
@@ -5905,7 +5922,10 @@ begin:main
         if ( ok !== 1 )
             test_fail("behavioral PCI Master failed to start expected transaction or behavioral PCI target failed to respond to it") ;
 
-        disable wait_serr13 ;
+        @(posedge pci_clock) ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_serr13 ;
     end
     join
 
@@ -6051,11 +6071,10 @@ begin:main
     begin:wait_perr11
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while ( PERR === 1 )
+        while ( PERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( PERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
 
     end
     begin
@@ -6067,7 +6086,9 @@ begin:main
         repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr11 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr11 ;
     end
     join
 
@@ -6188,11 +6209,10 @@ begin:main
     begin:wait_perr12
         perr_asserted = 0 ;
         @(posedge pci_clock) ;
-        while ( PERR === 1 )
+        while ( PERR !== 0 )
             @(posedge pci_clock) ;
 
-        if ( PERR === 0 )
-            perr_asserted = 1 ;
+        perr_asserted = 1 ;
     end
     begin
 
@@ -6228,10 +6248,12 @@ begin:main
                 test_fail("behavioral PCI master failed to start expected transaction or Bridge's Target failed to respond on it") ;
         end
 
-        repeat(3)
+        repeat(2)
             @(posedge pci_clock) ;
 
-        disable wait_perr12 ;
+        #1 ;
+        if ( !perr_asserted )
+            disable wait_perr12 ;
     end
     join
 
@@ -7900,9 +7922,11 @@ begin:main
 
     end
     begin:error_monitor_1
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         wb_transaction_progress_monitor( pci_image_base + 12, 1'b1, 1, 1'b1, ok ) ;
@@ -7929,7 +7953,9 @@ begin:main
             end
         end
 
-        disable error_monitor_1 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable error_monitor_1 ;
     end
     join
 
@@ -7987,12 +8013,16 @@ begin:main
             test_fail("WB Master didn't start expected transaction on WB bus") ;
         end
 
-        disable error_monitor_2 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable error_monitor_2 ;
     end
     begin:error_monitor_2
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -8041,9 +8071,11 @@ begin:main
 
     end
     begin:error_monitor_3
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         if ( target_mem_image == 1 )
@@ -8078,7 +8110,9 @@ begin:main
             end
         end
 
-        disable error_monitor_3 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable error_monitor_3 ;
     end
     join
 
@@ -8149,13 +8183,16 @@ begin:main
                 wb_transaction_progress_monitor( pci_image_base + 4, 1'b1, 1, 1'b1, ok ) ;
         end
 
-
-        disable error_monitor_4 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable error_monitor_4 ;
     end
     begin:error_monitor_4
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -10449,6 +10486,7 @@ task test_normal_wr_rd;
   reg    [9:0]  expect_length_rd2 ;
   reg    [3:0]  use_rd_cmd ;
   integer       i ;
+  reg           error_monitor_done ;
 begin:main
 
     // enable ERROR reporting, because error must NOT be reported and address translation if required!
@@ -10711,12 +10749,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event1 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event1 ;
         end
         begin:monitor_error_event1
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -10854,12 +10896,16 @@ begin:main
         while ( IRDY === 0 )
             @(posedge pci_clock) ;
 
-        disable monitor_error_event2 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event2 ;
     end
     begin:monitor_error_event2
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -11303,6 +11349,7 @@ task test_wb_error_rd;
     integer       i ;
     reg           do_mem_aborts ;
     reg           do_io_aborts ;
+    reg           error_monitor_done ;
 begin:main
     // enable all error reporting mechanisms - during erroneous reads, errors should not be reported
 
@@ -11447,12 +11494,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event1 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event1 ;
         end
         begin:monitor_error_event1
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -11553,12 +11604,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event2 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event2 ;
         end
         begin:monitor_error_event2
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -11663,12 +11718,15 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event3 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event3 ;
         end
         begin:monitor_error_event3
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -11772,12 +11830,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event4 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event4 ;
         end
         begin:monitor_error_event4
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( 1 ) ;
@@ -11885,12 +11947,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event5 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event5 ;
         end
         begin:monitor_error_event5
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( 3 ) ;
@@ -11996,12 +12062,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event6 ;
+            #1 ;
+            if ( !error_monitor_done ) 
+                disable monitor_error_event6 ;
         end
         begin:monitor_error_event6
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( 3 ) ;
@@ -12107,12 +12177,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event7 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event7 ;
         end
         begin:monitor_error_event7
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( `PCIR_DEPTH - 2 ) ;
@@ -12218,12 +12292,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event8 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event8 ;
         end
         begin:monitor_error_event8
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( `PCIR_DEPTH - 2 ) ;
@@ -12331,12 +12409,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event9 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event9 ;
         end
         begin:monitor_error_event9
+            error_monitor_done = 0 ; 
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_stop( 3 ) ;
@@ -12558,12 +12640,16 @@ begin:main
             while ( IRDY === 0 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event10 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event10 ;
         end
         begin:monitor_error_event10
+            error_monitor_done = 0 ;
             @(error_event_int) ;
             test_fail("either PCI Monitor or PCI Master detected an error while reading through PCI Target Unit") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -12660,6 +12746,7 @@ task test_target_abort ;
     reg   [31:0] pci_address ;
     reg   [3:0]  byte_enables ;
     reg          ok ;
+    reg          error_monitor_done ;
 begin:main
     pci_ctrl_offset = 12'h4 ;
     if (image_num === 0)
@@ -12754,14 +12841,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event1
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event1 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event1 ;
     end
     join
 
@@ -12776,14 +12867,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event2
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_READ, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event2 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event2 ;
     end
     join
 
@@ -12801,14 +12896,17 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event3
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event3 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event3 ;
     end
     join
 
@@ -12825,14 +12923,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event4
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_READ, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event4 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event4 ;
     end
     join
 
@@ -12850,14 +12952,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event5
+        error_monitor_done = 0 ; 
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event5 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event5 ;
     end
     join
 
@@ -12874,14 +12980,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event6
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_READ, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event6 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event6 ;
     end
     join
 
@@ -12897,14 +13007,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event7
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_READ, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event7 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event7 ;
     end
     join
 
@@ -12920,14 +13034,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event8
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event8 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event8 ;
     end
     join
 
@@ -12945,14 +13063,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event9
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event9 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event9 ;
     end
     join
 
@@ -12966,14 +13088,19 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event10
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_READ, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event10 ;
+
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event10 ;
     end
     join
 
@@ -12990,14 +13117,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event11
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event11 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event11 ;
     end
     join
 
@@ -13014,14 +13145,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event12
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event12 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event12 ;
     end
     join
 
@@ -13038,14 +13173,18 @@ begin:main
         do_pause ( 1 ) ;
     end
     begin:monitor_error_event13
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI Master or Monitor detected invalid operation on PCI bus") ;
         ok = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         pci_transaction_progress_monitor( pci_address, `BC_IO_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
         @(posedge pci_clock) ;
-        disable monitor_error_event13 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_error_event13 ;
     end
     join
 
@@ -13122,6 +13261,7 @@ task test_target_io_wr_rd ;
     reg          pci_ok ;
     reg          wb_ok ;
     integer      i ;
+    reg          error_monitor_done ;
 begin:main
     `ifdef ADDR_TRAN_IMPL
         translation = translate_address ;
@@ -13159,13 +13299,17 @@ begin:main
         if ( wb_ok !== 1 )
             test_fail("WISHBONE Master started invalid transaction or none at all on WB bus after single I/O write was posted on PCI") ;
 
-        disable monitor_pci_error_1 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_pci_error_1 ;
     end
     begin:monitor_pci_error_1
+        error_monitor_done = 0 ;
         pci_ok = 1 ;
         @(error_event_int) ;
         pci_ok = 0 ;
         test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO refernce to Target" ) ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -13185,13 +13329,17 @@ begin:main
             if ( wb_ok !== 1 )
                 test_fail("WISHBONE Master started invalid transaction or none at all on WB bus after single I/O write was posted on PCI") ;
 
-            disable monitor_pci_error_2 ;
+            #1 ;
+            if ( !error_monitor_done ) 
+                disable monitor_pci_error_2 ;
         end
         begin:monitor_pci_error_2
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             pci_ok = 0 ;
             test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO reference to Target" ) ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -13225,13 +13373,17 @@ begin:main
         PCIU_IO_READ( `Test_Master_1, pci_address, 32'hAAAA_AAAA, byte_enables, 1, `Test_Target_Normal_Completion) ;
         do_pause ( 16 ) ;
 
-        disable monitor_pci_error_3 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_pci_error_3 ;
     end
     begin:monitor_pci_error_3
+        error_monitor_done = 0 ;
         pci_ok = 1 ;
         @(error_event_int) ;
         pci_ok = 0 ;
         test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO read reference to Target" ) ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -13259,13 +13411,17 @@ begin:main
         PCIU_IO_READ( `Test_Master_1, pci_address, 32'hAAAA_AAAA, byte_enables, 1, `Test_Target_Normal_Completion) ;
         do_pause ( 16 ) ;
 
-        disable monitor_pci_error_4 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_pci_error_4 ;
     end
     begin:monitor_pci_error_4
+        error_monitor_done = 0 ;
         pci_ok = 1 ;
         @(error_event_int) ;
         pci_ok = 0 ;
         test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO read reference to Target" ) ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -13293,13 +13449,17 @@ begin:main
         PCIU_IO_READ( `Test_Master_1, pci_address, 32'hAAAA_AAAA, byte_enables, 1, `Test_Target_Normal_Completion) ;
         do_pause ( 16 ) ;
 
-        disable monitor_pci_error_5 ;
+        #1 ;
+        if ( !error_monitor_done )
+            disable monitor_pci_error_5 ;
     end
     begin:monitor_pci_error_5
+        error_monitor_done = 0 ;
         pci_ok = 1 ;
         @(error_event_int) ;
         pci_ok = 0 ;
         test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO read reference to Target" ) ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -13325,6 +13485,7 @@ task test_target_io_err_wr ;
     reg          wb_ok ;
     integer      i ;
     reg   [11:0] offset ;
+    reg          error_monitor_done ;
 begin:main
     `ifdef ADDR_TRAN_IMPL
         translation = translate_address ;
@@ -13411,13 +13572,17 @@ begin:main
             if ( wb_ok !== 1 )
                 test_fail("WISHBONE Master started invalid transaction or none at all on WB bus after single I/O write was posted on PCI") ;
 
-            disable monitor_pci_error_2 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_pci_error_2 ;
         end
         begin:monitor_pci_error_2
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             pci_ok = 0 ;
             test_fail ( "PCI Monitor or PCI Master detected an error on PCI bus while doing IO reference to Target" ) ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14489,6 +14654,7 @@ task target_disconnects ;
 
     reg          do_mem_disconnects ;
     reg          do_io_disconnects ;
+    reg          error_monitor_done ;
 begin:main
     if ( target_mem_image !== -1 )
     begin
@@ -14579,13 +14745,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event1 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event1 ;
         end
         begin:monitor_error_event1
+            error_monitor_done = 0 ;
             ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on bursts to configuration space") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14623,13 +14793,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event2 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event2 ;
         end
         begin:monitor_error_event2
+            error_monitor_done = 0 ;
             ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on bursts to configuration space") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14673,13 +14847,16 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event3 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event3 ;
         end
         begin:monitor_error_event3
+            error_monitor_done = 0 ;
             ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on bursts to configuration space") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14710,13 +14887,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event4 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event4 ;
         end
         begin:monitor_error_event4
+            error_monitor_done = 0 ;
             ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on bursts to configuration space") ;
             ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14801,13 +14982,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event5 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event5 ;
         end
         begin:monitor_error_event5
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target write burst to WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -14840,13 +15025,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event6 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event6 ;
         end
         begin:monitor_error_event6
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target write burst to WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -14895,13 +15084,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event7 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event7 ;
         end
         begin:monitor_error_event7
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14944,13 +15137,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event8 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event8 ;
         end
         begin:monitor_error_event8
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -14977,13 +15174,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event9 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event9 ;
         end
         begin:monitor_error_event9
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target write burst to WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -15014,13 +15215,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event10 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event10 ;
         end
         begin:monitor_error_event10
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target write burst to WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -15051,13 +15256,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event11 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event11 ;
         end
         begin:monitor_error_event11
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target write burst to WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -15106,13 +15315,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event12 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event12 ;
         end
         begin:monitor_error_event12
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -15153,13 +15366,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event13 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event13 ;
         end
         begin:monitor_error_event13
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -15200,13 +15417,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event14 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event14 ;
         end
         begin:monitor_error_event14
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -15337,13 +15558,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event15 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event15 ;
         end
         begin:monitor_error_event15
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target IO burst write") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -15373,13 +15598,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event16 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event16 ;
         end
         begin:monitor_error_event16
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target IO burst write") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         begin
             wb_transaction_progress_monitor(pci_address, 1'b1, expect_length, 1'b1, wb_ok) ;
@@ -15431,13 +15660,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event17 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event17 ;
         end
         begin:monitor_error_event17
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -15480,13 +15713,17 @@ begin:main
             while ( FRAME !== 1 || IRDY !== 1 )
                 @(posedge pci_clock) ;
 
-            disable monitor_error_event18 ;
+            #1 ;
+            if ( !error_monitor_done )
+                disable monitor_error_event18 ;
         end
         begin:monitor_error_event18
+            error_monitor_done = 0 ;
             pci_ok = 1 ;
             @(error_event_int) ;
             test_fail("PCI Master or Monitor signaled an error while testing disconnect on Target read burst from WISHBONE") ;
             pci_ok = 0 ;
+            error_monitor_done = 1 ;
         end
         join
 
@@ -15802,9 +16039,11 @@ begin:main
         do_pause( 1 ) ;
     end
     begin:error_monitor1
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ; 
+        error_monitor_done = 1 ;
     end
     begin
         if ( test_mem )
@@ -15818,7 +16057,8 @@ begin:main
             disable main ;
         end 
         
-        if ( ok_pci )
+        #1 ;
+        if ( !error_monitor_done )
             disable error_monitor1 ;
     end
     join
@@ -15854,9 +16094,11 @@ begin:main
         do_pause( 1 ) ;
     end
     begin:error_monitor2
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ;
+        error_monitor_done = 1 ;
     end
     begin
         wait ( clocks_after_completion === 32'h0000_FFF0 ) ;
@@ -15891,7 +16133,8 @@ begin:main
         end
         begin
            pci_transaction_progress_monitor( pci_image_base + 4, test_mem ? `BC_MEM_READ : `BC_IO_READ, test_mem ? 4 : 1, 0, 1'b1, 1'b0, 0, ok ) ; 
-           if ( ok_pci )
+           #1 ;
+           if ( !error_monitor_done )
                disable error_monitor2 ;
         end
         join
@@ -16013,13 +16256,16 @@ begin:main
             disable main ;
         end
  
-        if ( ok_pci )
+        #1 ;
+        if ( !error_monitor_done )
             disable error_monitor3 ;
     end
     begin:error_monitor3
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -16152,13 +16398,16 @@ begin:main
  
         do_pause(1) ;
 
-        if ( ok_pci )
+        #1 ;
+        if ( !error_monitor_done )
             disable error_monitor4 ;
     end
     begin:error_monitor4
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ;
+        error_monitor_done = 1 ;
     end
     join
 
@@ -16228,13 +16477,16 @@ begin:main
         end
         join
  
-        if ( ok_pci )
+        #1 ;
+        if ( !error_monitor_done )
             disable error_monitor5 ;
     end
     begin:error_monitor5
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ;
+        error_monitor_done = 1 ;
     end
     join
  
@@ -16313,13 +16565,16 @@ begin:main
             disable main ;
         end
 
-        if ( ok_pci )
+        #1 ;
+        if ( !error_monitor_done )
             disable error_monitor6 ;
     end
     begin:error_monitor6
+        error_monitor_done = 0 ;
         @(error_event_int) ;
         test_fail("PCI behavioral master or PCI monitor detected error on PCI bus") ;
         ok_pci = 0 ;
+        error_monitor_done = 1 ;
     end 
     join
 

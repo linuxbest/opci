@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_bus_monitor.v,v 1.1 2002/02/01 13:39:43 mihad Exp $
+// $Id: pci_bus_monitor.v,v 1.2 2002/03/21 07:35:50 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -69,7 +69,10 @@
 
 // Note that master aborts are the norm on Special Cycles!
 
-`timescale 1ns/10ps
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
+//`timescale 1ns/10ps
 
 module pci_bus_monitor (
   pci_ext_ad, pci_ext_cbe_l, pci_ext_par,

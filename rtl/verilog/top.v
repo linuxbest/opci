@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.4  2002/03/21 07:36:04  mihad
+// Files updated with missing includes, resolved some race conditions in test bench
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -59,6 +62,7 @@
 // synopsys translate_off
 `include "timescale.v"
 // synopsys translate_on
+`include "pci_constants.v"
 
 module TOP
 (
@@ -313,9 +317,11 @@ PCI_BRIDGE32 bridge
     .PCI_SERRn_OUT ( SERR_out ),
     .PCI_SERRn_EN_OUT ( SERR_en )
 );
-
+   
+   
 // PCI IO buffers instantiation
 `ifdef ACTIVE_LOW_OE
+
 bufif0 AD_buf0   ( AD[0],  AD_out[0], AD_en[0]) ;
 bufif0 AD_buf1   ( AD[1],  AD_out[1], AD_en[1]) ;
 bufif0 AD_buf2   ( AD[2],  AD_out[2], AD_en[2]) ;
@@ -368,7 +374,8 @@ bufif0 PERR_buf     ( PERR, PERR_out, PERR_en ) ;
 bufif0 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
 
 `else
-`ifdef ACTIVE_HIGH_OE
+ `ifdef ACTIVE_HIGH_OE
+
 bufif1 AD_buf0   ( AD[0],  AD_out[0], AD_en[0]) ;
 bufif1 AD_buf1   ( AD[1],  AD_out[1], AD_en[1]) ;
 bufif1 AD_buf2   ( AD[2],  AD_out[2], AD_en[2]) ;

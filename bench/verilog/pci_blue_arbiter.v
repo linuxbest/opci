@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_blue_arbiter.v,v 1.1 2002/02/01 13:39:43 mihad Exp $
+// $Id: pci_blue_arbiter.v,v 1.2 2002/03/21 07:35:50 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -98,7 +98,9 @@
 //
 //===========================================================================
 
-`timescale 1ns/1ps
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
 
 // Allows printing of Arbiter Debug info.  Usually not defined
 //`define PCI_TRACE_ARB 1

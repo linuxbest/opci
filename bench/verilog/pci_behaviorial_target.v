@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_target.v,v 1.2 2002/02/19 16:32:29 mihad Exp $
+// $Id: pci_behaviorial_target.v,v 1.3 2002/03/21 07:35:50 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -84,7 +84,9 @@
 //
 //===========================================================================
 
-`timescale 1ns/1ps
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
 
 module pci_behaviorial_target (
   ad_now, ad_prev, target_ad_out, target_ad_oe,

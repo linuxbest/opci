@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: pci_behaviorial_device.v,v 1.1 2002/02/01 15:07:51 mihad Exp $
+// $Id: pci_behaviorial_device.v,v 1.2 2002/03/21 07:35:50 mihad Exp $
 //
 // Copyright 2001 Blue Beaver.  All Rights Reserved.
 //
@@ -62,7 +62,9 @@
 //
 //===========================================================================
 
-`timescale 1ns/1ps
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
 
 module pci_behaviorial_device (
   pci_ext_ad, pci_ext_cbe_l, pci_ext_par,
