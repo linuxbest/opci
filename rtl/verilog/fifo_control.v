@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: fifo_control.v,v $
+// Revision 1.5  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.4  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -154,12 +157,12 @@ wire rallow ;
 assign full_out  = full ;
 
 // clear generation for FFs and registers
-wire clear = reset_in || flush_in ;
+wire clear = reset_in /*|| flush_in*/ ; // flush changed to synchronous operation
 
 reg wclock_nempty_detect ;
-always@(posedge reset_in or posedge wclock_in)
+always@(posedge clear or posedge wclock_in)
 begin
-    if (reset_in)
+    if (clear)
         wclock_nempty_detect <= #`FF_DELAY 1'b0 ;
     else
         wclock_nempty_detect <= #`FF_DELAY (rgrey_addr != wgrey_addr) ;
@@ -198,10 +201,10 @@ assign raddr_out = rallow ? raddr_plus_one : raddr ;
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 4 - one more than initial value of read address
         raddr_plus_one <= #`FF_DELAY 4 ;
-    end
+    else if (flush_in)
+        raddr_plus_one <= #`FF_DELAY waddr + 1'b1 ;
     else if (rallow)
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
 end
@@ -212,6 +215,8 @@ begin
     if (clear)
         // initial value is 3
         raddr <= #`FF_DELAY 3 ;
+    else if (flush_in)
+        raddr <= #`FF_DELAY waddr ;
     else if (rallow)
         raddr <= #`FF_DELAY raddr_plus_one ;
 end
@@ -228,12 +233,11 @@ There are 4 Grey addresses:
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 0
         rgrey_minus1 <= #`FF_DELAY 0 ;
-    end
-    else
-    if (rallow)
+    else if (flush_in)
+        rgrey_minus1 <= #`FF_DELAY wgrey_minus1 ;
+    else if (rallow)
         rgrey_minus1 <= #`FF_DELAY rgrey_addr ;
 end
 
@@ -241,12 +245,11 @@ end
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 1
         rgrey_addr <= #`FF_DELAY 1 ;
-    end
-    else
-    if (rallow)
+    else if (flush_in)
+        rgrey_addr <= #`FF_DELAY wgrey_addr ;
+    else if (rallow)
         rgrey_addr <= #`FF_DELAY rgrey_next ;
 end
 
@@ -254,12 +257,11 @@ end
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 3
         rgrey_next <= #`FF_DELAY 3 ;
-    end
-    else
-    if (rallow)
+    else if (flush_in)
+        rgrey_next <= #`FF_DELAY wgrey_next ;
+    else if (rallow)
         rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
 end
 
@@ -362,6 +364,8 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
         empty <= #`FF_DELAY 1'b1 ;
+    else if (flush_in)
+        empty <= #`FF_DELAY 1'b1 ;
     else
         empty <= #`FF_DELAY reg_empty ;
 end
@@ -371,6 +375,8 @@ wire reg_almost_empty = rallow && comb_two_used || comb_almost_empty ;
 always@(posedge clear or posedge rclock_in)
 begin
     if (clear)
+        almost_empty <= #`FF_DELAY 1'b0 ;
+    else if (flush_in)
         almost_empty <= #`FF_DELAY 1'b0 ;
     else
         almost_empty <= #`FF_DELAY reg_almost_empty ;

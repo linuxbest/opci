@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
+// Revision 1.5  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.4  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -75,7 +78,7 @@ module PCIW_PCIR_FIFOS
     pciw_addr_data_out,
     pciw_cbe_out,
     pciw_control_out,
-    pciw_flush_in,
+//    pciw_flush_in,    // not used
     pciw_two_left_out,
     pciw_almost_full_out,
     pciw_full_out,
@@ -147,7 +150,7 @@ output [3:0]  pciw_cbe_out ;
 output [3:0]  pciw_control_out ;
 
 // flush input
-input pciw_flush_in ;
+//input pciw_flush_in ;     // not used
 
 // status outputs
 output pciw_two_left_out ;
@@ -278,8 +281,8 @@ assign pciw_empty_out = pciw_empty ;
 assign pcir_empty_out = pcir_empty ;
 
 // clear wires for clearing FFs and registers
-wire pciw_clear = reset_in || pciw_flush_in ; // PCIW_FIFO's clear signal
-wire pcir_clear = reset_in || pcir_flush_in ; // PCIR_FIFO's clear signal
+wire pciw_clear = reset_in /*|| pciw_flush_in*/ ; // PCIW_FIFO's clear signal - flush not used
+wire pcir_clear = reset_in /*|| pcir_flush_in*/ ; // PCIR_FIFO's clear signal - flush changed to synchronous op.
 
 /*-----------------------------------------------------------------------------------------------------------
 Definitions of wires for connecting RAM instances
@@ -440,7 +443,7 @@ PCIW_FIFO_CONTROL #(PCIW_ADDR_LENGTH) pciw_fifo_ctrl
     .renable_in(pciw_renable_in),
     .wenable_in(pciw_wenable_in),
     .reset_in(reset_in),
-    .flush_in(pciw_flush_in),
+//    .flush_in(pciw_flush_in),                     // flush not used
     .two_left_out(pciw_two_left_out),
     .almost_full_out(pciw_almost_full_out),
     .full_out(pciw_full_out),

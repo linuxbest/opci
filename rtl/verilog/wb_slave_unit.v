@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.4  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -506,7 +509,8 @@ wire [31:0] fifos_wbw_addr_data_in      =       wbs_sm_data_out ;
 wire [3:0]  fifos_wbw_cbe_in            =       wbs_sm_cbe_out ;
 wire [3:0]  fifos_wbw_control_in        =       wbs_sm_wbw_control_out ;
 wire        fifos_wbw_renable_in        =       pcim_if_wbw_renable_out ;
-wire        fifos_wbw_flush_in          =       1'b0 ;
+
+//wire        fifos_wbw_flush_in          =       1'b0 ; flush for write fifo not used
 
 // WBR_FIFO inputs
 wire        fifos_wbr_wenable_in        =       pcim_if_wbr_wenable_out ;
@@ -529,7 +533,7 @@ WBW_WBR_FIFOS fifos(
                     .wbw_addr_data_out         (fifos_wbw_addr_data_out),
                     .wbw_cbe_out               (fifos_wbw_cbe_out),
                     .wbw_control_out           (fifos_wbw_control_out),
-                    .wbw_flush_in              (fifos_wbw_flush_in),
+//                    .wbw_flush_in              (fifos_wbw_flush_in),        // flush for write fifo not used
                     .wbw_almost_full_out       (fifos_wbw_almost_full_out),
                     .wbw_full_out              (fifos_wbw_full_out),
                     .wbw_empty_out             (fifos_wbw_empty_out),

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
+// Revision 1.4  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.3  2002/02/01 15:25:14  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -71,7 +74,7 @@ module WBW_WBR_FIFOS(
                         wbw_addr_data_out,
                         wbw_cbe_out,
                         wbw_control_out,
-                        wbw_flush_in,
+//                        wbw_flush_in,         write fifo flush not used
                         wbw_almost_full_out,
                         wbw_full_out,
                         wbw_empty_out,
@@ -136,7 +139,7 @@ output [3:0]  wbw_cbe_out ;
 output [3:0]  wbw_control_out ;
 
 // flush input
-input wbw_flush_in ;
+// input wbw_flush_in ; // not used
 
 // status outputs
 output wbw_almost_full_out ;
@@ -251,8 +254,8 @@ assign wbw_empty_out = wbw_empty ;
 assign wbr_empty_out = wbr_empty ;
 
 // clear wires for fifos
-wire wbw_clear = reset_in || wbw_flush_in ; // WBW_FIFO clear
-wire wbr_clear = reset_in || wbr_flush_in ; // WBR_FIFO clear
+wire wbw_clear = reset_in /*|| wbw_flush_in*/ ; // WBW_FIFO clear flush not used
+wire wbr_clear = reset_in /*|| wbr_flush_in*/ ; // WBR_FIFO clear - flush changed from asynchronous to synchronous
 
 /*-----------------------------------------------------------------------------------------------------------
 Definitions of wires for connecting RAM instances
@@ -413,7 +416,7 @@ WBW_FIFO_CONTROL #(WBW_ADDR_LENGTH) wbw_fifo_ctrl
     .renable_in(wbw_renable_in),
     .wenable_in(wbw_wenable_in),
     .reset_in(reset_in),
-    .flush_in(wbw_flush_in),
+//    .flush_in(wbw_flush_in),
     .almost_full_out(wbw_almost_full_out),
     .full_out(wbw_full_out),
     .empty_out(wbw_empty),

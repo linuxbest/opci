@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbr_fifo_control.v,v $
+// Revision 1.4  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -134,7 +137,7 @@ assign wallow_out = wallow ;
 wire rallow ;
 
 // clear generation for FFs and registers
-wire clear = reset_in || flush_in ;
+wire clear = reset_in /*|| flush_in*/ ; // flush changed to synchronous operation
 
 reg wclock_nempty_detect ;
 always@(posedge reset_in or posedge wclock_in)
@@ -175,10 +178,10 @@ assign raddr_out = rallow ? raddr_plus_one : raddr ;
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 3
         raddr_plus_one <= #`FF_DELAY 3 ;
-    end
+    else if (flush_in)
+        raddr_plus_one <= #`FF_DELAY waddr + 1'b1 ; // when read fifo is flushed, values from write side are copied to read side
     else if (rallow)
         raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
 end
@@ -189,6 +192,8 @@ begin
     if (clear)
         // initial value is 2
         raddr <= #`FF_DELAY 2 ;
+    else if (flush_in)
+        raddr <= #`FF_DELAY waddr ;                 // when flushed, copy value from write side
     else if (rallow)
         raddr <= #`FF_DELAY raddr_plus_one ;
 end
@@ -204,12 +209,11 @@ There are 3 Grey addresses:
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 0
         rgrey_addr <= #`FF_DELAY 0 ;
-    end
-    else
-    if (rallow)
+    else if (flush_in)
+        rgrey_addr <= #`FF_DELAY wgrey_addr ;   // when flushed, copy value from write side
+    else if (rallow)
         rgrey_addr <= #`FF_DELAY rgrey_next ;
 end
 
@@ -217,12 +221,11 @@ end
 always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
-    begin
         // initial value is 1
         rgrey_next <= #`FF_DELAY 1 ;
-    end
-    else
-    if (rallow)
+    else if (flush_in)
+        rgrey_next <= #`FF_DELAY wgrey_next ;
+    else if (rallow)
         rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
 end
 
@@ -282,6 +285,8 @@ always@(posedge rclock_in or posedge clear)
 begin
     if (clear)
         empty <= #`FF_DELAY 1'b1 ;
+    else if (flush_in)
+        empty <= #1 1'b1 ;  // when flushed, set empty to active
 	else
         empty <= #`FF_DELAY reg_empty ;
 end

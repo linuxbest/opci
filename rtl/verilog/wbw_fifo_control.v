@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_fifo_control.v,v $
+// Revision 1.4  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.3  2002/02/01 15:25:14  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -67,7 +70,7 @@ module WBW_FIFO_CONTROL
     renable_in,
     wenable_in,
     reset_in,
-    flush_in,
+//    flush_in, // not used
     almost_full_out,
     full_out,
     empty_out,
@@ -90,7 +93,7 @@ input  renable_in, wenable_in ;
 input  reset_in;
 
 // flush input
-input flush_in ;
+// input flush_in ; // not used
 
 // almost full and empy status outputs
 output almost_full_out ;
@@ -151,12 +154,12 @@ assign full_out  = full ;
 assign almost_full_out  = almost_full && ~full ;
 
 // clear generation for FFs and registers
-wire clear = reset_in || flush_in ;
+wire clear = reset_in /*|| flush_in*/ ;     // flush not used
 
 reg wclock_nempty_detect ;
-always@(posedge reset_in or posedge wclock_in)
+always@(posedge clear or posedge wclock_in)
 begin
-    if (reset_in)
+    if (clear)
         wclock_nempty_detect <= #`FF_DELAY 1'b0 ;
     else
         wclock_nempty_detect <= #`FF_DELAY (rgrey_addr != wgrey_addr) ;

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.6  2002/09/25 15:53:52  mihad
+// Removed all logic from asynchronous reset network
+//
 // Revision 1.5  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -483,7 +486,7 @@ wire [31:0] fifos_pciw_addr_data_in     =   pcit_if_pciw_fifo_addr_data_out ;
 wire [3:0]  fifos_pciw_cbe_in           =   pcit_if_pciw_fifo_cbe_out ;
 wire [3:0]  fifos_pciw_control_in       =   pcit_if_pciw_fifo_control_out ;
 wire        fifos_pciw_renable_in       =   wbm_sm_pciw_fifo_renable_out ;
-wire        fifos_pciw_flush_in         =   1'b0 ;
+//wire        fifos_pciw_flush_in         =   1'b0 ;    // flush not used for write fifo
 
 // PCIR_FIFO inputs
 wire        fifos_pcir_wenable_in       =   wbm_sm_pcir_fifo_wenable_out ;
@@ -507,7 +510,7 @@ PCIW_PCIR_FIFOS fifos
     .pciw_addr_data_out         (fifos_pciw_addr_data_out),
     .pciw_cbe_out               (fifos_pciw_cbe_out),
     .pciw_control_out           (fifos_pciw_control_out),
-    .pciw_flush_in              (fifos_pciw_flush_in),
+//    .pciw_flush_in              (fifos_pciw_flush_in),      // flush not used for write fifo
     .pciw_two_left_out          (fifos_pciw_two_left_out),    //for PCI Target !!!
     .pciw_almost_full_out       (fifos_pciw_almost_full_out), //for PCI Target !!!
     .pciw_full_out              (fifos_pciw_full_out),        //for PCI Target !!!
