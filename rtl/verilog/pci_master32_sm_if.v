@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
+// Revision 1.5  2003/06/12 10:12:22  mihad
+// Changed one critical PCI bus signal logic.
+//
 // Revision 1.4  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -430,18 +433,23 @@ begin
         read_bound <= #`FF_DELAY read_bound_comb ;
 end
 
+wire read_count_change_val = read_count_load | read_count_enable ;
+
+wire [(`WBR_ADDR_LENGTH - 1):0] read_count_next = read_count_load ? max_read_count : (read_count - 1'b1) ;
+
 // down counter with load
 always@(posedge reset_in or posedge clk_in)
 begin
     if (reset_in)
         read_count <= #`FF_DELAY 0 ;
     else
-    if (read_count_load)
+/*    if (read_count_load)
         read_count <= #`FF_DELAY max_read_count ;
     else
     if (read_count_enable)
         read_count <= #`FF_DELAY read_count - 1'b1 ;
-
+*/  if (read_count_change_val)
+        read_count <= #`FF_DELAY read_count_next ;
 end
 
 // flip flop indicating error recovery is in progress
