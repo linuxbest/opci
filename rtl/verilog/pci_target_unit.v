@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
+// Revision 1.12  2003/08/08 16:36:33  tadejm
+// Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
+//
 // Revision 1.11  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -139,6 +142,7 @@ module pci_target_unit
     pciu_pciif_idsel_reg_in,
     pciu_pciif_ad_reg_in,
     pciu_pciif_cbe_reg_in,
+    pciu_pciif_cbe_in,
     pciu_pciif_bckp_trdy_en_in,
     pciu_pciif_bckp_devsel_in,
     pciu_pciif_bckp_trdy_in,
@@ -240,6 +244,7 @@ input           pciu_pciif_irdy_reg_in ;
 input           pciu_pciif_idsel_reg_in ;
 input  [31:0]   pciu_pciif_ad_reg_in ;
 input   [3:0]   pciu_pciif_cbe_reg_in ;
+input   [3:0]   pciu_pciif_cbe_in;
 input           pciu_pciif_bckp_trdy_en_in ;
 input           pciu_pciif_bckp_devsel_in ;
 input           pciu_pciif_bckp_trdy_in ;
@@ -306,6 +311,7 @@ wire  [3:0] pcit_sm_bc_out ;
 wire        pcit_sm_bc0_out ;
 wire [31:0] pcit_sm_data_out ;
 wire  [3:0] pcit_sm_be_out ;
+wire  [3:0] pcit_sm_next_be_out ;
 wire        pcit_sm_req_out ;
 wire        pcit_sm_rdy_out ;
 wire        pcit_sm_addr_phase_out ;
@@ -422,6 +428,7 @@ assign  CAB_O       =   wbm_sm_cab_out ;
 wire [31:0] fifos_pciw_addr_data_out ;
 wire [3:0]  fifos_pciw_cbe_out ;
 wire [3:0]  fifos_pciw_control_out ;
+wire        fifos_pciw_three_left_out ;
 wire        fifos_pciw_two_left_out ;
 wire        fifos_pciw_almost_full_out ;
 wire        fifos_pciw_full_out ;
@@ -547,6 +554,7 @@ pci_pciw_pcir_fifos fifos
     .pciw_cbe_out               (fifos_pciw_cbe_out),
     .pciw_control_out           (fifos_pciw_control_out),
 //    .pciw_flush_in              (fifos_pciw_flush_in),      // flush not used for write fifo
+    .pciw_three_left_out        (fifos_pciw_three_left_out),  //for PCI Target !!!
     .pciw_two_left_out          (fifos_pciw_two_left_out),    //for PCI Target !!!
     .pciw_almost_full_out       (fifos_pciw_almost_full_out), //for PCI Target !!!
     .pciw_full_out              (fifos_pciw_full_out),        //for PCI Target !!!
@@ -626,6 +634,7 @@ wire  [3:0] pcit_if_bc_in                           =   pcit_sm_bc_out ;
 wire        pcit_if_bc0_in                          =   pcit_sm_bc0_out ;
 wire [31:0] pcit_if_data_in                         =   pcit_sm_data_out ;
 wire  [3:0] pcit_if_be_in                           =   pcit_sm_be_out ;
+wire  [3:0] pcit_if_next_be_in                      =   pcit_sm_next_be_out ;
 wire        pcit_if_req_in                          =   pcit_sm_req_out ;
 wire        pcit_if_rdy_in                          =   pcit_sm_rdy_out ;
 wire        pcit_if_addr_phase_in                   =   pcit_sm_addr_phase_out ;
@@ -652,6 +661,7 @@ wire  [3:0] pcit_if_pcir_fifo_be_in                 =   fifos_pcir_be_out ;
 wire  [3:0] pcit_if_pcir_fifo_control_in            =   fifos_pcir_control_out ;
 wire        pcit_if_pcir_fifo_almost_empty_in       =   fifos_pcir_almost_empty_out ;
 wire        pcit_if_pcir_fifo_empty_in              =   fifos_pcir_empty_out ;
+wire        pcit_if_pciw_fifo_three_left_in         =   fifos_pciw_three_left_out ;
 wire        pcit_if_pciw_fifo_two_left_in           =   fifos_pciw_two_left_out ;
 wire        pcit_if_pciw_fifo_almost_full_in        =   fifos_pciw_almost_full_out ;
 wire        pcit_if_pciw_fifo_full_in               =   fifos_pciw_full_out ;
@@ -708,6 +718,7 @@ pci_target32_interface pci_target_if
     .data_in                        (pcit_if_data_in),
     .data_out                       (pcit_if_data_out),
     .be_in                          (pcit_if_be_in),
+    .next_be_in                     (pcit_if_next_be_in),
     .req_in                         (pcit_if_req_in),
     .rdy_in                         (pcit_if_rdy_in),
     .addr_phase_in                  (pcit_if_addr_phase_in),
@@ -759,6 +770,7 @@ pci_target32_interface pci_target_if
     .pciw_fifo_addr_data_out        (pcit_if_pciw_fifo_addr_data_out),
     .pciw_fifo_cbe_out              (pcit_if_pciw_fifo_cbe_out),
     .pciw_fifo_control_out          (pcit_if_pciw_fifo_control_out),
+    .pciw_fifo_three_left_in        (pcit_if_pciw_fifo_three_left_in),
     .pciw_fifo_two_left_in          (pcit_if_pciw_fifo_two_left_in),
     .pciw_fifo_almost_full_in       (pcit_if_pciw_fifo_almost_full_in),
     .pciw_fifo_full_in              (pcit_if_pciw_fifo_full_in),
@@ -820,6 +832,7 @@ wire        pcit_sm_irdy_reg_in                 =   pciu_pciif_irdy_reg_in ;
 wire        pcit_sm_idsel_reg_in                =   pciu_pciif_idsel_reg_in ;
 wire [31:0] pcit_sm_ad_reg_in                   =   pciu_pciif_ad_reg_in ;
 wire  [3:0] pcit_sm_cbe_reg_in                  =   pciu_pciif_cbe_reg_in ;
+wire  [3:0] pcit_sm_cbe_in                      =   pciu_pciif_cbe_in ;
 wire        pcit_sm_bckp_trdy_en_in             =   pciu_pciif_bckp_trdy_en_in ;
 wire        pcit_sm_bckp_devsel_in              =   pciu_pciif_bckp_devsel_in ;
 wire        pcit_sm_bckp_trdy_in                =   pciu_pciif_bckp_trdy_in ;
@@ -864,6 +877,7 @@ pci_target32_sm pci_target_sm
     .pci_ad_out                         (pcit_sm_ad_out),
     .pci_ad_en_out                      (pcit_sm_ad_en_out),
     .pci_cbe_reg_in                     (pcit_sm_cbe_reg_in),
+    .pci_cbe_in                         (pcit_sm_cbe_in),
     .bckp_trdy_en_in                    (pcit_sm_bckp_trdy_en_in),
     .bckp_devsel_in                     (pcit_sm_bckp_devsel_in),
     .bckp_trdy_in                       (pcit_sm_bckp_trdy_in),
@@ -877,6 +891,7 @@ pci_target32_sm pci_target_sm
     .data_out                           (pcit_sm_data_out),
     .data_in                            (pcit_sm_data_in),
     .be_out                             (pcit_sm_be_out),
+    .next_be_out                        (pcit_sm_next_be_out),
     .req_out                            (pcit_sm_req_out),
     .rdy_out                            (pcit_sm_rdy_out),
     .addr_phase_out                     (pcit_sm_addr_phase_out),

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.8  2003/08/08 16:36:33  tadejm
+// Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
+//
 // Revision 1.7  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -86,6 +89,7 @@ module pci_target32_interface
     data_in,
     data_out,
     be_in,
+    next_be_in,
     req_in,
     rdy_in,
     addr_phase_in,
@@ -142,6 +146,7 @@ module pci_target32_interface
 	pciw_fifo_addr_data_out,
 	pciw_fifo_cbe_out,
 	pciw_fifo_control_out,
+        pciw_fifo_three_left_in,
 	pciw_fifo_two_left_in,
 	pciw_fifo_almost_full_in,
 	pciw_fifo_full_in,
@@ -215,6 +220,7 @@ input			bc0_in ;			// current cycle RW signal
 output	[31:0]  data_out ;			// for read operations - current dataphase data output
 input   [31:0]  data_in ;			// for write operations - current request data input - registered
 input   [3:0]	be_in ;				// current dataphase byte enable inputs - registered
+input   [3:0]   next_be_in ;                    // next dataphase byte enable inputs - NOT registered
 // Port connection control signals from PCI FSM
 input         	req_in ;     		// Read is requested to WB master from PCI side
 input         	rdy_in ;     		// DATA / ADDRESS selection from PCI side when read or write - registered
@@ -288,10 +294,12 @@ input			pcir_fifo_empty_in ;			// empty indicator
 
 // PCIW_FIFO control signals used for sinking data into PCIW_FIFO and status monitoring
 output			pciw_fifo_wenable_out ;		// write enable output to PCIW_FIFO
+wire            pciw_fifo_wenable ; // not registered we
 output	[31:0]	pciw_fifo_addr_data_out ;	// address / data output signals to PCIW_FIFO
 output	[3:0]	pciw_fifo_cbe_out ;			// command / byte enable signals to PCIW_FIFO
 output	[3:0]	pciw_fifo_control_out ;		// control signals to PCIW_FIFO
-input			pciw_fifo_two_left_in ;		// two data spaces left in PCIW_FIFO
+input           pciw_fifo_three_left_in ;       // three data spaces left in PCIW_FIFO
+input           pciw_fifo_two_left_in ;		// two data spaces left in PCIW_FIFO
 input			pciw_fifo_almost_full_in ;	// almost full indicator from PCIW_FIFO
 input			pciw_fifo_full_in ;			// full indicator from PCIW_FIFO
 
@@ -782,7 +790,8 @@ assign	read_processing_out = req_req_pending_in ; // request pending input for r
 assign	disconect_wo_data_out = (
 	((/*pcir_fifo_ctrl[`LAST_CTRL_BIT] ||*/ pcir_fifo_empty_in || ~burst_ok_out/*addr_burst_ok*/ || io_memory_bus_command) && 
 		~bc0_in && ~frame_reg_in) ||
-	((pciw_fifo_full_in || pciw_fifo_almost_full_in || next_write_to_pciw_fifo_is_last || (pciw_fifo_two_left_in && pciw_fifo_wenable_out) || ~addr_burst_ok || io_memory_bus_command) && 
+	((pciw_fifo_full_in || pciw_fifo_almost_full_in || next_write_to_pciw_fifo_is_last || pciw_fifo_two_left_in || 
+                (pciw_fifo_three_left_in && pciw_fifo_wenable) || ~addr_burst_ok || io_memory_bus_command) && 
 		bc0_in && ~frame_reg_in)
 								) ;
 assign	disconect_w_data_out =	(
@@ -833,26 +842,54 @@ always@(posedge clk_in or posedge reset_in)
 begin
     if (reset_in)
         next_write_to_pciw_fifo_is_last <= #1 1'b0 ;
-    else if (next_write_to_pciw_fifo_is_last && pciw_fifo_wenable_out)
+    else if (next_write_to_pciw_fifo_is_last && pciw_fifo_wenable)
         next_write_to_pciw_fifo_is_last <= #1 1'b0 ;
-    else if (pciw_fifo_wenable_out && disconect_wo_data_out)
+    else if (pciw_fifo_wenable && disconect_wo_data_out)
         next_write_to_pciw_fifo_is_last <= #1 1'b1 ;
 end
 
 // signal assignments from fifo to PCI Target FSM
 assign	wbw_fifo_empty_out = wbw_fifo_empty_in ;
 assign	wbu_del_read_comp_pending_out = wbu_del_read_comp_pending_in ;
-assign	pciw_fifo_full_out = (pciw_fifo_full_in || pciw_fifo_almost_full_in || pciw_fifo_two_left_in) ;
+assign	pciw_fifo_full_out = (pciw_fifo_full_in || pciw_fifo_almost_full_in || pciw_fifo_two_left_in || pciw_fifo_three_left_in) ;
 assign	pcir_fifo_data_err_out = pcir_fifo_ctrl[`DATA_ERROR_CTRL_BIT] && !sel_conf_fifo_in ;
-// signal assignments to fifo
+// signal assignments to PCIR FIFO fifo
 assign	pcir_fifo_flush_out							= pcir_fifo_flush_reg ;
 assign	pcir_fifo_renable_out						= fetch_pcir_fifo_in && !pcir_fifo_empty_in ;
-assign	pciw_fifo_wenable_out						= load_to_pciw_fifo_in ;
-assign	pciw_fifo_control_out[`ADDR_CTRL_BIT]		= ~rdy_in ;
-assign	pciw_fifo_control_out[`BURST_BIT]			= rdy_in ? ~frame_reg_in : 1'b0 ;
-assign	pciw_fifo_control_out[`DATA_ERROR_CTRL_BIT]	= 1'b0 ;
-assign	pciw_fifo_control_out[`LAST_CTRL_BIT]		= rdy_in && 
-		(next_write_to_pciw_fifo_is_last || last_reg_in || pciw_fifo_almost_full_in || ~addr_burst_ok || io_memory_bus_command);
+
+// signal assignments to PCIW FIFO
+reg          pciw_fifo_wenable_out;
+assign       pciw_fifo_wenable = load_to_pciw_fifo_in ;
+reg   [3:0]  pciw_fifo_control_out;
+reg  [31:0]  pciw_fifo_addr_data_out;
+reg   [3:0]  pciw_fifo_cbe_out;
+always@(posedge clk_in or posedge reset_in)
+begin
+    if (reset_in)
+    begin
+        pciw_fifo_wenable_out   = 1'b0;
+        pciw_fifo_control_out   = 4'h0;
+        // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
+        pciw_fifo_addr_data_out = 32'h0; 
+        pciw_fifo_cbe_out       = 4'h0;
+    end
+    else
+    begin
+        pciw_fifo_wenable_out                       = load_to_pciw_fifo_in ;
+        pciw_fifo_control_out[`ADDR_CTRL_BIT]       = ~rdy_in ;
+        pciw_fifo_control_out[`BURST_BIT]           = rdy_in ? ~frame_reg_in : 1'b0 ;
+        // if '1' then next burst BE is not equat to current one => burst will be chopped into single transfers
+        pciw_fifo_control_out[`DATA_ERROR_CTRL_BIT] = rdy_in && (next_be_in != be_in) && ~bckp_trdy_in; // valid comp. 
+        pciw_fifo_control_out[`LAST_CTRL_BIT]       = rdy_in && (next_write_to_pciw_fifo_is_last || 
+                                                                 last_reg_in || pciw_fifo_almost_full_in || 
+                                                                 ~addr_burst_ok || io_memory_bus_command);
+        // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
+        pciw_fifo_addr_data_out                     = rdy_in ? data_in : {norm_address[31:2], 
+                                                                          norm_address[1] && io_memory_bus_command, 
+                                                                          norm_address[0] && io_memory_bus_command} ; 
+        pciw_fifo_cbe_out                           = rdy_in ? be_in : norm_bc ;
+    end
+end
 
 `ifdef		HOST
 	`ifdef	NO_CNF_IMAGE
@@ -877,10 +914,6 @@ assign	bc_out = norm_bc ;
 // burst is OK for reads when there is ((MEM_READ_LN or MEM_READ_MUL) and AD[1:0]==2'b00) OR
 //   (MEM_READ and Prefetchable_IMAGE and AD[1:0]==2'b00)
 assign	burst_ok_out = (norm_bc[3] && addr_burst_ok) || (norm_bc[2] && norm_prf_en && addr_burst_ok) ;
-// data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
-assign	pciw_fifo_addr_data_out = rdy_in ? data_in : {norm_address[31:2], norm_address[1] && io_memory_bus_command, 
-														 				  norm_address[0] && io_memory_bus_command} ; 
-assign	pciw_fifo_cbe_out = rdy_in ? be_in : norm_bc ;
 // data and address outputs assignments to Configuration space
 `ifdef		HOST
 	`ifdef	NO_CNF_IMAGE

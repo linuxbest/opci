@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_pciw_pcir_fifos.v,v $
+// Revision 1.4  2003/08/08 16:36:33  tadejm
+// Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
+//
 // Revision 1.3  2003/03/26 13:16:18  mihad
 // Added the reset value parameter to the synchronizer flop module.
 // Added resets to all synchronizer flop instances.
@@ -105,6 +108,7 @@ module pci_pciw_pcir_fifos
     pciw_cbe_out,
     pciw_control_out,
 //    pciw_flush_in,    // not used
+    pciw_three_left_out,
     pciw_two_left_out,
     pciw_almost_full_out,
     pciw_full_out,
@@ -189,6 +193,7 @@ output [3:0]  pciw_control_out ;
 //input pciw_flush_in ;     // not used
 
 // status outputs
+output pciw_three_left_out ;
 output pciw_two_left_out ;
 output pciw_almost_full_out ;
 output pciw_full_out ;
@@ -519,6 +524,7 @@ pci_pciw_fifo_control #(PCIW_ADDR_LENGTH) pciw_fifo_ctrl
     .wenable_in(pciw_wenable_in),
     .reset_in(reset_in),
 //    .flush_in(pciw_flush_in),                     // flush not used
+    .three_left_out(pciw_three_left_out),
     .two_left_out(pciw_two_left_out),
     .almost_full_out(pciw_almost_full_out),
     .full_out(pciw_full_out),

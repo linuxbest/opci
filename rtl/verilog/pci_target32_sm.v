@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_sm.v,v $
+// Revision 1.10  2003/08/08 16:36:33  tadejm
+// Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
+//
 // Revision 1.9  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -103,6 +106,7 @@ module pci_target32_sm
     pci_ad_out,
     pci_ad_en_out,
     pci_cbe_reg_in,
+    pci_cbe_in,
     bckp_trdy_en_in,
     bckp_devsel_in,
     bckp_trdy_in,
@@ -118,6 +122,7 @@ module pci_target32_sm
     data_out,
     data_in,
     be_out,
+    next_be_out,
     req_out,
     rdy_out,
     addr_phase_out,
@@ -191,6 +196,7 @@ input   [31:0]  pci_ad_reg_in ;
 output  [31:0]  pci_ad_out ;
 output          pci_ad_en_out ;
 input   [3:0]   pci_cbe_reg_in ;
+input   [3:0]   pci_cbe_in ;
 input           bckp_trdy_en_in ;
 input           bckp_devsel_in ;
 input           bckp_trdy_in ;
@@ -210,6 +216,7 @@ output          bc0_out ;           // current cycle RW signal output
 input   [31:0]  data_in ;           // for read operations - current dataphase data input
 output  [31:0]  data_out ;          // for write operations - current request data output - registered
 output   [3:0]  be_out ;            // current dataphase byte enable outputs - registered
+output   [3:0]  next_be_out ;       // next dataphase byte enable outputs - NOT registered
 // Port connection control signals from PCI FSM
 output          req_out ;           // Read is requested to WB master
 output          rdy_out ;           // DATA / ADDRESS selection when read or write - registered
@@ -529,7 +536,8 @@ wire    trdy_w          =   (
 wire    trdy_w_frm      =   (
         (state_transfere && !cnf_progress && !norm_access_to_conf_reg && rw_cbe0 && !disconect_wo_data) ||
         (state_transfere && !cnf_progress && !norm_access_to_conf_reg && ~rw_cbe0 && !disconect_wo_data && ~pcir_fifo_data_err_in) ||
-        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && disconect_w_data && pci_irdy_reg_in && (!rw_cbe0 && !pcir_fifo_data_err_in))
+        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && disconect_w_data && pci_irdy_reg_in && 
+                                                                         ((~rw_cbe0 && ~pcir_fifo_data_err_in) || rw_cbe0))
                             ) ;
         // if not disconnect without data and not target abort (only during reads)
         // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
@@ -741,6 +749,7 @@ assign  pci_ad_out = data_in ;
 
 assign  data_out = pci_ad_reg_in ;
 assign  be_out = pci_cbe_reg_in ;
+assign  next_be_out = pci_cbe_in ;
 assign  address_out = pci_ad_reg_in ;
 assign  bc_out = pci_cbe_reg_in ;
 assign  bc0_out = rw_cbe0 ;

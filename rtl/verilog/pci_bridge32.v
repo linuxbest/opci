@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.11  2003/08/08 16:36:33  tadejm
+// Added 'three_left_out' to pci_pciw_fifo signaling three locations before full. Added comparison between current registered cbe and next unregistered cbe to signal wb_master whether it is allowed to performe burst or not. Due to this, I needed 'three_left_out' so that writing to pci_pciw_fifo can be registered, otherwise timing problems would occure.
+//
 // Revision 1.10  2003/08/03 18:05:06  mihad
 // Added limited WISHBONE B3 support for WISHBONE Slave Unit.
 // Doesn't support full speed bursts yet.
@@ -1000,6 +1003,7 @@ wire            pciu_pciif_irdy_reg_in                  =   in_reg_irdy_out ;
 wire            pciu_pciif_idsel_reg_in                 =   in_reg_idsel_out ;
 wire    [31:0]  pciu_pciif_ad_reg_in                    =   in_reg_ad_out ;
 wire    [3:0]   pciu_pciif_cbe_reg_in                   =   in_reg_cbe_out ;
+wire    [3:0]   pciu_pciif_cbe_in                       =   pci_cbe_i ;
 
 wire            pciu_pciif_bckp_trdy_en_in              =   out_bckp_trdy_en_out ;
 wire            pciu_pciif_bckp_devsel_in               =   out_bckp_devsel_out ;
@@ -1061,6 +1065,7 @@ pci_target_unit pci_target_unit
     .pciu_pciif_idsel_reg_in        (pciu_pciif_idsel_reg_in),
     .pciu_pciif_ad_reg_in           (pciu_pciif_ad_reg_in),
     .pciu_pciif_cbe_reg_in          (pciu_pciif_cbe_reg_in),
+    .pciu_pciif_cbe_in              (pciu_pciif_cbe_in),
     .pciu_pciif_bckp_trdy_en_in     (pciu_pciif_bckp_trdy_en_in),
     .pciu_pciif_bckp_devsel_in      (pciu_pciif_bckp_devsel_in),
     .pciu_pciif_bckp_trdy_in        (pciu_pciif_bckp_trdy_in),
