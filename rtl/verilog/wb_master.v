@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_master.v,v $
+// Revision 1.6  2002/10/11 14:15:29  mihad
+// Cleaned up non-blocking assignments in combinatinal logic statements
+//
 // Revision 1.5  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -273,9 +276,9 @@ reg             last_data_to_pcir_fifo ;    // signal tells when there will be l
 always@(pciw_fifo_control_in or pciw_fifo_almost_empty_in)
 begin
     if (pciw_fifo_control_in[`LAST_CTRL_BIT] || pciw_fifo_almost_empty_in) // if last data is going to be transfered
-        last_data_from_pciw_fifo <= 1'b1 ; // signal for last data from PCIW_FIFO
+        last_data_from_pciw_fifo = 1'b1 ; // signal for last data from PCIW_FIFO
     else
-        last_data_from_pciw_fifo <= 1'b0 ;
+        last_data_from_pciw_fifo = 1'b0 ;
 end
 
     reg read_count_load;
@@ -334,16 +337,16 @@ begin
     {`BC_MEM_READ_LN, 1'b1} :
     begin   // when burst cycle
         if (read_bound)
-            last_data_to_pcir_fifo <= 1'b1 ;
+            last_data_to_pcir_fifo = 1'b1 ;
         else
-            last_data_to_pcir_fifo <= 1'b0 ;
+            last_data_to_pcir_fifo = 1'b0 ;
     end
     {`BC_MEM_READ_MUL, 1'b1} :
     begin   // when burst cycle
         if (read_bound)
-            last_data_to_pcir_fifo <= 1'b1 ;
+            last_data_to_pcir_fifo = 1'b1 ;
         else
-            last_data_to_pcir_fifo <= 1'b0 ;
+            last_data_to_pcir_fifo = 1'b0 ;
     end
     default :
     // {`BC_IO_READ, 1'b0},
@@ -352,7 +355,7 @@ begin
     // {`BC_MEM_READ_LN, 1'b0},
     // {`BC_MEM_READ_MUL, 1'b0}:
     begin   // when single cycle
-        last_data_to_pcir_fifo <= 1'b1 ;
+        last_data_to_pcir_fifo = 1'b1 ;
     end
     endcase
 end
@@ -375,16 +378,16 @@ always@(wait_for_wb_response or wb_no_response_cnt)
 begin
     if (wb_no_response_cnt == 4'h8) // when there isn't response for 8 clocks, set internal retry
     begin
-        wb_response_value <= 4'h0 ;
-        set_retry <= 1'b1 ;
+        wb_response_value = 4'h0 ;
+        set_retry = 1'b1 ;
     end
     else
     begin
         if (wait_for_wb_response)
-            wb_response_value <= wb_no_response_cnt + 1'h1 ; // count clocks when no response
+            wb_response_value = wb_no_response_cnt + 1'h1 ; // count clocks when no response
         else
-            wb_response_value <= 4'h0 ;
-        set_retry <= 1'b0 ;
+            wb_response_value = 4'h0 ;
+        set_retry = 1'b0 ;
     end
 end
 
@@ -399,9 +402,9 @@ reg             reset_rty_cnt ; // signal for asynchronous reset of retry counte
 always@(posedge reset_in or posedge wb_clock_in)
 begin
     if (reset_in)
-        reset_rty_cnt <= 1'b1 ; // asynchronous set when reset signal is active
+        reset_rty_cnt <= #`FF_DELAY 1'b1 ; // asynchronous set when reset signal is active
     else
-        reset_rty_cnt <= ACK_I || ERR_I || last_data_transferred ; // synchronous set after completed transfere
+        reset_rty_cnt <= #`FF_DELAY ACK_I || ERR_I || last_data_transferred ; // synchronous set after completed transfere
 end
 
 // Retry counter register control
@@ -422,13 +425,13 @@ always@(rty_counter)
 begin
     if(rty_counter == `WB_RTY_CNT_MAX - 1'b1) // stop counting
     begin
-        rty_counter_in <= rty_counter ;
-        rty_counter_almost_max_value <= 1'b1 ;
+        rty_counter_in = rty_counter ;
+        rty_counter_almost_max_value = 1'b1 ;
     end
     else
     begin
-        rty_counter_in <= rty_counter + 1'b1 ; // count up
-        rty_counter_almost_max_value <= 1'b0 ;
+        rty_counter_in = rty_counter + 1'b1 ; // count up
+        rty_counter_almost_max_value = 1'b0 ;
     end
 end     
 
@@ -526,17 +529,17 @@ begin
                 // burst is OK for reads when there is ((MEM_READ_LN or MEM_READ_MUL) and AD[1:0]==2'b00) OR
                 //   (MEM_READ and Prefetchable_IMAGE and AD[1:0]==2'b00) -> pci_tar_burst_ok
             if  (pci_tar_burst_ok && (max_read_count != 8'h1))
-                first_data_is_burst <= 1'b1 ; 
+                first_data_is_burst = 1'b1 ; 
             else
-                first_data_is_burst <= 1'b0 ;
+                first_data_is_burst = 1'b0 ;
         end
         else
         begin
-            first_data_is_burst <= 1'b0 ;
+            first_data_is_burst = 1'b0 ;
         end
     end
     else
-        first_data_is_burst <= pciw_fifo_control_in[`BURST_BIT] && ~pciw_fifo_empty_in ;
+        first_data_is_burst = pciw_fifo_control_in[`BURST_BIT] && ~pciw_fifo_empty_in ;
 end
 
 // FF for seting and reseting burst_transfer signal
@@ -589,392 +592,392 @@ begin
     S_IDLE:
         begin
             // Default values for signals not used in this state
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_count <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            retried_d <= 1'b0 ;
-            last_data_transferred <= 1'b0 ;
-            wb_read_done <= 1'b0 ;
-            wait_for_wb_response <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_count = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            retried_d = 1'b0 ;
+            last_data_transferred = 1'b0 ;
+            wb_read_done = 1'b0 ;
+            wait_for_wb_response = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
             case ({w_attempt, r_attempt, retried})
             3'b101 : // Write request for PCIW_FIFO to WB bus transaction
             begin    // If there was retry, the same transaction must be initiated
-                pciw_fifo_renable <= 1'b0 ; // the same data
-                addr_into_cnt <= 1'b0 ; // the same address
-                read_count_load <= 1'b0 ; // no need for cache line when there is write
-                n_state <= S_WRITE ;
+                pciw_fifo_renable = 1'b0 ; // the same data
+                addr_into_cnt = 1'b0 ; // the same address
+                read_count_load = 1'b0 ; // no need for cache line when there is write
+                n_state = S_WRITE ;
             end
             3'b100 : // Write request for PCIW_FIFO to WB bus transaction
             begin    // If there is new transaction
-                pciw_fifo_renable <= 1'b1 ; // first location is address (in FIFO), next will be data
-                addr_into_cnt <= 1'b1 ; // address must be latched into address counter
-                read_count_load <= 1'b0 ; // no need for cache line when there is write
-                n_state <= S_WRITE ;
+                pciw_fifo_renable = 1'b1 ; // first location is address (in FIFO), next will be data
+                addr_into_cnt = 1'b1 ; // address must be latched into address counter
+                read_count_load = 1'b0 ; // no need for cache line when there is write
+                n_state = S_WRITE ;
             end
             3'b011 : // Read request from PCI Target for WB bus to PCIR_FIFO transaction
             begin    // If there was retry, the same transaction must be initiated
-                addr_into_cnt <= 1'b0 ; // the same address
-                read_count_load <= 1'b0 ; // cache line counter must not be changed for retried read
-                pciw_fifo_renable <= 1'b0 ; // don't read from FIFO, when read transaction from WB to FIFO
-                n_state <= S_READ ;
+                addr_into_cnt = 1'b0 ; // the same address
+                read_count_load = 1'b0 ; // cache line counter must not be changed for retried read
+                pciw_fifo_renable = 1'b0 ; // don't read from FIFO, when read transaction from WB to FIFO
+                n_state = S_READ ;
             end
             3'b010 : // Read request from PCI Target for WB bus to PCIR_FIFO transaction
             begin    // If there is new transaction
-                addr_into_cnt <= 1'b1 ; // address must be latched into counter from separate request bus
-                read_count_load <= 1'b1 ; // cache line size must be latched into its counter
-                pciw_fifo_renable <= 1'b0 ; // don't read from FIFO, when read transaction from WB to FIFO
-                n_state <= S_READ ;
+                addr_into_cnt = 1'b1 ; // address must be latched into counter from separate request bus
+                read_count_load = 1'b1 ; // cache line size must be latched into its counter
+                pciw_fifo_renable = 1'b0 ; // don't read from FIFO, when read transaction from WB to FIFO
+                n_state = S_READ ;
             end
             default : // stay in IDLE state
             begin
-                pciw_fifo_renable <= 1'b0 ;
-                addr_into_cnt <= 1'b0 ;
-                read_count_load <= 1'b0 ;
-                n_state <= S_IDLE ;
+                pciw_fifo_renable = 1'b0 ;
+                addr_into_cnt = 1'b0 ;
+                read_count_load = 1'b0 ;
+                n_state = S_IDLE ;
             end
             endcase
-            wb_stb_o <= 1'b0 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b0 ;
+            wb_stb_o = 1'b0 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b0 ;
         end
     S_WRITE: // WRITE from PCIW_FIFO to WB bus
         begin
             // Default values for signals not used in this state
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            wb_read_done <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            wb_read_done = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
             case ({ACK_I, ERR_I, RTY_I})
             3'b100 : // If writting of one data is acknowledged
             begin
-                pciw_fifo_renable <= 1'b1 ; // prepare next value (address when new trans., data when burst tran.)
-                addr_count <= 1'b1 ; // prepare next address if there will be burst
-                pci_error_sig_out <= 1'b0 ; // there was no error
-                error_source_out <= 1'b0 ;
-                retried_d <= 1'b0 ; // there was no retry
-                write_rty_cnt_exp_out <= 1'b0 ; // there was no retry
-                wait_for_wb_response <= 1'b0 ;
+                pciw_fifo_renable = 1'b1 ; // prepare next value (address when new trans., data when burst tran.)
+                addr_count = 1'b1 ; // prepare next address if there will be burst
+                pci_error_sig_out = 1'b0 ; // there was no error
+                error_source_out = 1'b0 ;
+                retried_d = 1'b0 ; // there was no retry
+                write_rty_cnt_exp_out = 1'b0 ; // there was no retry
+                wait_for_wb_response = 1'b0 ;
                 if (last_data_from_pciw_fifo_reg) // if last data was transfered
                 begin                   
-                    n_state <= S_IDLE ;
-                    last_data_transferred <= 1'b1 ; // signal for last data transfered
+                    n_state = S_IDLE ;
+                    last_data_transferred = 1'b1 ; // signal for last data transfered
                 end
                 else
                 begin
-                    n_state <= S_WRITE ;
-                    last_data_transferred <= 1'b0 ;
+                    n_state = S_WRITE ;
+                    last_data_transferred = 1'b0 ;
                 end
             end
             3'b010 : // If writting of one data is terminated with ERROR
             begin
-                pciw_fifo_renable <= 1'b1 ; // prepare next value (address when new trans., data when cleaning FIFO)
-                addr_count <= 1'b0 ; // no need for new address
-                retried_d <= 1'b0 ; // there was no retry
-                last_data_transferred <= 1'b1 ; // signal for last data transfered
-                pci_error_sig_out <= 1'b1 ; // segnal for error reporting
-                error_source_out <= 1'b0 ; // error source from other side of WB bus
-                write_rty_cnt_exp_out <= 1'b0 ; // there was no retry
-                wait_for_wb_response <= 1'b0 ;
+                pciw_fifo_renable = 1'b1 ; // prepare next value (address when new trans., data when cleaning FIFO)
+                addr_count = 1'b0 ; // no need for new address
+                retried_d = 1'b0 ; // there was no retry
+                last_data_transferred = 1'b1 ; // signal for last data transfered
+                pci_error_sig_out = 1'b1 ; // segnal for error reporting
+                error_source_out = 1'b0 ; // error source from other side of WB bus
+                write_rty_cnt_exp_out = 1'b0 ; // there was no retry
+                wait_for_wb_response = 1'b0 ;
                 if (last_data_from_pciw_fifo_reg) // if last data was transfered
-                    n_state <= S_IDLE ; // go to S_IDLE for new transfere
+                    n_state = S_IDLE ; // go to S_IDLE for new transfere
                 else // if there wasn't last data of transfere
-                    n_state <= S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
+                    n_state = S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
             end
             3'b001 : // If writting of one data is retried
             begin
-                addr_count <= 1'b0 ;
-                last_data_transferred <= 1'b0 ;
-                retried_d <= 1'b1 ; // there was a retry
-                wait_for_wb_response <= 1'b0 ;
+                addr_count = 1'b0 ;
+                last_data_transferred = 1'b0 ;
+                retried_d = 1'b1 ; // there was a retry
+                wait_for_wb_response = 1'b0 ;
                 if(rty_counter_almost_max_value) // If retry counter reached maximum allowed value
                 begin
 	                if (last_data_from_pciw_fifo_reg) // if last data was transfered
-                        pciw_fifo_renable <= 1'b0 ;
+                        pciw_fifo_renable = 1'b0 ;
 	                else // if there wasn't last data of transfere
-	                    pciw_fifo_renable <= 1'b1 ;
-	                n_state <= S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
-                    write_rty_cnt_exp_out <= 1'b1 ; // signal for reporting write counter expired
-                    pci_error_sig_out <= 1'b1 ;
-                    error_source_out <= 1'b1 ; // error ocuerd because of retry counter
+	                    pciw_fifo_renable = 1'b1 ;
+	                n_state = S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
+                    write_rty_cnt_exp_out = 1'b1 ; // signal for reporting write counter expired
+                    pci_error_sig_out = 1'b1 ;
+                    error_source_out = 1'b1 ; // error ocuerd because of retry counter
                 end
                 else
                 begin
-                	pciw_fifo_renable <= 1'b0 ;
-                    n_state <= S_IDLE ; // go to S_IDLE state for retrying the transaction
-                    write_rty_cnt_exp_out <= 1'b0 ; // retry counter hasn't expired yet
-                    pci_error_sig_out <= 1'b0 ;
-                    error_source_out <= 1'b0 ;
+                	pciw_fifo_renable = 1'b0 ;
+                    n_state = S_IDLE ; // go to S_IDLE state for retrying the transaction
+                    write_rty_cnt_exp_out = 1'b0 ; // retry counter hasn't expired yet
+                    pci_error_sig_out = 1'b0 ;
+                    error_source_out = 1'b0 ;
                 end
             end
             default :
             begin
-                addr_count <= 1'b0 ;
-                last_data_transferred <= 1'b0 ;
-                wait_for_wb_response <= 1'b1 ; // wait for WB device to response (after 8 clocks RTY CNT is incremented)
-                error_source_out <= 1'b0 ; // if error ocures, error source is from other WB bus side
+                addr_count = 1'b0 ;
+                last_data_transferred = 1'b0 ;
+                wait_for_wb_response = 1'b1 ; // wait for WB device to response (after 8 clocks RTY CNT is incremented)
+                error_source_out = 1'b0 ; // if error ocures, error source is from other WB bus side
                 if((rty_counter_almost_max_value)&&(set_retry)) // when no WB response and RTY CNT reached maximum allowed value 
                 begin
-                    retried_d <= 1'b1 ;
+                    retried_d = 1'b1 ;
 	                if (last_data_from_pciw_fifo_reg) // if last data was transfered
-                        pciw_fifo_renable <= 1'b0 ;
+                        pciw_fifo_renable = 1'b0 ;
 	                else // if there wasn't last data of transfere
-	                    pciw_fifo_renable <= 1'b1 ;
-	                n_state <= S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
-                    write_rty_cnt_exp_out <= 1'b1 ; // signal for reporting write counter expired
-                    pci_error_sig_out <= 1'b1 ; // signal for error reporting
+	                    pciw_fifo_renable = 1'b1 ;
+	                n_state = S_WRITE_ERR_RTY ; // go here to clean this write transaction from PCIW_FIFO
+                    write_rty_cnt_exp_out = 1'b1 ; // signal for reporting write counter expired
+                    pci_error_sig_out = 1'b1 ; // signal for error reporting
                 end
                 else
                 begin
-                	pciw_fifo_renable <= 1'b0 ;
-                    retried_d <= 1'b0 ;
-                    n_state <= S_WRITE ; // stay in S_WRITE state to wait WB to response
-                    write_rty_cnt_exp_out <= 1'b0 ; // retry counter hasn't expired yet
-                    pci_error_sig_out <= 1'b0 ;
+                	pciw_fifo_renable = 1'b0 ;
+                    retried_d = 1'b0 ;
+                    n_state = S_WRITE ; // stay in S_WRITE state to wait WB to response
+                    write_rty_cnt_exp_out = 1'b0 ; // retry counter hasn't expired yet
+                    pci_error_sig_out = 1'b0 ;
                 end
             end
             endcase
-            wb_stb_o <= 1'b1 ;
-            wb_we_o <= 1'b1 ;
-            wb_cyc_o <= 1'b1 ;
+            wb_stb_o = 1'b1 ;
+            wb_we_o = 1'b1 ;
+            wb_cyc_o = 1'b1 ;
         end
     S_WRITE_ERR_RTY: // Clean current write transaction from PCIW_FIFO if ERROR or Retry counter expired occures
         begin
 `ifdef REGISTER_WBM_OUTPUTS
-            pciw_fifo_renable <= !last_data_from_pciw_fifo_reg ; // put out next data (untill last data or FIFO empty)
+            pciw_fifo_renable = !last_data_from_pciw_fifo_reg ; // put out next data (untill last data or FIFO empty)
 `else
-            pciw_fifo_renable <= 1'b1 ; // put out next data (untill last data or FIFO empty)
+            pciw_fifo_renable = 1'b1 ; // put out next data (untill last data or FIFO empty)
 `endif
-            last_data_transferred <= 1'b1 ; // after exiting this state, negedge of this signal is used
+            last_data_transferred = 1'b1 ; // after exiting this state, negedge of this signal is used
             // Default values for signals not used in this state
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            addr_count <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            retried_d <= 1'b0 ;
-            wb_read_done <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
-            wait_for_wb_response <= 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            addr_count = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            retried_d = 1'b0 ;
+            wb_read_done = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
+            wait_for_wb_response = 1'b0 ;
             // If last data is cleaned out from PCIW_FIFO
             if (last_data_from_pciw_fifo_reg)
-                n_state <= S_IDLE ;
+                n_state = S_IDLE ;
             else
-                n_state <= S_WRITE_ERR_RTY ; // Clean until last data is cleaned out from FIFO
-            wb_stb_o <= 1'b0 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b0 ;
+                n_state = S_WRITE_ERR_RTY ; // Clean until last data is cleaned out from FIFO
+            wb_stb_o = 1'b0 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b0 ;
         end
     S_READ: // READ from WB bus to PCIR_FIFO
         begin
             // Default values for signals not used in this state
-            pciw_fifo_renable <= 1'b0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
+            pciw_fifo_renable = 1'b0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
             case ({ACK_I, ERR_I, RTY_I})
             3'b100 : // If reading of one data is acknowledged
             begin
-                pcir_fifo_wenable <= 1'b1 ; // enable writting data into PCIR_FIFO
-                addr_count <= 1'b1 ; // prepare next address if there will be burst
-                read_count_enable <= 1'b1 ; // decrease counter value for cache line size
-                retried_d <= 1'b0 ; // there was no retry
-                read_rty_cnt_exp_out <= 1'b0 ; // there was no retry
-                wait_for_wb_response <= 1'b0 ;
+                pcir_fifo_wenable = 1'b1 ; // enable writting data into PCIR_FIFO
+                addr_count = 1'b1 ; // prepare next address if there will be burst
+                read_count_enable = 1'b1 ; // decrease counter value for cache line size
+                retried_d = 1'b0 ; // there was no retry
+                read_rty_cnt_exp_out = 1'b0 ; // there was no retry
+                wait_for_wb_response = 1'b0 ;
                 // if last data was transfered
                 if (last_data_to_pcir_fifo)
                 begin
-                    pcir_fifo_control[`LAST_CTRL_BIT]       <= 1'b1 ; // FIFO must indicate LAST data transfered
-                    pcir_fifo_control[`DATA_ERROR_CTRL_BIT] <= 1'b0 ;
-                    pcir_fifo_control[`UNUSED_CTRL_BIT]     <= 1'b0 ;
-                    pcir_fifo_control[`ADDR_CTRL_BIT]       <= 1'b0 ;
-                    last_data_transferred <= 1'b1 ; // signal for last data transfered
-                    wb_read_done <= 1'b1 ; // signal last data of read transaction for PCI Target
-                    n_state <= S_TURN_ARROUND ;
+                    pcir_fifo_control[`LAST_CTRL_BIT]       = 1'b1 ; // FIFO must indicate LAST data transfered
+                    pcir_fifo_control[`DATA_ERROR_CTRL_BIT] = 1'b0 ;
+                    pcir_fifo_control[`UNUSED_CTRL_BIT]     = 1'b0 ;
+                    pcir_fifo_control[`ADDR_CTRL_BIT]       = 1'b0 ;
+                    last_data_transferred = 1'b1 ; // signal for last data transfered
+                    wb_read_done = 1'b1 ; // signal last data of read transaction for PCI Target
+                    n_state = S_TURN_ARROUND ;
                 end
                 else // if not last data transfered
                 begin
-                    pcir_fifo_control <= 4'h0 ; // ZERO for control code
-                    last_data_transferred <= 1'b0 ; // not last data transfered
-                    wb_read_done <= 1'b0 ; // read is not done yet
-                    n_state <= S_READ ;
+                    pcir_fifo_control = 4'h0 ; // ZERO for control code
+                    last_data_transferred = 1'b0 ; // not last data transfered
+                    wb_read_done = 1'b0 ; // read is not done yet
+                    n_state = S_READ ;
                 end
             end
             3'b010 : // If reading of one data is terminated with ERROR
             begin
-                pcir_fifo_wenable <= 1'b1 ; // enable for writting to FIFO data with ERROR
-                addr_count <= 1'b0 ; // no need for new address
-                pcir_fifo_control[`LAST_CTRL_BIT]       <= 1'b0 ;
-                pcir_fifo_control[`DATA_ERROR_CTRL_BIT] <= 1'b1 ; // FIFO must indicate the DATA with ERROR
-                pcir_fifo_control[`UNUSED_CTRL_BIT]     <= 1'b0 ;
-                pcir_fifo_control[`ADDR_CTRL_BIT]       <= 1'b0 ;
-                last_data_transferred <= 1'b1 ; // signal for last data transfered
-                wb_read_done <= 1'b1 ; // signal last data of read transaction for PCI Target
-                read_count_enable <= 1'b0 ; // no need for cache line, when error occures
-                n_state <= S_TURN_ARROUND ;
-                retried_d <= 1'b0 ; // there was no retry
-                wait_for_wb_response <= 1'b0 ;
-                read_rty_cnt_exp_out <= 1'b0 ; // there was no retry
+                pcir_fifo_wenable = 1'b1 ; // enable for writting to FIFO data with ERROR
+                addr_count = 1'b0 ; // no need for new address
+                pcir_fifo_control[`LAST_CTRL_BIT]       = 1'b0 ;
+                pcir_fifo_control[`DATA_ERROR_CTRL_BIT] = 1'b1 ; // FIFO must indicate the DATA with ERROR
+                pcir_fifo_control[`UNUSED_CTRL_BIT]     = 1'b0 ;
+                pcir_fifo_control[`ADDR_CTRL_BIT]       = 1'b0 ;
+                last_data_transferred = 1'b1 ; // signal for last data transfered
+                wb_read_done = 1'b1 ; // signal last data of read transaction for PCI Target
+                read_count_enable = 1'b0 ; // no need for cache line, when error occures
+                n_state = S_TURN_ARROUND ;
+                retried_d = 1'b0 ; // there was no retry
+                wait_for_wb_response = 1'b0 ;
+                read_rty_cnt_exp_out = 1'b0 ; // there was no retry
             end
             3'b001 : // If reading of one data is retried
             begin
-                pcir_fifo_wenable <= 1'b0 ;
-                pcir_fifo_control <= 4'h0 ;
-                addr_count <= 1'b0 ;
-                read_count_enable <= 1'b0 ;
-                wait_for_wb_response <= 1'b0 ;
+                pcir_fifo_wenable = 1'b0 ;
+                pcir_fifo_control = 4'h0 ;
+                addr_count = 1'b0 ;
+                read_count_enable = 1'b0 ;
+                wait_for_wb_response = 1'b0 ;
                 case ({first_wb_data_access, rty_counter_almost_max_value})
                 2'b10 :
                 begin  // if first data of the cycle (CYC_O) is retried - after each retry CYC_O goes inactive 
-                    n_state <= S_IDLE ; // go to S_IDLE state for retrying the transaction
-                    read_rty_cnt_exp_out <= 1'b0 ; // retry counter hasn't expired yet   
-                    last_data_transferred <= 1'b0 ;
-                    wb_read_done <= 1'b0 ;
-                    retried_d <= 1'b1 ; // there was a retry
+                    n_state = S_IDLE ; // go to S_IDLE state for retrying the transaction
+                    read_rty_cnt_exp_out = 1'b0 ; // retry counter hasn't expired yet   
+                    last_data_transferred = 1'b0 ;
+                    wb_read_done = 1'b0 ;
+                    retried_d = 1'b1 ; // there was a retry
                 end
                 2'b11 :
                 begin  // if retry counter reached maximum value
-                    n_state <= S_READ_RTY ; // go here to wait for PCI Target to remove read request
-                    read_rty_cnt_exp_out <= 1'b1 ; // signal for reporting read counter expired  
-                    last_data_transferred <= 1'b0 ;
-                    wb_read_done <= 1'b0 ;
-                    retried_d <= 1'b1 ; // there was a retry
+                    n_state = S_READ_RTY ; // go here to wait for PCI Target to remove read request
+                    read_rty_cnt_exp_out = 1'b1 ; // signal for reporting read counter expired  
+                    last_data_transferred = 1'b0 ;
+                    wb_read_done = 1'b0 ;
+                    retried_d = 1'b1 ; // there was a retry
                 end
                 default : // if retry occures after at least 1 data was transferred without breaking cycle (CYC_O inactive)
                 begin     // then PCI device will retry access!
-                    n_state <= S_TURN_ARROUND ; // go to S_TURN_ARROUND state 
-                    read_rty_cnt_exp_out <= 1'b0 ; // retry counter hasn't expired  
-                    last_data_transferred <= 1'b1 ;
-                    wb_read_done <= 1'b1 ;
-                    retried_d <= 1'b0 ; // retry must not be retried, since there is not a first data
+                    n_state = S_TURN_ARROUND ; // go to S_TURN_ARROUND state 
+                    read_rty_cnt_exp_out = 1'b0 ; // retry counter hasn't expired  
+                    last_data_transferred = 1'b1 ;
+                    wb_read_done = 1'b1 ;
+                    retried_d = 1'b0 ; // retry must not be retried, since there is not a first data
                 end
                 endcase
             end
             default :
             begin
-                addr_count <= 1'b0 ;
-                read_count_enable <= 1'b0 ;
-                read_rty_cnt_exp_out <= 1'b0 ;
-                wait_for_wb_response <= 1'b1 ; // wait for WB device to response (after 8 clocks RTY CNT is incremented)
+                addr_count = 1'b0 ;
+                read_count_enable = 1'b0 ;
+                read_rty_cnt_exp_out = 1'b0 ;
+                wait_for_wb_response = 1'b1 ; // wait for WB device to response (after 8 clocks RTY CNT is incremented)
                 if((rty_counter_almost_max_value)&&(set_retry)) // when no WB response and RTY CNT reached maximum allowed value 
                 begin
-                    retried_d <= 1'b1 ;
-                    n_state <= S_TURN_ARROUND ; // go here to stop read request
-                    pcir_fifo_wenable <= 1'b1 ;
-                    pcir_fifo_control[`LAST_CTRL_BIT]       <= 1'b0 ;
-                    pcir_fifo_control[`DATA_ERROR_CTRL_BIT] <= 1'b1 ; // FIFO must indicate the DATA with ERROR
-                    pcir_fifo_control[`UNUSED_CTRL_BIT]     <= 1'b0 ;
-                    pcir_fifo_control[`ADDR_CTRL_BIT]       <= 1'b0 ;
-                    last_data_transferred <= 1'b1 ;
-                    wb_read_done <= 1'b1 ;
+                    retried_d = 1'b1 ;
+                    n_state = S_TURN_ARROUND ; // go here to stop read request
+                    pcir_fifo_wenable = 1'b1 ;
+                    pcir_fifo_control[`LAST_CTRL_BIT]       = 1'b0 ;
+                    pcir_fifo_control[`DATA_ERROR_CTRL_BIT] = 1'b1 ; // FIFO must indicate the DATA with ERROR
+                    pcir_fifo_control[`UNUSED_CTRL_BIT]     = 1'b0 ;
+                    pcir_fifo_control[`ADDR_CTRL_BIT]       = 1'b0 ;
+                    last_data_transferred = 1'b1 ;
+                    wb_read_done = 1'b1 ;
                 end
                 else
                 begin
-                    retried_d <= 1'b0 ;
-                    n_state <= S_READ ; // stay in S_READ state to wait WB to response
-                    pcir_fifo_wenable <= 1'b0 ;
-                    pcir_fifo_control <= 4'h0 ;
-                    last_data_transferred <= 1'b0 ;
-                    wb_read_done <= 1'b0 ;
+                    retried_d = 1'b0 ;
+                    n_state = S_READ ; // stay in S_READ state to wait WB to response
+                    pcir_fifo_wenable = 1'b0 ;
+                    pcir_fifo_control = 4'h0 ;
+                    last_data_transferred = 1'b0 ;
+                    wb_read_done = 1'b0 ;
                 end
             end
             endcase
-            wb_stb_o <= 1'b1 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b1 ;
+            wb_stb_o = 1'b1 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b1 ;
         end
     S_READ_RTY: // Wait for PCI Target to remove read request, when retry counter reaches maximum value!
         begin
             // Default values for signals not used in this state
-            pciw_fifo_renable <= 1'b0 ;
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            addr_count <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            retried_d <= 1'b0 ;
-            wb_read_done <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
-            wait_for_wb_response <= 1'b0 ;
+            pciw_fifo_renable = 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            addr_count = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            retried_d = 1'b0 ;
+            wb_read_done = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
+            wait_for_wb_response = 1'b0 ;
             // wait for PCI Target to remove read request
             if (pci_tar_read_request)
             begin
-                n_state <= S_READ_RTY ; // stay in this state until read request is removed
-                last_data_transferred <= 1'b0 ;
+                n_state = S_READ_RTY ; // stay in this state until read request is removed
+                last_data_transferred = 1'b0 ;
             end
             else // when read request is removed
             begin
-                n_state <= S_IDLE ;
-                last_data_transferred <= 1'b1 ; // when read request is removed, there is "last" data
+                n_state = S_IDLE ;
+                last_data_transferred = 1'b1 ; // when read request is removed, there is "last" data
             end
-            wb_stb_o <= 1'b0 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b0 ;
+            wb_stb_o = 1'b0 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b0 ;
         end     
     S_TURN_ARROUND: // Turn arround cycle after writting to PCIR_FIFO (for correct data when reading from PCIW_FIFO) 
         begin
             // Default values for signals not used in this state
-            pciw_fifo_renable <= 1'b0 ;
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            addr_count <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            retried_d <= 1'b0 ;
-            last_data_transferred <= 1'b1 ;
-            wb_read_done <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
-            wait_for_wb_response <= 1'b0 ;
-            n_state <= S_IDLE ;
-            wb_stb_o <= 1'b0 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b0 ;
+            pciw_fifo_renable = 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            addr_count = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            retried_d = 1'b0 ;
+            last_data_transferred = 1'b1 ;
+            wb_read_done = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
+            wait_for_wb_response = 1'b0 ;
+            n_state = S_IDLE ;
+            wb_stb_o = 1'b0 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b0 ;
         end     
     default : 
         begin
             // Default values for signals not used in this state
-            pciw_fifo_renable <= 1'b0 ;
-            pcir_fifo_wenable <= 1'b0 ;
-            pcir_fifo_control <= 4'h0 ;
-            addr_into_cnt <= 1'b0 ;
-            read_count_load <= 1'b0 ;
-            read_count_enable <= 1'b0 ;
-            addr_count <= 1'b0 ;
-            pci_error_sig_out <= 1'b0 ;
-            error_source_out <= 1'b0 ;
-            retried_d <= 1'b0 ;
-            last_data_transferred <= 1'b0 ;
-            wb_read_done <= 1'b0 ;
-            write_rty_cnt_exp_out <= 1'b0 ;
-            read_rty_cnt_exp_out <= 1'b0 ;
-            wait_for_wb_response <= 1'b0 ;
-            n_state <= S_IDLE ;
-            wb_stb_o <= 1'b0 ;
-            wb_we_o <= 1'b0 ;
-            wb_cyc_o <= 1'b0 ;
+            pciw_fifo_renable = 1'b0 ;
+            pcir_fifo_wenable = 1'b0 ;
+            pcir_fifo_control = 4'h0 ;
+            addr_into_cnt = 1'b0 ;
+            read_count_load = 1'b0 ;
+            read_count_enable = 1'b0 ;
+            addr_count = 1'b0 ;
+            pci_error_sig_out = 1'b0 ;
+            error_source_out = 1'b0 ;
+            retried_d = 1'b0 ;
+            last_data_transferred = 1'b0 ;
+            wb_read_done = 1'b0 ;
+            write_rty_cnt_exp_out = 1'b0 ;
+            read_rty_cnt_exp_out = 1'b0 ;
+            wait_for_wb_response = 1'b0 ;
+            n_state = S_IDLE ;
+            wb_stb_o = 1'b0 ;
+            wb_we_o = 1'b0 ;
+            wb_cyc_o = 1'b0 ;
         end
     endcase
 end
@@ -1028,79 +1031,79 @@ assign  ADR_O = addr_cnt_out ;
     begin
         if (reset_in)
         begin
-        	no_sel_o_change_due_rty <= 1'b0;
-            CYC_O   <= 1'h0 ;
-            STB_O   <= 1'h0 ;
-            WE_O    <= 1'h0 ;
-            CAB_O   <= 1'h0 ;
-            MDATA_O <= 32'h0 ;
-            SEL_O   <= 4'h0 ;
-            wb_cyc_reg <= 1'h0 ;
-            wb_read_done_out <= 1'b0 ;
-            pcir_fifo_data_out <= 32'h0 ;
-            pcir_fifo_wenable_out <= 1'b0 ;
-            pcir_fifo_control_out <= 1'b0 ;
+        	no_sel_o_change_due_rty <= #`FF_DELAY 1'b0;
+            CYC_O   <= #`FF_DELAY 1'h0 ;
+            STB_O   <= #`FF_DELAY 1'h0 ;
+            WE_O    <= #`FF_DELAY 1'h0 ;
+            CAB_O   <= #`FF_DELAY 1'h0 ;
+            MDATA_O <= #`FF_DELAY 32'h0 ;
+            SEL_O   <= #`FF_DELAY 4'h0 ;
+            wb_cyc_reg <= #`FF_DELAY 1'h0 ;
+            wb_read_done_out <= #`FF_DELAY 1'b0 ;
+            pcir_fifo_data_out <= #`FF_DELAY 32'h0 ;
+            pcir_fifo_wenable_out <= #`FF_DELAY 1'b0 ;
+            pcir_fifo_control_out <= #`FF_DELAY 1'b0 ;
         end
         else
         begin
         	if (w_attempt)
         	    if (ACK_I || ERR_I || last_data_transferred)
-        	        no_sel_o_change_due_rty <= 1'b0;
+        	        no_sel_o_change_due_rty <= #`FF_DELAY 1'b0;
         	    else if (retry)
-        	        no_sel_o_change_due_rty <= 1'b1;
+        	        no_sel_o_change_due_rty <= #`FF_DELAY 1'b1;
             if (wb_cyc_o)
             begin // retry = RTY_I || set_retry
-                CYC_O   <= ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) ;
-                CAB_O   <= ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) && burst_transfer ;
-                STB_O   <= ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) ;
+                CYC_O   <= #`FF_DELAY ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) ;
+                CAB_O   <= #`FF_DELAY ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) && burst_transfer ;
+                STB_O   <= #`FF_DELAY ~((ACK_I || retry || ERR_I) && (last_data_transferred || retried_d)) ;
             end
-            WE_O    <= wb_we_o ;
+            WE_O    <= #`FF_DELAY wb_we_o ;
             if (((wb_cyc_o && ~wb_cyc_reg && !retried_write) || ACK_I) && wb_we_o)
-                MDATA_O <= pciw_fifo_addr_data_in ;
+                MDATA_O <= #`FF_DELAY pciw_fifo_addr_data_in ;
             if (w_attempt)
             begin
                 if (((wb_cyc_o && ~wb_cyc_reg && !retried_write) || ACK_I) && wb_we_o)
-                    SEL_O   <= ~pciw_fifo_cbe_in ;
+                    SEL_O   <= #`FF_DELAY ~pciw_fifo_cbe_in ;
             end
             else
             begin
                 if ((wb_cyc_o && ~wb_cyc_reg) || ACK_I)
-                    SEL_O   <= wb_sel_o ;
+                    SEL_O   <= #`FF_DELAY wb_sel_o ;
             end
-            wb_cyc_reg <= wb_cyc_o ;
-            wb_read_done_out <= wb_read_done ;
-            pcir_fifo_data_out <= MDATA_I ;
-            pcir_fifo_wenable_out <= pcir_fifo_wenable ;
-            pcir_fifo_control_out <= pcir_fifo_control ;
+            wb_cyc_reg <= #`FF_DELAY wb_cyc_o ;
+            wb_read_done_out <= #`FF_DELAY wb_read_done ;
+            pcir_fifo_data_out <= #`FF_DELAY MDATA_I ;
+            pcir_fifo_wenable_out <= #`FF_DELAY pcir_fifo_wenable ;
+            pcir_fifo_control_out <= #`FF_DELAY pcir_fifo_control ;
         end
     end
     always@(pciw_fifo_renable or last_data_from_pciw_fifo_reg or wb_cyc_o or wb_cyc_reg or wb_we_o or retried_write or 
             pciw_fifo_control_in or pciw_fifo_empty_in)
     begin
-        pciw_fifo_renable_out <=    (pciw_fifo_renable && ~wb_cyc_o) || 
+        pciw_fifo_renable_out <=    #`FF_DELAY (pciw_fifo_renable && ~wb_cyc_o) || 
                                     (pciw_fifo_renable && ~last_data_from_pciw_fifo_reg) || 
                                     (wb_cyc_o && ~wb_cyc_reg && wb_we_o && !retried_write) ;
-        last_data_from_pciw_fifo_reg <= pciw_fifo_control_in[`ADDR_CTRL_BIT] || pciw_fifo_empty_in ;
+        last_data_from_pciw_fifo_reg <= #`FF_DELAY pciw_fifo_control_in[`ADDR_CTRL_BIT] || pciw_fifo_empty_in ;
     end
 `else
     always@(wb_cyc_o or wb_stb_o or wb_we_o or burst_transfer or pciw_fifo_addr_data_in or wb_sel_o or 
             wb_read_done or MDATA_I or pcir_fifo_wenable or pcir_fifo_control)
     begin
-        CYC_O   <= wb_cyc_o ;
-        STB_O   <= wb_stb_o ;
-        WE_O    <= wb_we_o ;
-        CAB_O   <= wb_cyc_o & burst_transfer ;
-        MDATA_O <= pciw_fifo_addr_data_in ;
-        SEL_O   <= wb_sel_o ;
-        wb_read_done_out <= wb_read_done ;
-        pcir_fifo_data_out <= MDATA_I ;
-        pcir_fifo_wenable_out <= pcir_fifo_wenable ;
-        pcir_fifo_control_out <= pcir_fifo_control ;
+        CYC_O   = wb_cyc_o ;
+        STB_O   = wb_stb_o ;
+        WE_O    = wb_we_o ;
+        CAB_O   = wb_cyc_o & burst_transfer ;
+        MDATA_O = pciw_fifo_addr_data_in ;
+        SEL_O   = wb_sel_o ;
+        wb_read_done_out = wb_read_done ;
+        pcir_fifo_data_out = MDATA_I ;
+        pcir_fifo_wenable_out = pcir_fifo_wenable ;
+        pcir_fifo_control_out = pcir_fifo_control ;
     end
     always@(pciw_fifo_renable or last_data_from_pciw_fifo)
     begin
-        pciw_fifo_renable_out <= pciw_fifo_renable ;
-        last_data_from_pciw_fifo_reg <= last_data_from_pciw_fifo ;
+        pciw_fifo_renable_out = pciw_fifo_renable ;
+        last_data_from_pciw_fifo_reg = last_data_from_pciw_fifo ;
     end
 `endif
 
