@@ -42,12 +42,16 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:20:12  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
 `include "constants.v"
+`include "timescale.v"
 
 module WBW_WBR_FIFOS( 
                         wb_clock_in, 
