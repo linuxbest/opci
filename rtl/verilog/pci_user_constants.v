@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.4  2002/09/30 17:22:45  mihad
+// Added support for Virtual Silicon two port RAM. Didn't run regression on it yet!
+//
 // Revision 1.3  2002/08/13 11:03:53  mihad
 // Added a few testcases. Repaired wrong reset value for PCI_AM5 register. Repaired Parity Error Detected bit setting. Changed PCI_AM0 to always enabled(regardles of PCI_AM0 define), if image 0 is used as configuration image
 //
@@ -86,6 +89,8 @@
     `define WB_FIFO_RAM_ADDR_LENGTH 7       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
 //    `define WB_ARTISAN_SDP
 //    `define PCI_ARTISAN_SDP
+//    `define PCI_VS_STP
+//    `define WB_VS_STP
 `endif
 
 // these two defines allow user to select active high or low output enables on PCI bus signals, depending on

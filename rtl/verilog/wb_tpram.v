@@ -62,6 +62,9 @@
 // CVS Revision History
 //
 // $Log: wb_tpram.v,v $
+// Revision 1.3  2002/09/30 17:22:27  mihad
+// Added support for Virtual Silicon two port RAM. Didn't run regression on it yet!
+//
 // Revision 1.2  2002/08/19 16:51:36  mihad
 // Extracted distributed RAM module from wb/pci_tpram.v to its own file, got rid of undef directives
 //
@@ -126,6 +129,22 @@ output	[dw-1:0]	do_b;	// output data bus
 // Internal wires and registers
 //
 
+`ifdef WB_VS_STP
+    `define PCI_WB_RAM_SELECTED
+    vs_hdtp_64x40 i_vs_hdtp_64x40
+    (
+        .RCK        (clk_b),
+        .WCK        (clk_a),
+        .RADR       (addr_b),
+        .WADR       (addr_a),
+        .DI         (di_a),
+        .DOUT       (do_b),
+        .REN        (1'b0),
+        .WEN        (!we_a)
+    );
+    
+    assign do_a = 0 ;
+`endif
 
 `ifdef WB_ARTISAN_SDP
     `define PCI_WB_RAM_SELECTED

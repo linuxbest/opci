@@ -30,6 +30,7 @@ set arg_regression = 0;
 set arg_xilinx = 0;
 set arg_artisan = 0;
 set arg_waves = 0;
+set arg_vs_hdtp = 0
 
 @ arg_num     = 1
 set arg_check = 0
@@ -53,6 +54,11 @@ while($arg_num <= $#argv)
     if ($argv[$arg_num] == "waves") then
         @ arg_waves = 1
         @ arg_check      = $arg_check + 1
+    endif
+
+    if ($argv[$arg_num] == "vs_two_port") then
+        @ arg_vs_hdtp = 1
+        @ arg_check   = $arg_check + 1
     endif
 
     if ($arg_check != $arg_num) then
@@ -462,18 +468,18 @@ endif
 cat ../bin/rtl_file_list.lst >> ./ncvlog.args
 cat ../bin/sim_file_list.lst >> ./ncvlog.args                                                                                   
 # adding device dependent files to .args file
-if (($arg_xilinx == 1) && ($arg_artisan == 0)) then
-      cat ../bin/xilinx_file_list.lst >> ./ncvlog.args
-else
-  if (($arg_xilinx == 0) && ($arg_artisan == 1)) then
-      cat ../bin/artisan_file_list.lst >> ./ncvlog.args
-  else
-    if (($arg_xilinx == 1) && ($arg_artisan == 1)) then
-      cat ../bin/xilinx_file_list.lst >> ./ncvlog.args
-      cat ../bin/artisan_file_list.lst >> ./ncvlog.args
-    endif
-  endif
-endif                                                                                                                       
+if ($arg_xilinx == 1) then
+    cat ../bin/xilinx_file_list.lst >> ./ncvlog.args
+endif
+
+if ($arg_artisan == 1) then
+    cat ../bin/artisan_file_list.lst >> ./ncvlog.args
+endif
+
+if ($arg_vs_hdtp == 1) then
+    cat ../bin/vs_file_list.lst >> ./ncvlog.args
+endif
+
 ncvlog -file ./ncvlog.args > /dev/null;
 echo ""
 
