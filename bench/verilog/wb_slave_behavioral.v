@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_behavioral.v,v $
+// Revision 1.2  2002/03/06 09:10:56  mihad
+// Added missing include statements
+//
 // Revision 1.1  2002/02/01 13:39:43  mihad
 // Initial testbench import. Still under development
 //
@@ -49,6 +52,7 @@
 
 `include "pci_testbench_defines.v"
 `include "timescale.v"
+`include "pci_constants.v"
 module WB_SLAVE_BEHAVIORAL
 (
 	CLK_I,

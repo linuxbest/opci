@@ -39,12 +39,16 @@
 // CVS Revision History
 //
 // $Log: pci_behavioral_iack_target.v,v $
+// Revision 1.2  2002/03/06 09:10:56  mihad
+// Added missing include statements
+//
 // Revision 1.1  2002/02/01 15:07:51  mihad
 // *** empty log message ***
 //
 
 `include "pci_constants.v"
 `include "timescale.v"
+`include "bus_commands.v"
 
 // module is provided just as target for responding to interrupt acknowledge commands, because
 // other models don't support this command
