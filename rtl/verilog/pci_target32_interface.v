@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_interface.v,v $
+// Revision 1.5  2002/08/22 13:28:04  mihad
+// Updated for synthesis purposes. Gate level simulation was failing in some configurations
+//
 // Revision 1.4  2002/02/19 16:32:37  mihad
 // Modified testbench and fixed some bugs
 //
@@ -704,7 +707,6 @@ assign	same_read_out = (same_read_request) ; // && ~pcir_fifo_empty_in) ;
 // Signals for byte enable checking
 reg				addr_burst_ok ;
 reg				io_be_ok ;
-reg				conf_be_ok ;
 
 // Byte enable checking for IO, MEMORY and CONFIGURATION spaces - be_in is active low!
 always@(strd_address or be_in)
@@ -714,145 +716,26 @@ begin
 	begin
 		addr_burst_ok <= 1'b0 ;
 		io_be_ok <= (be_in[2] && be_in[1] && be_in[0]) ; // only be3 can be active
-		conf_be_ok <= 1'b0 ;
 	end
 	2'b10 :
 	begin
 		addr_burst_ok <= 1'b0 ;
 		io_be_ok <= (~be_in[2] && be_in[1] && be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-		conf_be_ok <= 1'b0 ;
 	end
 	2'b01 :
 	begin
 		addr_burst_ok <= 1'b0 ;
 		io_be_ok <= (~be_in[1] && be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-		conf_be_ok <= 1'b0 ;
 	end
 	default :	// 2'b00
 	begin
 		addr_burst_ok <= 1'b1 ;
 		io_be_ok <= (~be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-		conf_be_ok <= 1'b1 ;
 	end
 	endcase
 end
 
-reg				calc_target_abort ;
-// Target abort indication regarding the registered bus command and current signals for byte enable checking
-always@(norm_bc or hit0_in or io_be_ok or conf_be_ok)
-begin
-	case (norm_bc)
-	// READ COMMANDS
-	`BC_IO_READ :
-	begin
-		case ({hit0_in, hit0_conf})
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-	`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-	`endif
-`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-`endif
-		default :
-		begin
-			if (io_be_ok)
-			begin
-				calc_target_abort <= 1'b0 ;
-			end
-			else
-			begin
-				calc_target_abort <= 1'b1 ;
-			end
-		end
-		endcase
-	end
-	`BC_MEM_READ :
-	begin
-		calc_target_abort <= 1'b0 ;
-	end
-	`BC_CONF_READ :
-	begin
-		case (conf_be_ok)
-		1'b1 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-		default :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-		endcase
-	end
-	`BC_MEM_READ_LN,
-	`BC_MEM_READ_MUL :
-	begin
-		calc_target_abort <= 1'b0 ;
-	end
-	// WRITE COMMANDS
-	`BC_IO_WRITE :
-	begin
-		case ({hit0_in, hit0_conf})
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-	`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-	`endif
-`else
-		2'b11 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-`endif
-		default :
-		begin
-			if (io_be_ok)
-			begin
-				calc_target_abort <= 1'b0 ;
-			end
-			else
-			begin
-				calc_target_abort <= 1'b1 ;
-			end
-		end
-		endcase
-	end
-	`BC_MEM_WRITE :
-	begin
-		calc_target_abort <= 1'b0 ;
-	end
-	`BC_CONF_WRITE :
-	begin
-		case (conf_be_ok)
-		1'b1 :
-		begin
-			calc_target_abort <= 1'b0 ;
-		end
-		default :
-		begin
-			calc_target_abort <= 1'b1 ;
-		end
-		endcase
-	end
-	`BC_MEM_WRITE_INVAL :
-	begin
-		calc_target_abort <= 1'b0 ;
-	end
-	default :
-	begin
-		calc_target_abort <= 1'b0 ;
-	end
-	endcase
-end
+wire calc_target_abort = (norm_bc[3:1] == `BC_IO_RW) ? !io_be_ok : 1'b0 ;
 
 wire [3:0]	pcir_fifo_control_input = pcir_fifo_empty_in ? 4'h0 : pcir_fifo_control_in ;
 

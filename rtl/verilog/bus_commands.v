@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: bus_commands.v,v $
+// Revision 1.4  2002/08/22 13:28:05  mihad
+// Updated for synthesis purposes. Gate level simulation was failing in some configurations
+//
 // Revision 1.3  2002/02/01 15:25:12  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -73,3 +76,5 @@
 
 // common bits for configuration cycle commands
 `define BC_CONF_RW 3'b101 
+// common bits for io cycle commands
+`define BC_IO_RW 3'b001
