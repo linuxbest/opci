@@ -1,7 +1,7 @@
 #-- Synplicity, Inc.
-#-- Version Amplify 3.1         
+#-- Version 7.2        
 #-- Project file /shared/projects/pci/mihad/pci/apps/crt/syn/synplify/pci_crt.prj
-#-- Written on Fri Sep 27 16:20:50 2002
+#-- Written on Mon Mar 10 13:16:14 2003
 
 
 #add_file options
@@ -69,8 +69,6 @@ add_file -verilog "../../rtl/verilog/ssvga_wbs_if.v"
 add_file -constraint "pci_crt.sdc"
 add_file -verilog "../../rtl/verilog/top.v"
 
-#reporting options
-
 
 #implementation: "rev_1"
 impl -add rev_1
@@ -83,7 +81,7 @@ set_option -speed_grade -5
 
 #compilation/mapping options
 set_option -default_enum_encoding default
-set_option -symbolic_fsm_compiler 0
+set_option -symbolic_fsm_compiler 1
 set_option -resource_sharing 0
 set_option -use_fsm_explorer 0
 
@@ -91,10 +89,11 @@ set_option -use_fsm_explorer 0
 set_option -frequency 50.000
 set_option -fanout_limit 50
 set_option -disable_io_insertion 0
-set_option -pipe 0
-set_option -fixgatedclocks 0
-set_option -retiming 0
+set_option -pipe 1
+set_option -retiming 1
 set_option -modular 0
+set_option -update_models_cp 0
+set_option -verification_mode 0
 
 #simulation options
 set_option -write_verilog 0
@@ -107,19 +106,13 @@ set_option -write_apr_constraint 1
 project -result_file "rev_1/top.edf"
 
 #implementation attributes
-set_option -vlog_std v95
 set_option -compiler_compatible 0
 set_option -random_floorplan 0
-set_option -include_path "../../rtl/verilog/;../../../../rtl/verilog/"
-
-#netlist optimizer options
-set_option -enable_nfilter 0
-set_option -feedthrough 1
-set_option -constant_prop 1
-set_option -level_hierarchy 0
-
-#physical constraint options
+set_option -popfeed 1
+set_option -constprop 1
+set_option -createhierarchy 0
 set_option -floorplan ""
 set_option -nfilter_user_path ""
 set_option -pin_assignment ""
+set_option -include_path "../../rtl/verilog/;../../../../rtl/verilog/"
 impl -active "rev_1"

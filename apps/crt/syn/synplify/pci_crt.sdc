@@ -1,7 +1,7 @@
 # Synplicity, Inc. constraint file
 # /shared/projects/pci/mihad/pci/apps/crt/syn/synplify/pci_crt.sdc
-# Written on Fri Sep 27 11:42:06 2002
-# by Amplify, Amplify 3.1          Scope Editor
+# Written on Mon Mar 10 13:33:22 2003
+# by Synplify Pro, 7.2         Scope Editor
 
 #
 # Clocks
@@ -108,49 +108,8 @@ define_output_delay              -default  10.00 -ref CRT_CLK:r
 #
 # Registers
 #
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.comp_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.done_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.cache_lsize_to_wb_bits_sync.sync_data_out[6:0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.command_bit_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.int_pin_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.isr_bit0_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.isr_bit2_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.pci_err_cs_bits_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.sync_isr_2.clear_delete_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.sync_isr_2.delete_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.sync_pci_err_cs_8.clear_delete_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.configuration.sync_pci_err_cs_8.delete_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.comp_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.done_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.req_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.rty_exp_back_prop_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.del_sync.rty_exp_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pcir_fifo_ctrl.almost_empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pcir_fifo_ctrl.empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pcir_fifo_ctrl.full_out} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pcir_fifo_ctrl.stretched_empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.almost_empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.almost_full} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.full_out} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.stretched_empty} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_fifo_ctrl.two_left_out} -route 15.00
-#define_reg_output_delay          {bridge.pci_target_unit.fifos.pciw_transaction_ready_out} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.del_sync.comp_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.del_sync.done_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.del_sync.req_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.del_sync.rty_exp_back_prop_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.del_sync.rty_exp_sync.sync_data_out[0]} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbr_fifo_ctrl.empty} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbr_fifo_ctrl.stretched_empty} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbw_fifo_ctrl.almost_full} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbw_fifo_ctrl.empty} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbw_fifo_ctrl.full_out} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbw_fifo_ctrl.stretched_empty} -route 15.00
-#define_reg_output_delay          {bridge.wishbone_slave_unit.fifos.wbw_transaction_ready_out} -route 15.00
-
-define_reg_output_delay           {*sync_data_out*} -route 20.00
-define_reg_output_delay           {*meta_q_o*} -route 20.00
+define_reg_output_delay          {*sync_data_out*} -route 20.00
+define_reg_output_delay          {*meta_q_o*} -route 20.00
 
 #
 # Multicycle Path
@@ -235,7 +194,7 @@ define_attribute          {v:work.pci_frame_crit} syn_hier {hard}
 define_attribute          {v:work.pci_frame_en_crit} syn_hier {hard}
 define_attribute          {v:work.pci_frame_load_crit} syn_hier {hard}
 define_attribute          {v:work.pci_irdy_out_crit} syn_hier {hard}
-define_attribute          {v:work.pci_mad_ad_en_crit} syn_hier {hard}
+define_attribute          {v:work.pci_mas_ad_en_crit} syn_hier {hard}
 define_attribute          {v:work.pci_mas_ad_load_crit} syn_hier {hard}
 define_attribute          {v:work.pci_mas_ch_state_crit} syn_hier {hard}
 define_attribute          {v:work.pci_par_crit} syn_hier {hard}
@@ -251,9 +210,9 @@ define_attribute          {v:work.pci_serr_crit} syn_hier {hard}
 define_attribute          {v:work.pci_serr_en_crit} syn_hier {hard}
 
 #
-# Other Constraints
+# Compile Points
 #
 
 #
-#  Order of waveforms 
+# Other Constraints
 #
