@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_master.v,v $
+// Revision 1.3  2003/03/14 15:31:57  mihad
+// Entered the option to disable no response counter in wb master.
+//
 // Revision 1.2  2003/01/30 22:01:09  mihad
 // Updated synchronization in top level fifo modules.
 //
@@ -370,9 +373,14 @@ begin
     endcase
 end
 
+reg             wait_for_wb_response ;
+
+`ifdef PCI_WBM_NO_RESPONSE_CNT_DISABLE
+wire set_retry = 1'b0 ;
+
+`else
 reg     [3:0]   wb_no_response_cnt ;
 reg     [3:0]   wb_response_value ;
-reg             wait_for_wb_response ;
 reg             set_retry ; // 
 
 // internal WB no response retry generator counter!
@@ -400,6 +408,7 @@ begin
         set_retry = 1'b0 ;
     end
 end
+`endif
 
 wire    retry = RTY_I || set_retry ; // retry signal - logic OR function between RTY_I and internal WB no response retry!
 reg     [7:0]   rty_counter ; // output from retry counter
@@ -613,7 +622,6 @@ begin
             wb_read_done = 1'b0 ;
             wait_for_wb_response = 1'b0 ;
             write_rty_cnt_exp_out = 1'b0 ;
-            error_source_out = 1'b0 ;
             pci_error_sig_out = 1'b0 ;
             read_rty_cnt_exp_out = 1'b0 ;
             case ({w_attempt, r_attempt, retried})

@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.8  2003/03/14 15:31:57  mihad
+// Entered the option to disable no response counter in wb master.
+//
 // Revision 1.7  2003/01/27 17:05:50  mihad
 // Updated.
 //
@@ -229,3 +232,7 @@ capable device
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
 `define WB_RTY_CNT_MAX			8'hff
+
+// define the macro below to disable internal retry generation in the wishbone master interface
+// used when wb master accesses extremly slow devices.
+`define PCI_WBM_NO_RESPONSE_CNT_DISABLE
