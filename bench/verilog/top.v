@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
+// Revision 1.2  2004/01/24 11:54:16  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.1  2003/12/15 12:21:29  mihad
 // Moved top.v to bench directory. Removed unneeded meta_flop,
 // modified files list files accordingly.
@@ -162,6 +165,12 @@ module TOP
     LED     ,
     ES
 `endif
+
+`ifdef PCI_SPOCI
+    ,
+    SCL ,
+    SDA
+`endif
 );
 
 input           CLK ;
@@ -243,6 +252,16 @@ wire ENUM_en    ;
 wire ENUM_out   ;
 wire LED_out    ;
 wire LED_en     ;
+`endif
+
+`ifdef PCI_SPOCI
+output  SCL ;
+inout   SDA ;
+
+wire    SCL_out ;
+wire    SCL_en  ;
+wire    SDA_out ;
+wire    SDA_en  ;
 `endif
 
 wire    [31:0]  AD_out ;
@@ -425,6 +444,16 @@ pci_bridge32 bridge
     .pci_cpci_hs_led_oe_o   (LED_en)    ,
     .pci_cpci_hs_es_i       (ES)
 `endif
+
+`ifdef PCI_SPOCI
+    ,
+    // Serial power on configuration interface
+    .spoci_scl_o     (SCL_out)  ,
+    .spoci_scl_oe_o  (SCL_en)   ,
+    .spoci_sda_i     (SDA)      ,
+    .spoci_sda_o     (SDA_out)  ,
+    .spoci_sda_oe_o  (SDA_en)
+`endif
 );
    
    
@@ -490,6 +519,11 @@ bufif0 ENUM_buf (ENUM, ENUM_out, ENUM_en) ;
 bufif0 LED_buf  (LED,  LED_out,  LED_en ) ;
 `endif
 
+`ifdef PCI_SPOCI
+bufif0 SCL_buf (SCL, SCL_out, SCL_en)   ;
+bufif0 SDA_buf (SDA, SDA_out, SDA_en)   ;
+`endif
+
 `else
 `ifdef ACTIVE_HIGH_OE
 
@@ -550,6 +584,11 @@ bufif1 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
 `ifdef PCI_CPCI_HS_IMPLEMENT
 bufif1 ENUM_buf (ENUM, ENUM_out, ENUM_en) ;
 bufif1 LED_buf  (LED,  LED_out,  LED_en ) ;
+`endif
+
+`ifdef PCI_SPOCI
+bufif1 SCL_buf (SCL, SCL_out, SCL_en)   ;
+bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 `endif
 
 `endif

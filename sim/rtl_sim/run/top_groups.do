@@ -116,8 +116,8 @@ define variable nofilenames
 define variable nofullpathfilenames
 include bookmark with filenames
 include scope history without filenames
-define waveform window listpane 5.36
-define waveform window namepane 14.00
+define waveform window listpane 7.36
+define waveform window namepane 9.36
 define multivalueindication
 define pattern curpos dot
 define pattern cursor1 dot
@@ -218,7 +218,13 @@ add group \
       SYSTEM.ENUM \
       SYSTEM.ES \
 
+add group \
+    SPOCI \
+      SYSTEM.SCL \
+      SYSTEM.SDA \
+
 
 deselect all
+open window designbrowser 1 geometry 62 124 855 550
 open window waveform 1 geometry 14 61 1268 912
-zoom at 74657.632(0)ns 0.00214844 0.00000000
+zoom at 214.947(0)ns 0.00237500 0.00000000

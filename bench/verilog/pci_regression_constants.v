@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_regression_constants.v,v $
+// Revision 1.6  2004/01/24 11:54:16  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.5  2003/12/19 11:11:28  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -193,11 +196,19 @@
     	`define PCI_AM0 20'hE000_0
     `endif
 
-    `define PCI_AM1 20'hE000_0
-    `define PCI_AM2 20'h0000_0
-    `define PCI_AM3 20'hE000_0
-    `define PCI_AM4 20'h0000_0
-    `define PCI_AM5 20'hE000_0
+    `ifdef PCI_SPOCI
+        `define PCI_AM1 20'h0000_0
+        `define PCI_AM2 20'h0000_0
+        `define PCI_AM3 20'h0000_0
+        `define PCI_AM4 20'h0000_0
+        `define PCI_AM5 20'h0000_0
+    `else
+        `define PCI_AM1 20'hE000_0
+        `define PCI_AM2 20'h0000_0
+        `define PCI_AM3 20'hE000_0
+        `define PCI_AM4 20'h0000_0
+        `define PCI_AM5 20'hE000_0
+    `endif
 
     `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
     `define PCI_BA1_MEM_IO 1'b0
@@ -212,12 +223,21 @@
 
         `define PCI_NUM_OF_DEC_ADDR_LINES 12
 
+    `ifdef PCI_SPOCI
+        `define PCI_AM0 20'hfff0_0
+        `define PCI_AM1 20'h0000_0
+        `define PCI_AM2 20'h0000_0
+        `define PCI_AM3 20'h0000_0
+        `define PCI_AM4 20'h0000_0
+        `define PCI_AM5 20'h0000_0
+    `else
         `define PCI_AM0 20'hfff0_0
         `define PCI_AM1 20'h0000_0
         `define PCI_AM2 20'hfff0_0
         `define PCI_AM3 20'h0000_0
         `define PCI_AM4 20'hfff0_0
         `define PCI_AM5 20'h0000_0
+    `endif
 
         `define PCI_BA0_MEM_IO 1'b1 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
         `define PCI_BA1_MEM_IO 1'b0
@@ -232,12 +252,21 @@
 
     `define PCI_NUM_OF_DEC_ADDR_LINES 20
 
-    `define PCI_AM0 20'hffff_e
-    `define PCI_AM1 20'hffff_c
-    `define PCI_AM2 20'hffff_8
-    `define PCI_AM3 20'hfffe_0
-    `define PCI_AM4 20'hfffc_0
-    `define PCI_AM5 20'hfff8_0
+    `ifdef PCI_SPOCI
+        `define PCI_AM0 20'hffff_e
+        `define PCI_AM1 20'h0000_0
+        `define PCI_AM2 20'h0000_0
+        `define PCI_AM3 20'h0000_0
+        `define PCI_AM4 20'h0000_0
+        `define PCI_AM5 20'h0000_0
+    `else
+        `define PCI_AM0 20'hffff_e
+        `define PCI_AM1 20'hffff_c
+        `define PCI_AM2 20'hffff_8
+        `define PCI_AM3 20'hfffe_0
+        `define PCI_AM4 20'hfffc_0
+        `define PCI_AM5 20'hfff8_0
+    `endif
 
     `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
     `define PCI_BA1_MEM_IO 1'b0
@@ -354,10 +383,57 @@
     `define TAR1_IDSEL_ADDR     (32'h0000_0001 << `TAR1_IDSEL_INDEX)
     `define TAR2_IDSEL_ADDR     (32'h0000_0001 << `TAR2_IDSEL_INDEX)
 
-`ifdef GUEST
-    // if guest implementation - test compact pci hot swap
-    `define PCI_CPCI_HS_IMPLEMENT
-`endif
+    // other initial values
+    // PCI Translation addresses
+    `define PCI_TA0 20'hffff_f
+    `define PCI_TA1 20'hffff_e
+    `define PCI_TA2 20'hffff_c
+    `define PCI_TA3 20'hffff_8
+    `define PCI_TA4 20'hffff_0
+    `define PCI_TA5 20'hfffe_0
+
+    `define PCI_AT_EN0 1'b1
+    `define PCI_AT_EN1 1'b0
+    `define PCI_AT_EN2 1'b1
+    `define PCI_AT_EN3 1'b0
+    `define PCI_AT_EN4 1'b1
+    `define PCI_AT_EN5 1'b0
+
+    // WB Images' base addresses
+    `define  WB_BA1	20'hffff_f
+    `define  WB_BA2	20'hffff_e
+    `define  WB_BA3	20'hffff_c
+    `define  WB_BA4	20'hffff_8
+    `define  WB_BA5	20'hffff_0
+
+    // WISHBONE Address space mapping
+    `define  WB_BA1_MEM_IO  1'b0
+    `define  WB_BA2_MEM_IO  1'b0
+    `define  WB_BA3_MEM_IO	1'b0
+    `define  WB_BA4_MEM_IO	1'b0
+    `define  WB_BA5_MEM_IO	1'b0
+
+    // wishbone address masks
+    `define  WB_AM1 20'h0000_0
+    `define  WB_AM2 20'h0000_0
+    `define  WB_AM3 20'h0000_0
+    `define  WB_AM4 20'h0000_0
+    `define  WB_AM5 20'h0000_0
+  
+    // wishbone translation addresses
+    `define WB_TA1 20'hffff_f
+    `define WB_TA2 20'hffff_e
+    `define WB_TA3 20'hffff_c
+    `define WB_TA4 20'hffff_8
+    `define WB_TA5 20'hffff_0
+    
+    `define WB_AT_EN1 1'b1
+    `define WB_AT_EN2 1'b0
+    `define WB_AT_EN3 1'b1
+    `define WB_AT_EN4 1'b0
+    `define WB_AT_EN5 1'b1
+
+
 /*=======================================================================================
   Following defines are used in a script file for regression testing !!!
 =========================================================================================

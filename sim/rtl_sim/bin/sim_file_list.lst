@@ -11,3 +11,4 @@
 ../../../bench/verilog/wb_bus_mon.v
 ../../../bench/verilog/pci_unsupported_commands_master.v
 ../../../bench/verilog/pci_behavioral_pci2pci_bridge.v
+../../../bench/verilog/i2c_slave_model.v

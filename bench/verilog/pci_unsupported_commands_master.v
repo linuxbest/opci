@@ -89,6 +89,7 @@ task unsupported_reference ;
     integer      i ;
     reg          dual_address ;
     reg  [2:0]   received_termination ;
+    reg  [31:0]  current_data         ;
 begin:main
     ok = 1 ;
     dual_address = (bc1 == `BC_DUAL_ADDR_CYC) ;
@@ -98,18 +99,20 @@ begin:main
         disable main ;
 
     addr_phase1(addr1, bc1) ;
+    
+    current_data = data ;
 
     if ( dual_address )
     begin
         write = bc2[0] ;
         addr_phase2(addr2, bc2, make_addr_perr1) ;
-        first_and_last_data_phase(bc2[0], data, be, make_addr_perr2, 1'b0, received_termination) ;
+        first_and_last_data_phase(bc2[0], current_data, be, make_addr_perr2, 1'b0, received_termination) ;
         finish_transaction(bc2[0], 1'b0) ;
     end
     else
     begin
         write = bc1[0] ;
-        first_and_last_data_phase(bc1[0], data, be, make_addr_perr1, 1'b0, received_termination) ;
+        first_and_last_data_phase(bc1[0], current_data, be, make_addr_perr1, 1'b0, received_termination) ;
         finish_transaction(bc1[0], 1'b0) ;
     end
 
@@ -131,6 +134,7 @@ task normal_write_transfer ;
     output [2:0]  received_termination ;
     reg ok ;
     reg [31:0] current_address ;
+    reg [31:0] current_data    ;
 begin:main
 
     write = 1'b1 ;
@@ -145,9 +149,10 @@ begin:main
 
     addr_phase1(start_address, bus_command) ;
     actual_transfer = 0 ;
+    current_data = ~start_address ;
     if (size == 1)
     begin
-        first_and_last_data_phase (1'b1, ~start_address, 4'hF, 1'b0, 1'b0, received_termination) ;
+        first_and_last_data_phase (1'b1, current_data, 4'hF, 1'b0, 1'b0, received_termination) ;
         if ((received_termination == normal) || (received_termination == disconnect))
             actual_transfer = 1 ;
 
@@ -156,7 +161,7 @@ begin:main
     else
     begin
         current_address = start_address ;
-        first_data_phase (1'b1, ~start_address, 4'hF, 1'b0, 1'b0, received_termination) ;
+        first_data_phase (1'b1, current_data, 4'hF, 1'b0, 1'b0, received_termination) ;
         if ((received_termination == normal) || (received_termination == disconnect))
             actual_transfer = 1 ;
 
@@ -171,7 +176,8 @@ begin:main
             insert_waits(1'b1, wait_cycles, received_termination) ;
             if (received_termination === normal)
             begin
-                subsequent_data_phase(1'b1, ~current_address, 4'hF, 1'b0, received_termination) ;
+                current_data = ~current_address ;
+                subsequent_data_phase(1'b1, current_data, 4'hF, 1'b0, received_termination) ;
                 if ((received_termination == normal) || (received_termination == disconnect))
                     actual_transfer = actual_transfer + 1 ;
             end
@@ -183,7 +189,8 @@ begin:main
             insert_waits(1'b1, wait_cycles, received_termination) ;
             if (received_termination === normal)
             begin
-                last_data_phase(1'b1, ~current_address, 4'hF, 1'b0, received_termination) ;
+                current_data = ~current_address ;
+                last_data_phase(1'b1, current_data, 4'hF, 1'b0, received_termination) ;
                 if ((received_termination == normal) || (received_termination == disconnect))
                     actual_transfer = actual_transfer + 1 ;
             
@@ -197,6 +204,47 @@ begin:main
     end
 end
 endtask // normal_write_transfer
+
+task single_transfer ;
+    input  [31:0] start_address         ;
+    input  [3:0]  bus_command           ;
+    inout  [31:0] data                  ;
+    input  [3:0]  byte_en               ;
+    output [31:0] actual_transfer       ;
+    output [2:0]  received_termination  ;
+    reg ok ;
+begin:main
+
+    write = bus_command[0] ;
+    get_bus_ownership (ok) ;
+    if (ok !== 1'b1)
+    begin
+        received_termination = error ;
+        disable main ;
+    end
+
+    make_parity_error_after_last_dataphase = 1'b0 ;
+
+    addr_phase1(start_address, bus_command) ;
+    actual_transfer = 0 ;
+
+    first_and_last_data_phase
+    (
+        bus_command[0]          ,   //  !read/write
+        data                    ,   //  data
+        byte_en                 ,   //  byte enables
+        1'b0                    ,   //  generate address parity error
+        1'b0                    ,   //  generate data parity error
+        received_termination        //  target response
+    ) ;
+
+    if ((received_termination == normal) || (received_termination == disconnect))
+        actual_transfer = 1 ;
+
+    -> e_finish_transaction ;
+
+end
+endtask // single_transfer
 
 task get_bus_ownership ;
     output  ok ;
@@ -256,7 +304,7 @@ endtask
 
 task first_and_last_data_phase ;
     input         rw ;
-    input  [31:0] data ;
+    inout  [31:0] data ;
     input  [3:0]  be ;
     input         make_addr_parity_error ;
     input         make_data_parity_error ;
@@ -270,7 +318,7 @@ endtask // first_and_last_data_phase
 
 task first_data_phase ;
     input         rw ;
-    input  [31:0] data ;
+    inout  [31:0] data ;
     input  [3:0]  be ;
     input         make_addr_parity_error ;
     input         make_data_parity_error ;
@@ -307,14 +355,16 @@ begin
     else
     begin
         get_termination(received_termination);
+        if (!rw)
+            data = AD ;
     end
 end
 endtask // first_data_phase
 
 task subsequent_data_phase ;
-    input         rw ;
-    input  [31:0] data ;
-    input  [3:0]  be ;
+    input         rw    ;
+    inout  [31:0] data  ;
+    input  [3:0]  be    ;
     input         make_parity_error ;
     output [2:0]  received_termination ;
 begin
@@ -328,12 +378,14 @@ begin
     CBE_int <= #6 ~be ;
     @(posedge CLK);
     get_termination(received_termination);
+    if (!rw)
+        data = AD ;
 end
 endtask // subsequent_data_phase
 
 task last_data_phase ;
     input         rw ;
-    input  [31:0] data ;
+    inout  [31:0] data ;
     input  [3:0]  be ;
     input         make_parity_error ;
     output [2:0]  received_termination ;
@@ -350,8 +402,10 @@ begin
 
     @(posedge CLK);
     get_termination(received_termination);
+    if (!rw)
+        data = AD ;
 end
-endtask // subsequent_data_phase
+endtask // last_data_phase
 
 task get_termination ;
     output [2:0] received_termination ;

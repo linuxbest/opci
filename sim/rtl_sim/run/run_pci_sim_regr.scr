@@ -21,14 +21,13 @@ set arg_xilinx = 0;
 set arg_artisan = 0;
 set arg_waves = 0;
 set arg_vs_hdtp = 0
-set arg_dis_comp_exp_test = 0
+set arg_dis_comp_exp_tst = 0
 set arg_wb_b3 = 0
-set arg_wbs_non_alligned = 0
 
 @ arg_num     = 1
 set arg_check = 0
 
-while($arg_num <= $#)
+while($arg_num <= $#argv)
 
         switch ( $argv[$arg_num] )
         case "help":
@@ -51,20 +50,16 @@ while($arg_num <= $#)
             @ arg_waves = 1
             breaksw
 
+        case "disable_completion_expired_tests":
+            @ arg_dis_comp_exp_tst = 1
+            breaksw
+
         case "vs_two_port":
             @ arg_vs_hdtp = 1
             breaksw
 
-        case "disable_completion_expired_tests":
-            @ arg_dis_comp_exp_test = 1
-            breaksw
-
         case "wb_b3":
             @ arg_wb_b3 = 1
-            breaksw
-
-        case "wb_na":
-            @ arg_wbs_non_alligned = 1
             breaksw
 
         case "iter":
@@ -226,6 +221,8 @@ if ($arg_regression == 1) then
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
+            echo "-DEFINE PCI_SPOCI              " >> ./defines.args
+            echo "-DEFINE PCI_CPCI_HS_IMPLEMENT  " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
             echo "-DEFINE PCI66                  " >> ./defines.args
             echo "-DEFINE WB_CLK220              " >> ./defines.args
@@ -268,6 +265,7 @@ if ($arg_regression == 1) then
 
             echo "-DEFINE GUEST                   " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MIN          " >> ./defines.args
+            echo "-DEFINE PCI_SPOCI               " >> ./defines.args
             echo "-DEFINE WB_DECODE_MAX           " >> ./defines.args
             echo "-DEFINE PCI33                   " >> ./defines.args
             echo "-DEFINE WB_CLK220               " >> ./defines.args
@@ -300,6 +298,7 @@ if ($arg_regression == 1) then
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_LARGE_GENERIC" >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX         " >> ./defines.args
+            echo "-DEFINE PCI_SPOCI              " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED          " >> ./defines.args
             echo "-DEFINE PCI66                  " >> ./defines.args
             echo "-DEFINE WB_CLK10               " >> ./defines.args
@@ -434,6 +433,7 @@ if ($arg_regression == 1) then
             echo "-DEFINE GUEST                  " >> ./defines.args
             echo "-DEFINE REGR_FIFO_SMALL_GENERIC" >> ./defines.args
             echo "-DEFINE PCI_DECODE_MED         " >> ./defines.args
+            echo "-DEFINE PCI_CPCI_HS_IMPLEMENT  " >> ./defines.args
             echo "-DEFINE WB_DECODE_MIN          " >> ./defines.args
             echo "-DEFINE PCI33                  " >> ./defines.args
             echo "-DEFINE WB_CLK66               " >> ./defines.args
@@ -485,6 +485,7 @@ if ($arg_regression == 1) then
             echo "-DEFINE PCI66           " >> ./defines.args
             echo "-DEFINE WB_CLK66        " >> ./defines.args
             echo "-DEFINE ACTIVE_HIGH_OE  " >> ./defines.args
+            echo "-DEFINE PCI_SPOCI       " >> ./defines.args
             echo "-DEFINE WB_CNF_BASE_ZERO" >> ./defines.args
             echo "-DEFINE NO_CNF_IMAGE    " >> ./defines.args
             echo "-DEFINE PCI_IMAGE0      " >> ./defines.args
@@ -560,6 +561,7 @@ if ($arg_regression == 1) then
             echo "-DEFINE GUEST                       " >> ./defines.args
             echo "-DEFINE PCI_DECODE_MAX              " >> ./defines.args
             echo "-DEFINE WB_DECODE_MED               " >> ./defines.args
+            echo "-DEFINE PCI_CPCI_HS_IMPLEMENT       " >> ./defines.args
             echo "-DEFINE PCI66                       " >> ./defines.args
             echo "-DEFINE WB_CLK66                    " >> ./defines.args
             echo "-DEFINE ACTIVE_HIGH_OE              " >> ./defines.args
@@ -611,16 +613,12 @@ if ($arg_regression == 1) then
 
         endif
 
-        if ($arg_dis_comp_exp_test) then
+        if ($arg_dis_comp_exp_tst) then
             echo "-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS" >> ./defines.args
         endif
 
         if ($arg_wb_b3) then
             echo "-DEFINE PCI_WB_REV_B3" >> ./defines.args
-        endif
-
-        if ($arg_wbs_non_alligned) then
-            echo "-DEFINE PCI_WBS_ALLOW_NON_ALLIGNED_CONFIG_ACCESS" >> ./defines.args
         endif
     endif
 endif
@@ -683,7 +681,7 @@ echo ""
 # Run the NC-Verilog simulator (simulate the design)
 echo ""
 echo "\t###"
-echo "\t### Running tests (this takes a long time!)"
+echo "\t### Running tests (this takes a long time)"
 echo "\t###"
 
 # creating ncsim.args file for ncsim and adding main parameters
@@ -793,8 +791,6 @@ help:
         echo "disable_completion_expired_tests : if you want to disable completion expiration testing during regression run, because these are time consuming tests"
         echo ""
         echo "wb_b3 : Run complete regression with WISHBONE Slave Unit's WB B3 to WB B2 cycle translation enabled"
-        echo ""
-        echo "wb_na : Run regression with WISHBONE Slave Unit's non alligned configuration accesses enabled"
         echo ""
 exit
 

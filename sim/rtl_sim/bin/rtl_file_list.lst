@@ -1,3 +1,4 @@
+../../../rtl/verilog/pci_spoci_ctrl.v
 ../../../rtl/verilog/pci_parity_check.v
 ../../../rtl/verilog/pci_target_unit.v
 ../../../rtl/verilog/pci_wb_addr_mux.v

@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.17  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.16  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -232,6 +235,17 @@ module pci_bridge32
     pci_cpci_hs_led_oe_o    ,   //  LED output enable
     pci_cpci_hs_es_i            //  ejector switch state indicator input
 `endif
+
+`ifdef PCI_SPOCI
+    ,
+    // Serial power on configuration interface
+    spoci_scl_o     ,
+    spoci_scl_oe_o  ,
+    spoci_sda_i     ,
+    spoci_sda_o     ,
+    spoci_sda_oe_o
+`endif
+
 );
 
 // WISHBONE system signals
@@ -359,6 +373,17 @@ input   pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
 
 assign  pci_cpci_hs_enum_o = 1'b0   ;
 assign  pci_cpci_hs_led_o  = 1'b0   ;
+`endif
+
+`ifdef PCI_SPOCI
+output  spoci_scl_o     ;
+output  spoci_scl_oe_o  ;
+input   spoci_sda_i     ;
+output  spoci_sda_o     ;
+output  spoci_sda_oe_o  ;
+
+assign  spoci_scl_o = 1'b0  ;
+assign  spoci_sda_o = 1'b0  ;
 `endif
 
 // declare clock and reset wires
@@ -547,7 +572,8 @@ wire    [2:0]   conf_wb_img_ctrl5_out ;
 wire    [23:0]  conf_ccyc_addr_out ;
 wire            conf_soft_res_out ;
 wire            conf_int_out ;
-wire            conf_init_complete_out ;
+wire            conf_wb_init_complete_out  ;
+wire            conf_pci_init_complete_out ;
 
 // PCI IO MUX OUTPUTS
 wire        pci_mux_frame_out ;
@@ -663,7 +689,7 @@ wire    pci_resi_conf_soft_res_in       = conf_soft_res_out ;
 wire    pci_inti_pci_intan_in           = pci_inta_i ;
 wire    pci_inti_conf_int_in            = conf_int_out ;
 wire    pci_inti_int_i                  = wb_int_i ;
-wire    pci_into_init_complete_in       = conf_init_complete_out ;
+wire    pci_into_init_complete_in       = conf_pci_init_complete_out ;
 
 pci_rst_int pci_resets_and_interrupts
 (
@@ -721,32 +747,33 @@ wire    [ 1:0]  wbs_wbb3_2_wbb2_bte_i   =   wbs_bte_i       ;
 
 pci_wbs_wbb3_2_wbb2 i_pci_wbs_wbb3_2_wbb2
 (
-    .wb_clk_i       (   wb_clk_i    )   ,
-    .wb_rst_i       (   reset       )   ,
-
-    .wbs_cyc_i      (   wbs_wbb3_2_wbb2_cyc_i   )   ,
-    .wbs_cyc_o      (   wbs_wbb3_2_wbb2_cyc_o   )   ,
-    .wbs_stb_i      (   wbs_wbb3_2_wbb2_stb_i   )   ,
-    .wbs_stb_o      (   wbs_wbb3_2_wbb2_stb_o   )   ,
-    .wbs_adr_i      (   wbs_wbb3_2_wbb2_adr_i   )   ,
-    .wbs_adr_o      (   wbs_wbb3_2_wbb2_adr_o   )   ,
-    .wbs_dat_i_i    (   wbs_wbb3_2_wbb2_dat_i_i )   ,
-    .wbs_dat_i_o    (   wbs_wbb3_2_wbb2_dat_i_o )   ,
-    .wbs_dat_o_i    (   wbs_wbb3_2_wbb2_dat_o_i )   ,
-    .wbs_dat_o_o    (   wbs_wbb3_2_wbb2_dat_o_o )   ,
-    .wbs_we_i       (   wbs_wbb3_2_wbb2_we_i    )   ,
-    .wbs_we_o       (   wbs_wbb3_2_wbb2_we_o    )   ,
-    .wbs_sel_i      (   wbs_wbb3_2_wbb2_sel_i   )   ,
-    .wbs_sel_o      (   wbs_wbb3_2_wbb2_sel_o   )   ,
-    .wbs_ack_i      (   wbs_wbb3_2_wbb2_ack_i   )   ,
-    .wbs_ack_o      (   wbs_wbb3_2_wbb2_ack_o   )   ,
-    .wbs_err_i      (   wbs_wbb3_2_wbb2_err_i   )   ,
-    .wbs_err_o      (   wbs_wbb3_2_wbb2_err_o   )   ,
-    .wbs_rty_i      (   wbs_wbb3_2_wbb2_rty_i   )   ,
-    .wbs_rty_o      (   wbs_wbb3_2_wbb2_rty_o   )   ,
-    .wbs_cti_i      (   wbs_wbb3_2_wbb2_cti_i   )   ,
-    .wbs_bte_i      (   wbs_wbb3_2_wbb2_bte_i   )   ,
-    .wbs_cab_o      (   wbs_wbb3_2_wbb2_cab_o   )
+    .wb_clk_i           (   wb_clk_i    )   ,
+    .wb_rst_i           (   reset       )   ,
+                        
+    .wbs_cyc_i          (   wbs_wbb3_2_wbb2_cyc_i       )   ,
+    .wbs_cyc_o          (   wbs_wbb3_2_wbb2_cyc_o       )   ,
+    .wbs_stb_i          (   wbs_wbb3_2_wbb2_stb_i       )   ,
+    .wbs_stb_o          (   wbs_wbb3_2_wbb2_stb_o       )   ,
+    .wbs_adr_i          (   wbs_wbb3_2_wbb2_adr_i       )   ,
+    .wbs_adr_o          (   wbs_wbb3_2_wbb2_adr_o       )   ,
+    .wbs_dat_i_i        (   wbs_wbb3_2_wbb2_dat_i_i     )   ,
+    .wbs_dat_i_o        (   wbs_wbb3_2_wbb2_dat_i_o     )   ,
+    .wbs_dat_o_i        (   wbs_wbb3_2_wbb2_dat_o_i     )   ,
+    .wbs_dat_o_o        (   wbs_wbb3_2_wbb2_dat_o_o     )   ,
+    .wbs_we_i           (   wbs_wbb3_2_wbb2_we_i        )   ,
+    .wbs_we_o           (   wbs_wbb3_2_wbb2_we_o        )   ,
+    .wbs_sel_i          (   wbs_wbb3_2_wbb2_sel_i       )   ,
+    .wbs_sel_o          (   wbs_wbb3_2_wbb2_sel_o       )   ,
+    .wbs_ack_i          (   wbs_wbb3_2_wbb2_ack_i       )   ,
+    .wbs_ack_o          (   wbs_wbb3_2_wbb2_ack_o       )   ,
+    .wbs_err_i          (   wbs_wbb3_2_wbb2_err_i       )   ,
+    .wbs_err_o          (   wbs_wbb3_2_wbb2_err_o       )   ,
+    .wbs_rty_i          (   wbs_wbb3_2_wbb2_rty_i       )   ,
+    .wbs_rty_o          (   wbs_wbb3_2_wbb2_rty_o       )   ,
+    .wbs_cti_i          (   wbs_wbb3_2_wbb2_cti_i       )   ,
+    .wbs_bte_i          (   wbs_wbb3_2_wbb2_bte_i       )   ,
+    .wbs_cab_o          (   wbs_wbb3_2_wbb2_cab_o       )   ,
+    .wb_init_complete_i (   conf_wb_init_complete_out   )
 ) ;
 
 // WISHBONE SLAVE UNIT INPUTS
@@ -863,6 +890,7 @@ wire    [7:0]   wbu_latency_tim_val_in                  = conf_latency_tim_out ;
 
 wire            wbu_pciif_frame_en_in                   = out_bckp_frame_en_out ;
 wire            wbu_pciif_frame_out_in                  = out_bckp_frame_out ;
+wire            wbu_wb_init_complete_in                 = conf_wb_init_complete_out ;
 
 pci_wb_slave_unit wishbone_slave_unit
 (
@@ -907,6 +935,7 @@ pci_wb_slave_unit wishbone_slave_unit
     .wbu_at_en_in                  (wbu_at_en_in),
     .wbu_ccyc_addr_in              (wbu_ccyc_addr_in),
     .wbu_master_enable_in          (wbu_master_enable_in),
+    .wb_init_complete_in           (wbu_wb_init_complete_in),
     .wbu_cache_line_size_not_zero  (wbu_cache_line_size_not_zero),
     .wbu_cache_line_size_in        (wbu_cache_line_size_in),
     .wbu_pciif_gnt_in              (wbu_pciif_gnt_in),
@@ -1205,10 +1234,10 @@ pci_conf_space configuration(
                                 .w_conf_data_out            (conf_w_data_out),
                                 .r_conf_address_in          (conf_r_addr_in),
                                 .r_conf_data_out            (conf_r_data_out),
-                                .w_we                       (conf_w_we_in),
+                                .w_we_i                     (conf_w_we_in),
                                 .w_re                       (conf_w_re_in),
                                 .r_re                       (conf_r_re_in),
-                                .w_byte_en                  (conf_w_be_in),
+                                .w_byte_en_in               (conf_w_be_in),
                                 .w_clock                    (conf_w_clock),
                                 .serr_enable                (conf_serr_enable_out),
                                 .perr_response              (conf_perr_response_out),
@@ -1306,13 +1335,22 @@ pci_conf_space configuration(
                                 .isr_par_err_int            (conf_par_err_int_in),
                                 .isr_sys_err_int            (conf_sys_err_int_in),
 
-                                .init_complete              (conf_init_complete_out)
+                                .pci_init_complete_out      (conf_pci_init_complete_out),
+                                .wb_init_complete_out       (conf_wb_init_complete_out)
 
                             `ifdef PCI_CPCI_HS_IMPLEMENT
                                 ,
                                 .pci_cpci_hs_enum_oe_o      (pci_cpci_hs_enum_oe_o) ,
                                 .pci_cpci_hs_led_oe_o       (pci_cpci_hs_led_oe_o ) ,
                                 .pci_cpci_hs_es_i           (pci_cpci_hs_es_i)
+                            `endif
+        
+                            `ifdef PCI_SPOCI
+                                ,
+                                // Serial power on configuration interface
+                                .spoci_scl_oe_o (spoci_scl_oe_o )  ,
+                                .spoci_sda_i    (spoci_sda_i    )  ,
+                                .spoci_sda_oe_o (spoci_sda_oe_o )
                             `endif
                             ) ;
 
@@ -1356,7 +1394,7 @@ wire            pci_mux_pci_trdy_in         =   pci_trdy_i ;
 wire            pci_mux_pci_frame_in        =   pci_frame_i ;
 wire            pci_mux_pci_stop_in         =   pci_stop_i ;
 
-wire            pci_mux_init_complete_in    =   conf_init_complete_out ;
+wire            pci_mux_init_complete_in    =   conf_pci_init_complete_out ;
 
 pci_io_mux pci_io_mux
 (
@@ -1560,7 +1598,7 @@ pci_in_reg input_register
 (
     .reset_in           (reset),
     .clk_in             (pci_clk),
-    .init_complete_in   (conf_init_complete_out),
+    .init_complete_in   (conf_pci_init_complete_out),
 
     .pci_gnt_in     (in_reg_gnt_in),
     .pci_frame_in   (in_reg_frame_in),

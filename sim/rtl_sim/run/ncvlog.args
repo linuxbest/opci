@@ -8,7 +8,6 @@
 -DEFINE REGRESSION
 -DEFINE REGR_FIFO_SMALL_GENERIC
 -DEFINE GUEST                       
--DEFINE WB_DECODE_FAST              
 -DEFINE PCI_DECODE_MAX              
 -DEFINE WB_DECODE_MED               
 -DEFINE PCI66                       
@@ -17,6 +16,10 @@
 -DEFINE WB_CNF_BASE_ZERO            
 -DEFINE NO_CNF_IMAGE                
 -DEFINE PCI_CLOCK_FOLLOWS_WB_CLOCK=2
+-DEFINE WB_DECODE_FAST      
+-DEFINE DISABLE_COMPLETION_EXPIRED_TESTS
+-DEFINE PCI_CPCI_SIM
+../../../rtl/verilog/pci_spoci_ctrl.v
 ../../../rtl/verilog/pci_parity_check.v
 ../../../rtl/verilog/pci_target_unit.v
 ../../../rtl/verilog/pci_wb_addr_mux.v
@@ -66,11 +69,11 @@
 ../../../rtl/verilog/pci_mas_ch_state_crit.v
 ../../../rtl/verilog/pci_master32_sm_if.v
 ../../../rtl/verilog/pci_target32_trdy_crit.v
-../../../rtl/verilog/top.v
 ../../../rtl/verilog/pci_rst_int.v
 ../../../rtl/verilog/pci_sync_module.v
 ../../../rtl/verilog/pci_wb_tpram.v
 ../../../rtl/verilog/pci_wbs_wbb3_2_wbb2.v
+../../../bench/verilog/top.v
 ../../../bench/verilog/wb_master32.v
 ../../../bench/verilog/wb_master_behavioral.v
 ../../../bench/verilog/system.v
@@ -83,3 +86,4 @@
 ../../../bench/verilog/wb_bus_mon.v
 ../../../bench/verilog/pci_unsupported_commands_master.v
 ../../../bench/verilog/pci_behavioral_pci2pci_bridge.v
+../../../bench/verilog/i2c_slave_model.v

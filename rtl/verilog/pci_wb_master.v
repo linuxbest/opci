@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_master.v,v $
+// Revision 1.6  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.5  2003/10/24 09:35:40  tadejm
 // Added missing signals to 2 sensitivity lists. Everything works the same as before.
 //
@@ -1161,8 +1164,8 @@ end
 
 always@(pciw_fifo_renable or addr_into_cnt_reg or pciw_fifo_control_in or pciw_fifo_empty_in)
 begin
-    pciw_fifo_renable_out =    pciw_fifo_renable || addr_into_cnt_reg ;
-    last_data_from_pciw_fifo_reg <= #`FF_DELAY pciw_fifo_control_in[`ADDR_CTRL_BIT] || pciw_fifo_empty_in ;
+    pciw_fifo_renable_out           = pciw_fifo_renable || addr_into_cnt_reg ;
+    last_data_from_pciw_fifo_reg    = pciw_fifo_control_in[`ADDR_CTRL_BIT] || pciw_fifo_empty_in ;
 end
 
 

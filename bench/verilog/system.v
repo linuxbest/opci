@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.24  2004/01/24 11:54:16  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.23  2004/01/07 17:41:21  fr2201
 // added test_initial_all_conf_values
 // mbist_ctrl_i  replaced by  mbist_en_i
@@ -118,6 +121,20 @@
 
 `ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
     `define DO_CORNER_CASE_TESTS
+`endif
+
+`ifdef NEED_LOCAL_PCI_RST
+`else
+    `ifdef PCI_CPCI_HS_IMPLEMENT
+        `define NEED_LOCAL_PCI_RST
+    `endif
+`endif
+
+`ifdef NEED_LOCAL_PCI_RST
+`else
+    `ifdef PCI_SPOCI
+        `define NEED_LOCAL_PCI_RST
+    `endif
 `endif
 
 module SYSTEM ;
@@ -217,18 +234,30 @@ reg  mbist_en_i ;
 reg  mbist_clk ;
 `endif
 
+`ifdef NEED_LOCAL_PCI_RST
+reg LOCAL_PCI_RST ;
+initial LOCAL_PCI_RST = 1'b1 ;
+`endif
+
 `ifdef PCI_CPCI_HS_IMPLEMENT
 wire ENUM   ;
 wire LED    ;
 reg  ES     ;
-reg  LOCAL_PCI_RST ;
 reg  LOCAL_PCI_GNT ;
 initial
 begin
     ES = 1'b0 ;
-    LOCAL_PCI_RST = 1'b1 ;
     LOCAL_PCI_GNT = 1'b1 ;
 end
+`endif
+
+`ifdef PCI_SPOCI
+wire SCL ;
+wire SDA ;
+
+pullup i_pullup_SDA (SDA) ;
+pullup i_pullup_SCL (SCL) ;
+
 `endif
 
 wire RST ;
@@ -250,13 +279,19 @@ TOP `PCI_BRIDGE_INSTANCE
     .CLK    ( pci_clock),
     .AD     ( AD ),
     .CBE    ( CBE ),
-`ifdef PCI_CPCI_HS_IMPLEMENT
+
+`ifdef NEED_LOCAL_PCI_RST
     .RST    ( RST & LOCAL_PCI_RST ),
-    .GNT    ( (MAS0_GNT & LOCAL_PCI_GNT) | tc_gnt_allow),
 `else
     .RST    ( RST ),
+`endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    .GNT    ( (MAS0_GNT & LOCAL_PCI_GNT) | tc_gnt_allow),
+`else
     .GNT    ( MAS0_GNT | tc_gnt_allow),
 `endif
+
     .INTA   ( INTA ),
     .REQ    ( MAS0_REQ ),
     .FRAME  ( FRAME ),
@@ -323,6 +358,11 @@ TOP `PCI_BRIDGE_INSTANCE
     .ES     (ES)
 `endif
 
+`ifdef PCI_SPOCI
+    ,
+    .SCL (SCL) ,
+    .SDA (SDA)
+`endif
 ) ;
 
 WB_MASTER_BEHAVIORAL wishbone_master
@@ -678,6 +718,14 @@ pci_behavioral_pci2pci_bridge i_pci_behavioral_pci2pci_bridge
 );
 `endif
 
+`ifdef PCI_SPOCI
+    i2c_slave_model #('hff) i_i2c_slave_model
+    (
+        .scl    (SCL), 
+        .sda    (SDA)
+    );
+`endif
+
 // pci clock generator
 `ifdef PCI_CLOCK_FOLLOWS_WB_CLOCK
     always@(posedge wb_clock)
@@ -954,13 +1002,16 @@ begin
     // first - reset logic
     do_reset ;
 
+`ifdef PCI_SPOCI
+    test_name = "SERIAL EPROM NOT PRESENT AFTER RESET" ;
+    power_on_cfg_noack ;
+`endif
+
     // if BIST is implemented, give it a go
 `ifdef PCI_BIST
     run_bist_test ;
     mbist_rst <= #1 1'b1 ;
-`endif
-
-    test_initial_conf_values ;
+`endif    
 
     //additional test of all reset values
     //Some values have been changed in test_initial_conf_values 
@@ -970,6 +1021,15 @@ begin
 `ifdef PCI_CPCI_HS_IMPLEMENT
     test_insertion_during_active_bus ;
     test_insert_extract_interface    ;
+`endif
+
+`ifdef PCI_SPOCI
+    test_power_on_spoci ;
+
+    do_reset ;
+
+    test_name = "SERIAL EPROM NOT PRESENT AFTER RESET" ;
+    power_on_cfg_noack ;
 `endif
 
     next_test_name[79:0] <= "Initing...";
@@ -1560,59 +1620,91 @@ begin:main
         begin
             test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
         end
-    end
-    join
-
+    end 
+    join 
+ 
     test_name = "MULTIPLE NON-CONSECUTIVE SINGLE MEMORY WRITES THROUGH WISHBONE SLAVE UNIT" ;
     begin:non_consecutive_single_writes_test_blk
-        integer cur_num_of_writes ;
+        integer pause_between_writes ;
+        integer rnd_seed ;
+        reg     [31:0] cur_wb_adr ;
 
-        write_data`WRITE_SEL             = 4'hF           ;
-        write_flags`WB_TRANSFER_AUTO_RTY = 1'b1           ;
-        write_flags`WB_TRANSFER_CAB      = 1'b0           ;
-
-        for (cur_num_of_writes = 1 ; cur_num_of_writes <= (2 * `WBW_DEPTH) ; cur_num_of_writes = cur_num_of_writes * 3)
-        begin
-            fork
-            begin:wb_write_gen_blk
-                integer cur_write ;
-                reg     [31:0] cur_wb_adr ;
+        write_data`WRITE_SEL             = 4'hF ;
+        write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
+        write_flags`WB_TRANSFER_CAB      = 1'b0 ;
+          
+        rnd_seed = 32'h12fe_dc34 ;
+            
+        fork
+        begin:wb_write_gen_blk
         
-                write_flags`WB_FAST_B2B = 1'b0 ;
-
-                for (cur_write = 0 ; cur_write < cur_num_of_writes ; cur_write = cur_write + 1'b1)
+            write_flags`WB_FAST_B2B = 1'b0 ;
+        
+            for (pause_between_writes = 128 ; pause_between_writes > 0 ; pause_between_writes = pause_between_writes - 1)
+            begin
+                cur_wb_adr               = target_address + pause_between_writes * 4 ;
+                write_data`WRITE_ADDRESS = cur_wb_adr + ({$random} % 4) ;
+                write_data`WRITE_DATA    = $random(rnd_seed) ;
+                wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
+                if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
                 begin
-                    cur_wb_adr               = (cur_write % 2) ? (target_address + 8 * `WBW_DEPTH - 4 * cur_write) : (target_address + 4 * cur_write) ;
-                    write_data`WRITE_ADDRESS = cur_wb_adr + ({$random} % 4) ;
-                    write_data`WRITE_DATA    = wmem_data[cur_wb_adr % 1024] ;
-                    wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
-                    if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
-                    begin
-                        $display("Image testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
-                        test_fail("WB Slave state machine failed to post single memory write");
-                        ok = 0 ;
-                        disable non_consecutive_single_writes_test_blk ;
-                    end
-
-                    write_flags`WB_FAST_B2B = 1'b1 ;
-
+                    $display("Image testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
+                    test_fail("WB Slave state machine failed to post single memory write");
+                    ok = 0 ;
+                    disable non_consecutive_single_writes_test_blk ;
+                end
+        
+                repeat(pause_between_writes)
+                    @(posedge wb_clock) ;
+            end
+        end
+        begin:pci_write_chk_blk
+            integer cur_write ;
+            reg [31:0] cur_pci_adr ;
+        
+            for (cur_write = 128 ; cur_write > 0 ; cur_write = cur_write - 1'b1)
+            begin
+                cur_pci_adr = target_address + cur_write * 4 ;
+                pci_transaction_progress_monitor( cur_pci_adr, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok ) ;
+                if ( ok !== 1 )
+                begin
+                    test_fail("single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+                    disable non_consecutive_single_writes_test_blk ;
                 end
             end
-            begin:pci_write_chk_blk
-                integer cur_write ;
-                reg [31:0] cur_pci_adr ;
-                for (cur_write = 0 ; cur_write < cur_num_of_writes ; cur_write = cur_write + 1'b1)
-                begin
-                    cur_pci_adr = (cur_write % 2) ? (target_address + 8 * `WBW_DEPTH - 4 * cur_write) : (target_address + 4 * cur_write) ;
-                    pci_transaction_progress_monitor( cur_pci_adr, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok ) ;
-                    if ( ok !== 1 )
-                    begin
-                        test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
-                        disable non_consecutive_single_writes_test_blk ;
-                    end
-                end
+        end
+        join
+
+        // check written data
+        read_data`READ_SEL             = 4'hF ;
+        write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
+        write_flags`WB_TRANSFER_CAB      = 1'b0 ;
+          
+        rnd_seed = 32'h12fe_dc34 ;
+
+        for (pause_between_writes = 128 ; pause_between_writes > 0 ; pause_between_writes = pause_between_writes - 1)
+        begin
+            cur_wb_adr             = target_address + pause_between_writes * 4 ;
+            read_data`READ_ADDRESS = cur_wb_adr + ({$random} % 4) ;
+            wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
+            if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+            begin
+                $display("Image testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+                test_fail("Bridge failed to process single memory read");
+                ok = 0 ;
+                disable non_consecutive_single_writes_test_blk ;
             end
-            join
+
+            if (read_status`READ_DATA !== $random(rnd_seed))
+            begin
+                $display("Time %t", $time) ;
+                $display("Single memory read through WB Slave unit returned unexpected data value!") ;
+                test_fail("Single memory read through WB Slave unit returned unexpected data value") ;
+                ok = 1'b0 ;
+                disable non_consecutive_single_writes_test_blk ;
+            end
+
+            write_flags`WB_FAST_B2B = 1'b1 ;
         end
     end
 
@@ -11648,18 +11740,9 @@ task test_initial_all_conf_values;
     reg [5:0] reg_address  ;
     integer t_i;
 
-`ifdef HOST
-    reg `READ_STIM_TYPE    read_data ;
-    reg `WB_TRANSFER_FLAGS flags ;
-    reg `READ_RETURN_TYPE  read_status ;
-
-    reg `WRITE_STIM_TYPE   write_data ;
-    reg `WRITE_RETURN_TYPE write_status ;
+    reg [31: 0] tmp_reg_val ;
 begin
     test_name  = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
-    flags      = 0 ;
-    read_data  = 0 ;
-    write_data = 0 ;
 
     failed    = 0 ;
     t_i=0;
@@ -11673,110 +11756,191 @@ begin
 
     `ifdef NO_CNF_IMAGE
      `ifdef PCI_IMAGE0
-      `ifdef ADDR_TRAN_IMPL
-        reg_value[0 ]=32'h00000004;          //PCi Control         Register0
-      `endif
+      
+        reg_value[0 ]= `PCI_AT_EN0 << 2 ;          //PCi Control         Register0
+      
        if (`PCI_AM0)
         reg_value[1 ]=`PCI_BA0_MEM_IO;       //PCi Base Address    Register0 
-        reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
-        reg_value[3 ]={`PCI_TA0, 12'h000};   //PCi Translation Adr.Register0
+       tmp_reg_val={`PCI_AM0, 12'h000} ;
+       tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+       reg_value[2 ]=tmp_reg_val;   //PCi Address Mask    Register0
+       tmp_reg_val = {`PCI_TA0, 12'h000} ;
+       tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+       reg_value[3 ]=tmp_reg_val;   //PCi Translation Adr.Register0
      `endif
 	`else
-      reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
+      reg_value[2 ]=32'hffff_ffff ;   //PCi Address Mask    Register0
+      reg_value[2 ]=reg_value[2 ] << (32 - `PCI_NUM_OF_DEC_ADDR_LINES) ;
 
     `endif //NO_CNF_IMAGE
+    `else
+      tmp_reg_val=Target_Base_Addr_R[0] ;
+      tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+      reg_value[1 ]=tmp_reg_val ;
+      reg_value[2 ]=32'hffff_ffff ;   //PCi Address Mask    Register0
+      reg_value[2 ]=reg_value[2 ] << (32 - `PCI_NUM_OF_DEC_ADDR_LINES) ;
    `endif //host
-   `ifdef ADDR_TRAN_IMPL
-       reg_value[4 ]=32'h00000004;          //PCi Control         Register1
-   `endif
+
+       reg_value[4 ]=`PCI_AT_EN1 << 2 ;          //PCi Control         Register1
+
     if (`PCI_AM1)
-    reg_value[5 ]={ 31'h0,`PCI_BA1_MEM_IO}; //PCi Base Address    Register1 
-    reg_value[6 ]={`PCI_AM1, 12'h000};      //PCi Address Mask    Register1
-    reg_value[7 ]={`PCI_TA1, 12'h000};      //PCi Translation Adr.Register1
+      reg_value[5 ]={ 31'h0,`PCI_BA1_MEM_IO}; //PCi Base Address    Register1 
+    tmp_reg_val={`PCI_AM1, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[6 ]=tmp_reg_val;   //PCi Address Mask    Register0
+    tmp_reg_val = {`PCI_TA1, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[7 ]=tmp_reg_val;   //PCi Translation Adr.Register0
    `ifdef PCI_IMAGE2
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[8 ]=32'h00000004;          //PCi Control         Register2
-    `endif
+    
+    reg_value[8 ]=`PCI_AT_EN2 << 2;          //PCi Control         Register2
+    
     if (`PCI_AM2)                        //PCi Base Address    Register2
     reg_value[9 ]={31'h0,`PCI_BA2_MEM_IO};
-    reg_value[10]={`PCI_AM2, 12'h000};   //PCi Address Mask    Register2
+    tmp_reg_val={`PCI_AM2, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[10 ]=tmp_reg_val;   //PCi Address Mask    Register0
+    tmp_reg_val = {`PCI_TA2, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[11 ]=tmp_reg_val;   //PCi Translation Adr.Register0
     `endif
-    reg_value[11]={`PCI_TA2, 12'h000};   //PCi Translation Adr.Register2
+
    `ifdef PCI_IMAGE3
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[12]=32'h00000004;          //PCi Control         Register3
-    `endif
+    
+    reg_value[12]=`PCI_AT_EN3 << 2;          //PCi Control         Register3
+    
     if (`PCI_AM3)                        //PCi Base Address    Register3
     reg_value[13]={31'h000,`PCI_BA3_MEM_IO};
-    reg_value[14]={`PCI_AM3, 12'h000};   //PCi Address Mask    Register3
+    tmp_reg_val={`PCI_AM3, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[14 ]=tmp_reg_val;   //PCi Address Mask    Register0
+    tmp_reg_val = {`PCI_TA3, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[15 ]=tmp_reg_val;   //PCi Translation Adr.Register0
     `endif
-    reg_value[15]={`PCI_TA3, 12'h000};   //PCi Translation Adr.Register3
+
    `ifdef PCI_IMAGE4
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[16]=32'h00000004;          //PCi Control         Register4
-    `endif
+    
+    reg_value[16]=`PCI_AT_EN4 << 2;          //PCi Control         Register4
+    
     if (`PCI_AM4)                        //PCi Base Address    Register4 
     reg_value[17]={31'h000,`PCI_BA4_MEM_IO};    
-    reg_value[18]={`PCI_AM4, 12'h000};   //PCi Address Mask    Register4
+    tmp_reg_val={`PCI_AM4, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[18 ]=tmp_reg_val;   //PCi Address Mask    Register0
+    tmp_reg_val = {`PCI_TA4, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[19 ]=tmp_reg_val;   //PCi Translation Adr.Register0
     `endif
-    reg_value[19]={`PCI_TA4, 12'h000};   //PCi Translation Adr.Register4
+    
    `ifdef PCI_IMAGE5
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[20]=32'h00000004;          //PCi Control         Register5 
-    `endif
+    
+    reg_value[20]=`PCI_AT_EN5 << 2;          //PCi Control         Register5 
+    
     if (`PCI_AM5)                        //PCi Base Address    Register5 
     reg_value[21]={31'h000,`PCI_BA5_MEM_IO};  
-    reg_value[22]={`PCI_AM5, 12'h000};   //PCi Address Mask    Register5
+    tmp_reg_val={`PCI_AM5, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[22 ]=tmp_reg_val;   //PCi Address Mask    Register0
+    tmp_reg_val = {`PCI_TA5, 12'h000} ;
+    tmp_reg_val[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+    reg_value[23 ]=tmp_reg_val;   //PCi Translation Adr.Register0
     `endif
-    reg_value[23]={`PCI_TA5, 12'h000};   //PCi Translation Adr.Register5
+
                                          //PCi err control status =0
                                          //PCI err Adress         =0
                                          //PCI err Data           =0
 /// WB                                   //wB configuration Base                      
     reg_value[32]={`WB_CONFIGURATION_BASE, 12'h000};
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[33 ]=32'h00000004;         //WB Control         Register1      
-    `endif
-    reg_value[34]={`WB_BA1,11'h000,`WB_BA1_MEM_IO};   //WB Base Address   
-    reg_value[35]={`WB_AM1, 12'h000};   //WB Address Mask    Register1
-    reg_value[36]={`WB_TA1, 12'h000};   //WB Translation Adr.Register1
-   `ifdef WB_IMAGE2
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[37]=32'h00000004;          //WB Control         Register2
-    `endif
-                                     //WB Base Address    Register2 
-    reg_value[38]={`WB_BA2,11'h000,`WB_BA2_MEM_IO};
-    reg_value[39]={`WB_AM2, 12'h000};   //WB Address Mask    Register2
-    `endif
-    reg_value[40]={`WB_TA2, 12'h000};   //WB Translation Adr.Register2
-   `ifdef WB_IMAGE3
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[41]=32'h00000004;          //WB Control         Register3
-    `endif
-                                         //WB Base Address    Register3 
-    reg_value[42]={`WB_BA3,11'h000,`WB_BA3_MEM_IO};
-    reg_value[43]={`WB_AM3, 12'h000};   //WB Address Mask    Register3
-    `endif
-    reg_value[44]={`WB_TA3, 12'h000};   //WB Translation Adr.Register3
-   `ifdef WB_IMAGE4
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[45]=32'h00000004;          //WB Control         Register4
-    `endif
-                                         //WB Base Address    Register4 
-    reg_value[46]={`WB_BA4,11'h000,`WB_BA4_MEM_IO};     
-    reg_value[47]={`WB_AM4, 12'h000};   //WB Address Mask    Register4
-    `endif
-    reg_value[48]={`WB_TA4, 12'h000};   //WB Translation Adr.Register4
-   `ifdef WB_IMAGE5
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[49]=32'h00000004;          //WB Control         Register5 
-    `endif
-                                         //WB Base Address    Register5 
-    reg_value[50]={`WB_BA5,11'h000,`WB_BA5_MEM_IO};  
-    reg_value[51]={`WB_AM5, 12'h000};   //WB Address Mask    Register5
-    `endif
-    reg_value[52]={`WB_TA5, 12'h000};   //WB Translation Adr.Register5
+    
+    reg_value[33 ]=`WB_AT_EN1 << 2;         //WB Control         Register1      
+    
+    tmp_reg_val = {`WB_BA1 & `WB_AM1, 11'h000, `WB_BA1_MEM_IO};
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[34]=tmp_reg_val ;         //WB Base Address
+    tmp_reg_val = {`WB_AM1, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[35]=tmp_reg_val;   //WB Address Mask    Register1
+    tmp_reg_val = {`WB_TA1, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[36]=tmp_reg_val;   //WB Translation Adr.Register1
 
+   `ifdef WB_IMAGE2
+    
+    reg_value[37]=`WB_AT_EN2 << 2;          //WB Control         Register2
+    
+                                     //WB Base Address    Register2 
+    tmp_reg_val = {`WB_BA2 & `WB_AM2, 11'h000, `WB_BA2_MEM_IO};
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[38]=tmp_reg_val;
+    tmp_reg_val={`WB_AM2, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[39]=tmp_reg_val;   //WB Address Mask    Register2
+    tmp_reg_val  ={`WB_TA2, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[40]=tmp_reg_val;   //WB Translation Adr.Register2
+    `endif
+
+   `ifdef WB_IMAGE3
+    
+    reg_value[41]=`WB_AT_EN3 << 2;          //WB Control         Register3
+    
+                                         //WB Base Address    Register3 
+    tmp_reg_val = {`WB_BA3 & `WB_AM3, 11'h000, `WB_BA3_MEM_IO};
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[42]=tmp_reg_val;
+    tmp_reg_val={`WB_AM3, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[43]=tmp_reg_val;   //WB Address Mask    Register3
+    tmp_reg_val  ={`WB_TA3, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[44]=tmp_reg_val;   //WB Translation Adr.Register3
+    `endif
+    
+   `ifdef WB_IMAGE4
+    
+    reg_value[45]=`WB_AT_EN4 << 2 ;          //WB Control         Register4
+    
+                                         //WB Base Address    Register4 
+    tmp_reg_val = {`WB_BA4 & `WB_AM4, 11'h000, `WB_BA4_MEM_IO};
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[46]=tmp_reg_val;
+    tmp_reg_val={`WB_AM4, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[47]=tmp_reg_val;   //WB Address Mask    Register4
+    tmp_reg_val  ={`WB_TA4, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[48]=tmp_reg_val;   //WB Translation Adr.Register4
+    `endif
+    
+   `ifdef WB_IMAGE5
+    
+    reg_value[49]=`WB_AT_EN5 << 2;          //WB Control         Register5 
+    
+                                         //WB Base Address    Register5 
+    tmp_reg_val = {`WB_BA5 & `WB_AM5, 11'h000, `WB_BA5_MEM_IO};
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[50]=tmp_reg_val;
+    tmp_reg_val={`WB_AM5, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[51]=tmp_reg_val;   //WB Address Mask    Register5
+    tmp_reg_val  ={`WB_TA5, 12'h000} ;
+    tmp_reg_val[31 - `WB_NUM_OF_DEC_ADDR_LINES:1] = 'h0 ;
+    reg_value[52]=tmp_reg_val;   //WB Translation Adr.Register5
+    `endif
+
+`ifdef HOST
+begin:host_regs_check
+    reg `READ_STIM_TYPE    read_data ;
+    reg `WB_TRANSFER_FLAGS flags ;
+    reg `READ_RETURN_TYPE  read_status ;
+
+    reg `WRITE_STIM_TYPE   write_data ;
+    reg `WRITE_RETURN_TYPE write_status ;
+
+    flags      = 0 ;
+    read_data  = 0 ;
+    write_data = 0 ;
 
     read_data`READ_SEL = 4'hF ;
     flags`INIT_WAITS           = wb_init_waits ;
@@ -11821,122 +11985,17 @@ begin
        reg_address= reg_address+1;
 
     end
-
+end
                
-
+if (!failed)
+    test_ok ;
 `endif
 
 `ifdef GUEST
+begin:guest_regs_check
     reg [31:0] read_data ;
     integer t_max;
     reg           ok   ;
-
-
-begin
-    test_name = "DEFINED INITIAL VALUES OF CONFIGURATION REGISTERS" ;
-    failed    = 0 ;
-    t_i=0;
-    while ((    t_i <= `ISR_ADDR) )
-    begin
-      reg_value[t_i]=31'h0;      
-       t_i= t_i+1;
-    end
-////PCI register
-    reg_value[0 ]=32'h00000000;          //PCi Control         Register0  Guest    
-    reg_value[1 ]=`TAR0_BASE_ADDR_0;     //PCi Base Address    Register0 configured before
-    reg_value[2 ]={`PCI_AM0, 12'h000};   //PCi Address Mask    Register0
-    reg_value[3 ]=32'h00000000;          //PCi Translation Adr.Register0
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[4 ]=31'h00000004;          //PCi Control         Register1
-    `endif  
-    if (`PCI_AM1)                        //PCi Base Address    Register1 FF written before
-    reg_value[5 ]={`PCI_AM1, 11'h000,`PCI_BA1_MEM_IO}; 
-    reg_value[6 ]={`PCI_AM1, 12'h000};   //PCi Address Mask    Register1
-    reg_value[7 ]={`PCI_TA1, 12'h000};   //PCi Translation Adr.Register1
-   `ifdef PCI_IMAGE2
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[8 ]=31'h00000004;          //PCi Control         Register2
-    `endif
-    if (`PCI_AM2)                        //PCi Base Address    Register2 FF written before
-    reg_value[9 ]={`PCI_AM2, 11'h000,`PCI_BA2_MEM_IO};
-    reg_value[10]={`PCI_AM2, 12'h000};   //PCi Address Mask    Register2
-    `endif
-    reg_value[11]={`PCI_TA2, 12'h000};   //PCi Translation Adr.Register2
-   `ifdef PCI_IMAGE3
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[12]=31'h00000004;          //PCi Control         Register3
-    `endif
-    if (`PCI_AM3)                       //PCi Base Address    Register3 FF written before
-    reg_value[13]={`PCI_AM3, 11'h000,`PCI_BA3_MEM_IO};
-    reg_value[14]={`PCI_AM3, 12'h000};   //PCi Address Mask    Register3
-    `endif
-    reg_value[15]={`PCI_TA3, 12'h000};   //PCi Translation Adr.Register3
-   `ifdef PCI_IMAGE4
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[16]=31'h00000004;          //PCi Control         Register4
-    `endif
-    if (`PCI_AM4)                        //PCi Base Address    Register4 FF written before
-    reg_value[17]={`PCI_AM4, 11'h000,`PCI_BA4_MEM_IO};  
-    reg_value[18]={`PCI_AM4, 12'h000};   //PCi Address Mask    Register4
-    `endif
-    reg_value[19]={`PCI_TA4, 12'h000};   //PCi Translation Adr.Register4
-   `ifdef PCI_IMAGE5
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[20]=31'h00000004;          //PCi Control         Register5 
-    `endif
-    if (`PCI_AM5)                        //PCi Base Address    Register5 FF written before
-    reg_value[21]={`PCI_AM5, 11'h000,`PCI_BA5_MEM_IO};  
-    reg_value[22]={`PCI_AM5, 12'h000};   //PCi Address Mask    Register5
-    `endif
-    reg_value[23]={`PCI_TA5, 12'h000};   //PCi Translation Adr.Register5
-                                         //PCi err control status =0
-                                         //PCI err Adress         =0
-                                         //PCI err Data           =0
-/// WB                                   //wB configuration Base                      
-    reg_value[32]={`WB_CONFIGURATION_BASE, 12'h000};
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[33 ]=31'h00000004;         //WB Control         Register1      
-    `endif
-    reg_value[34]={`WB_BA1,11'h000,`WB_BA1_MEM_IO};   //WB Base Address    
-    reg_value[35]={`WB_AM1, 12'h000};   //WB Address Mask    Register1
-    reg_value[36]={`WB_TA1, 12'h000};   //WB Translation Adr.Register1
-   `ifdef WB_IMAGE2
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[37]=31'h00000004;          //WB Control         Register2
-    `endif
-                                     //WB Base Address    Register2 
-    reg_value[38]={`WB_BA2,11'h000,`WB_BA2_MEM_IO};
-    reg_value[39]={`WB_AM2, 12'h000};   //WB Address Mask    Register2
-    `endif
-    reg_value[40]={`WB_TA2, 12'h000};   //WB Translation Adr.Register2
-   `ifdef WB_IMAGE3
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[41]=31'h00000004;          //WB Control         Register3
-    `endif
-                                         //WB Base Address    Register3 
-    reg_value[42]={`WB_BA3,11'h000,`WB_BA3_MEM_IO};
-    reg_value[43]={`WB_AM3, 12'h000};   //WB Address Mask    Register3
-    `endif
-    reg_value[44]={`WB_TA3, 12'h000};   //WB Translation Adr.Register3
-   `ifdef WB_IMAGE4
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[45]=31'h00000004;          //WB Control         Register4
-    `endif
-                                         //WB Base Address    Register4 
-    reg_value[46]={`WB_BA4,11'h000,`WB_BA4_MEM_IO};     
-    reg_value[47]={`WB_AM4, 12'h000};   //WB Address Mask    Register4
-    `endif
-    reg_value[48]={`WB_TA4, 12'h000};   //WB Translation Adr.Register4
-   `ifdef WB_IMAGE5
-    `ifdef ADDR_TRAN_IMPL
-    reg_value[49]=31'h00000004;          //WB Control         Register5 
-    `endif
-                                         //WB Base Address    Register5 
-    reg_value[50]={`WB_BA5,11'h000,`WB_BA5_MEM_IO};  
-    reg_value[51]={`WB_AM5, 12'h000};   //WB Address Mask    Register5
-    `endif
-    reg_value[52]={`WB_TA5, 12'h000};   //WB Translation Adr.Register5
-
 
     configure_bridge_target;//Target must be configured to read the other bars 
 
@@ -11977,12 +12036,12 @@ begin
       else
        reg_address= reg_address+4;//next Ta Register
     end
-
-
-`endif
+end
 
 if (!failed)
     test_ok ;
+`endif
+
 end
 endtask //
 task test_initial_conf_values ;
@@ -12764,6 +12823,7 @@ task test_insertion_during_active_bus ;
 
     reg error ;
     reg pci_error_monitor_done ;
+    reg generate_pci_transfers ;
 begin
     pci_error_monitor_done = 1'b0 ;
     error = 1'b0 ;
@@ -12791,7 +12851,19 @@ begin
                        `Test_Devsel_Medium, `Test_Target_Normal_Completion);
         do_pause( 10 ) ;        
     
+        generate_pci_transfers = 1'b1 ;
+
         fork
+        begin
+            while (generate_pci_transfers)
+            begin
+                PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_2 ,
+                                 pci_address, 32'hFFFF_FF00, `BC_CONF_READ,
+                                 256, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
+                                 `Test_Devsel_Medium, `Test_Target_Normal_Completion);
+                do_pause( 1 ) ;        
+            end
+        end
         begin
             LOCAL_PCI_RST <= 1'b0 ;
     
@@ -12799,8 +12871,13 @@ begin
                 @(posedge pci_clock) ;
     
             LOCAL_PCI_RST <= 1'b1    ;
-    
-            disable monitor_pci_bridge_oes ;
+
+        `ifdef PCI_SPOCI            
+            power_on_cfg_noack ;
+        `endif
+
+            generate_pci_transfers = 1'b0 ;
+
         end
         begin:monitor_pci_bridge_oes
     
@@ -12810,6 +12887,15 @@ begin
     
             while (LOCAL_PCI_RST === 1'b0)
             begin
+                check_pci_oes_during_reset(error) ;
+
+                if (error)
+                begin
+                    $display("At Time %t", $time) ;
+                    $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                    test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                end
+
                 @(
                     `PCI_BRIDGE_INSTANCE.INTA_en    or 
                     `PCI_BRIDGE_INSTANCE.REQ_en     or 
@@ -12829,30 +12915,21 @@ begin
                     ENUM
                 `endif
                  ) ;
-    
-                check_pci_oes_during_reset(error) ;
-    
-                if (error)
+
+                if (LOCAL_PCI_RST !== 1'b1)    
                 begin
-                    $display("At Time %t", $time) ;
-                    $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
-                    test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                    check_pci_oes_during_reset(error) ;
+    
+                    if (error)
+                    begin
+                        $display("At Time %t", $time) ;
+                        $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                        test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
+                    end
                 end
             end
         end
         join
-    
-        if (error === 1'b0)
-        begin
-            check_pci_oes_during_reset(error) ;
-        
-            if (error)
-            begin
-                $display("At Time %t", $time) ;
-                $display("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
-                test_fail("The PCI Bridge didn't provide expected values on output enable signals during reset") ;
-            end
-        end
     
         do_pause(100) ;
     
@@ -15257,6 +15334,4388 @@ endtask
 
 `endif
 
+`ifdef PCI_SPOCI
+
+task power_on_cfg_noack ;
+    reg ok ;
+    reg monitor_pci_oes ;
+    reg error ;
+begin
+
+    ok = 1'b1 ;
+    monitor_pci_oes = 1'b1 ;
+
+    // set invalid slave model address
+    i_i2c_slave_model.I2C_ADR = 7'b1111111 ;
+
+    // access pci bridge with configuration cycles which should finish with master abort
+    // until no ack condition is received via the power on configuration interface
+
+    fork
+    begin:deadlock_detect
+        // wait 16 bit times - after that, report an error
+        # (10000 * 16) ;
+
+        disable serial_eprom_mon ;
+
+        ok = 1'b0 ;
+        monitor_pci_oes = 1'b0 ;
+        
+        $display("Time %t", $time) ;
+        $display("PCI Bridge did not initiate serial EPROM transfer as expected") ;
+        test_fail("PCI Bridge did not initiate serial EPROM transfer") ;
+    end
+    begin:serial_eprom_mon
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+        if (ok === 1'b1)
+            disable deadlock_detect ;
+
+        if (i_i2c_slave_model.sr !== 8'b10100000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        monitor_pci_oes = 1'b0 ;
+
+        // falling edge of SCL
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b0) | (SCL !== 1'b0) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for rising edge of SDA (pci bridge releases it to receive acknowledge)
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b1) | (SCL !== 1'b0) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for rising edge of SCL
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b1) | (SCL !== 1'b1) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+        
+        // wait for falling edge of SCL
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b1) | (SCL !== 1'b0) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for falling edge of SDA - bridge prepares for stop condition transmition
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b0) | (SCL !== 1'b0) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for rising edge of SCL - bridge starts with stop condition
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b0) | (SCL !== 1'b1) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for rising edge of SDA - bridge generates stop condition
+        @(SDA or SCL) ;
+
+        if ( (SDA !== 1'b1) | (SCL !== 1'b1) )
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+    end
+    begin
+        while (monitor_pci_oes)
+        begin
+            check_pci_oes_during_reset(error) ;
+
+            if (error)
+            begin
+                $display("At Time %t", $time) ;
+                $display("The PCI Bridge didn't provide expected values on output enable signals during power on configuration sequence") ;
+                test_fail("The PCI Bridge didn't provide expected values on output enable signals during power on configuration sequence") ;
+            end
+
+            @(
+                `PCI_BRIDGE_INSTANCE.INTA_en    or 
+                `PCI_BRIDGE_INSTANCE.REQ_en     or 
+                `PCI_BRIDGE_INSTANCE.FRAME_en   or
+                `PCI_BRIDGE_INSTANCE.IRDY_en    or
+                `PCI_BRIDGE_INSTANCE.DEVSEL_en  or
+                `PCI_BRIDGE_INSTANCE.TRDY_en    or
+                `PCI_BRIDGE_INSTANCE.STOP_en    or
+                `PCI_BRIDGE_INSTANCE.AD_en      or
+                `PCI_BRIDGE_INSTANCE.CBE_en     or
+                `PCI_BRIDGE_INSTANCE.PAR_en     or
+                `PCI_BRIDGE_INSTANCE.PERR_en    or
+                `PCI_BRIDGE_INSTANCE.SERR_en
+            `ifdef PCI_CPCI_HS_IMPLEMENT
+                        or
+                LED     or
+                ENUM
+            `endif
+            ) ;
+
+            if (monitor_pci_oes !== 1'b0)    
+            begin
+                check_pci_oes_during_reset(error) ;
+                if (error)
+                begin
+                    $display("At Time %t", $time) ;
+                    $display("The PCI Bridge didn't provide expected values on output enable signals during power on configuration sequence") ;
+                    test_fail("The PCI Bridge didn't provide expected values on output enable signals during power on configuration sequence") ;
+                end
+            end
+        end
+    end
+    join
+end
+endtask // power_on_cfg_noack
+
+task test_power_on_spoci ;
+    reg generate_config_cycles ;
+    reg [31: 0] read_address   ;
+    reg [31: 0] read_data      ;
+    reg ok                     ;
+    reg no_error               ;
+
+    reg [31: 0] target_address ;
+    reg [31: 0] image_base     ;
+    integer i ;
+begin
+    ok = 1'b1 ;
+
+    test_name = "NO EPROM PRESENT AFTER PCI RESET RELEASE" ;
+
+    do_pause( 10 ) ;
+
+    LOCAL_PCI_RST <= 1'b0 ;
+
+    do_pause( 2 ) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    generate_config_cycles = 1'b1 ;
+
+    // after reset is released and until no acknowledge is
+    // detected, the pci bridge must not respond to configuration cycles
+    fork
+    begin
+        power_on_cfg_noack ;
+    end
+    begin
+        read_address = 0 ;
+        read_address[`TAR0_IDSEL_INDEX] = 1'b1 ;
+
+        while (generate_config_cycles)
+        begin
+
+            PCIU_CONFIG_READ_MASTER_ABORT ("CFG_READ  ", `Test_Master_1, read_address, 4'hF) ;
+
+            do_pause(1) ;
+
+            PCIU_CONFIG_WRITE_MASTER_ABORT ("CFG_WRITE ", `Test_Master_1, read_address + 'h14, 4'hF) ;
+            do_pause(1) ;            
+        end
+    end
+    begin
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        generate_config_cycles = 1'b0 ;
+    end
+    join
+
+    // after unsuccesfull configuration, configure bridge target
+    configure_bridge_target ;
+
+    // read the serial eprom control and status register
+    config_read( 12'h3FC, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h8000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    if (ok === 1'b1)
+    begin
+    
+        // clear the no ack bit
+        config_write( 12'h3FC, read_data | 32'h00FF_FFFF, 4'b1000, ok ) ;
+    
+        if (ok !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Write to serial eprom control and status register failed") ;
+            test_fail("Write to serial eprom control and status register failed") ;
+        end
+
+        config_read( 12'h3FC, 4'hF, read_data ) ;
+
+        if (read_data !== 32'h0000_0000)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from serial eprom control and status register returned unexpected data value") ;
+            test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+            ok = 1'b0 ;
+        end
+    end
+    
+    if (ok === 1'b1)
+        test_ok ;
+
+    test_name = "EPROM PRESENT AFTER PCI RESET RELEASE, DOES NOT ACKNOWLEDGE ADDRESS TRANSFER" ;
+    
+    ok = 1'b1 ;
+
+    do_pause ( 10 ) ;
+
+    LOCAL_PCI_RST <= 1'b0 ;
+
+    do_pause( 2 ) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    generate_config_cycles = 1'b1 ;
+
+    // after reset is released and until no acknowledge is
+    // detected, the pci bridge must not respond to configuration cycles
+    fork
+    begin
+        // set valid eprom slave address
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+        // when control byte is received, set invalid slave address
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the second byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b00000000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        generate_config_cycles = 1'b0 ;
+
+        // falling edge of SCL
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b0) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // after eprom receives the address, force sda to 1 on falling edge of SCL, to produce no ack condition
+        force SDA = 1'b1 ;
+
+        // posedge on scl - the no acknowledge condition is sent
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+    
+        // negedge on scl - the no acknowledge condition was detected
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // unforce sda
+        release SDA ;
+
+        // wait for stop condition
+        @(posedge SCL) ;
+        @(posedge SDA) ;
+    end
+    begin
+        read_address = 0 ;
+        read_address[`TAR0_IDSEL_INDEX] = 1'b1 ;
+
+        while (generate_config_cycles)
+        begin
+
+            PCIU_CONFIG_READ_MASTER_ABORT ("CFG_READ  ", `Test_Master_1, read_address, 4'hF) ;
+
+            do_pause(1) ;
+
+            PCIU_CONFIG_WRITE_MASTER_ABORT ("CFG_WRITE ", `Test_Master_1, read_address + 'h14, 4'hF) ;
+            do_pause(1) ;            
+        end
+    end
+    join
+
+    // after unsuccesfull configuration, configure bridge target
+    configure_bridge_target ;
+
+    // read the serial eprom control and status register
+    config_read( 12'h3FC, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h8000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    if (ok === 1'b1)
+    begin
+    
+        // clear the no ack bit
+        config_write( 12'h3FC, read_data | 32'h00FF_FFFF, 4'b1000, ok ) ;
+    
+        if (ok !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Write to serial eprom control and status register failed") ;
+            test_fail("Write to serial eprom control and status register failed") ;
+        end
+
+        config_read( 12'h3FC, 4'hF, read_data ) ;
+
+        if (read_data !== 32'h0000_0000)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from serial eprom control and status register returned unexpected data value") ;
+            test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+            ok = 1'b0 ;
+        end
+    end
+    
+    if (ok === 1'b1)
+        test_ok ;
+    
+    test_name = "EPROM PRESENT AFTER PCI RESET RELEASE, DOES NOT ACKNOWLEDGE READ COMMAND CONTROL TRANSFER" ;
+    
+    ok = 1'b1 ;
+
+    do_pause ( 10 ) ;
+
+    LOCAL_PCI_RST <= 1'b0 ;
+
+    do_pause( 2 ) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    generate_config_cycles = 1'b1 ;
+
+    // after reset is released and until no acknowledge is
+    // detected, the pci bridge must not respond to configuration cycles
+    fork
+    begin
+        // set valid eprom slave address
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the second byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b00000000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the second byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // set invalid eprom slave address
+        i_i2c_slave_model.I2C_ADR = 7'b1111111 ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100001)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        generate_config_cycles = 1'b0 ;
+
+        @(posedge SCL) ;
+
+        // after negedge on scl, the no acknowledge condition had to be detected already
+        @(negedge SCL) ;
+
+        // wait for stop condition
+        @(posedge SCL) ;
+        @(posedge SDA) ;
+    end
+    begin
+        read_address = 0 ;
+        read_address[`TAR0_IDSEL_INDEX] = 1'b1 ;
+
+        while (generate_config_cycles)
+        begin
+
+            PCIU_CONFIG_READ_MASTER_ABORT ("CFG_READ  ", `Test_Master_1, read_address, 4'hF) ;
+
+            do_pause(1) ;
+
+            PCIU_CONFIG_WRITE_MASTER_ABORT ("CFG_WRITE ", `Test_Master_1, read_address + 'h14, 4'hF) ;
+            do_pause(1) ;            
+        end
+    end
+    join
+
+    // after unsuccesfull configuration, configure bridge target
+    configure_bridge_target ;
+
+    // read the serial eprom control and status register
+    config_read( 12'h3FC, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h8000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    if (ok === 1'b1)
+    begin
+    
+        // clear the no ack bit
+        config_write( 12'h3FC, read_data | 32'h00FF_FFFF, 4'b1000, ok ) ;
+    
+        if (ok !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Write to serial eprom control and status register failed") ;
+            test_fail("Write to serial eprom control and status register failed") ;
+        end
+
+        config_read( 12'h3FC, 4'hF, read_data ) ;
+
+        if (read_data !== 32'h0000_0000)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from serial eprom control and status register returned unexpected data value") ;
+            test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+            ok = 1'b0 ;
+        end
+    end
+
+    // writes to P_BA1 were performed during power up configuration,
+    // check its value
+
+    config_read( {4'h1, `P_BA1_ADDR, 2'b00}, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h0000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Invalid value read from P_BA1 register") ;
+        test_fail("Invalid value was read from P_BA1 register") ;
+        ok = 1'b0 ;
+    end
+
+    if (ok === 1'b1)
+        test_ok ;
+
+    test_name = "SERIAL EPROM PRESENT AFTER RESET, HOLDS P_BA0 AND PCI COMMAND REGISTER VALUES" ;
+
+    do_pause ( 10 ) ;
+
+    LOCAL_PCI_RST <= 1'b0 ;
+
+    do_pause( 2 ) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    generate_config_cycles = 1'b1 ;
+
+    // after reset is released and until the configuration is read
+    // the pci bridge must not respond to configuration cycles
+
+    // fill first 11 locations with appropriate data
+    i_i2c_slave_model.mem[0] = 'h4 >> 2 ;
+    i_i2c_slave_model.mem[1] = 'h7 ;
+    i_i2c_slave_model.mem[2] = 'h0 ;
+    i_i2c_slave_model.mem[3] = 'h0 ;
+    i_i2c_slave_model.mem[4] = 'h0 ;
+
+    read_data = Target_Base_Addr_R[0] ;
+
+    i_i2c_slave_model.mem[5] = 'h10 >> 2 ;
+    i_i2c_slave_model.mem[6] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[7] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[8] = read_data[23:16] ;
+    i_i2c_slave_model.mem[9] = read_data[31:24] ;
+
+    i_i2c_slave_model.mem[10] = 'hff ;
+
+    fork
+    begin
+        // set valid eprom slave address
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the second byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b00000000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the third byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100001)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // now wait for 12c eprom to transmit all configured bytes
+        repeat(11)
+        begin
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+        end
+
+        // stop generating configuration cycles
+        generate_config_cycles = 1'b0 ;
+
+        // after last bit is sent, negedge on SCL is first to happen
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // after negedge SCL, posedge SCL is expected - no acknowledge condition
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // after no ack, negedge on SCL must happen, then negedge on SDA must happen
+        // when bridge prepares for stop transmition, then posedge on SCL, then
+        // posedge on SDA
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b0) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b0) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // stop was transmited
+    end
+    begin
+        read_address = 0 ;
+        read_address[`TAR0_IDSEL_INDEX] = 1'b1 ;
+
+        while (generate_config_cycles)
+        begin
+
+            PCIU_CONFIG_READ_MASTER_ABORT ("CFG_READ  ", `Test_Master_1, read_address, 4'hF) ;
+
+            do_pause(1) ;
+
+            PCIU_CONFIG_WRITE_MASTER_ABORT ("CFG_WRITE ", `Test_Master_1, read_address + 'h14, 4'hF) ;
+            do_pause(1) ;            
+        end
+    end
+    join
+
+    // after configuration is complete, the PCI Image 0 (configuration) should be accessible
+    // via the memory read/write cycles
+
+    config_read( 12'h3FC, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h0000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    config_read( {4'h1, `P_BA0_ADDR, 2'b00}, 4'hF, read_data ) ;
+
+    if (read_data !== (Target_Base_Addr_R[0] & {{`PCI_NUM_OF_DEC_ADDR_LINES{1'b1}}, {(32 - `PCI_NUM_OF_DEC_ADDR_LINES){1'b0}}} ) )
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    if (ok)
+        test_ok ;
+
+    test_name = "SERIAL EPROM PRESENT AFTER RESET, HOLDS ALL *_BA*, *_AM* AND PCI COMMAND REGISTER VALUES" ;
+
+    do_pause ( 10 ) ;
+
+    LOCAL_PCI_RST <= 1'b0 ;
+
+    do_pause( 2 ) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    generate_config_cycles = 1'b1 ;
+
+    // after reset is released and until the configuration is read
+    // the pci bridge must not respond to configuration cycles
+
+    // fill the eprom to hold appropriate data
+    i_i2c_slave_model.mem[0] = 'h4 >> 2 ;
+    i_i2c_slave_model.mem[1] = 'h7 ;
+    i_i2c_slave_model.mem[2] = 'h0 ;
+    i_i2c_slave_model.mem[3] = 'h0 ;
+    i_i2c_slave_model.mem[4] = 'h0 ;
+
+    read_data = Target_Base_Addr_R[0] ;
+    i_i2c_slave_model.mem[5] = {1'b1, `P_BA0_ADDR} ;
+    i_i2c_slave_model.mem[6] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[7] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[8] = read_data[23:16] ;
+    i_i2c_slave_model.mem[9] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[1] ;
+    i_i2c_slave_model.mem[10] = {1'b1, `P_BA1_ADDR} ;
+    i_i2c_slave_model.mem[11] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[12] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[13] = read_data[23:16] ;
+    i_i2c_slave_model.mem[14] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[2] ;
+    i_i2c_slave_model.mem[15] = {1'b1, `P_BA2_ADDR} ;
+    i_i2c_slave_model.mem[16] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[17] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[18] = read_data[23:16] ;
+    i_i2c_slave_model.mem[19] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[3] ;
+    i_i2c_slave_model.mem[20] = {1'b1, `P_BA3_ADDR} ;
+    i_i2c_slave_model.mem[21] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[22] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[23] = read_data[23:16] ;
+    i_i2c_slave_model.mem[24] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[4] ;
+    i_i2c_slave_model.mem[25] = {1'b1, `P_BA4_ADDR} ;
+    i_i2c_slave_model.mem[26] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[27] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[28] = read_data[23:16] ;
+    i_i2c_slave_model.mem[29] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[5] ;
+    i_i2c_slave_model.mem[30] = {1'b1, `P_BA5_ADDR} ;
+    i_i2c_slave_model.mem[31] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[32] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[33] = read_data[23:16] ;
+    i_i2c_slave_model.mem[34] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[0] ;
+    i_i2c_slave_model.mem[35] = {1'b1, `P_TA0_ADDR} ;
+    i_i2c_slave_model.mem[36] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[37] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[38] = read_data[23:16] ;
+    i_i2c_slave_model.mem[39] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[1] ;
+    i_i2c_slave_model.mem[40] = {1'b1, `P_TA1_ADDR} ;
+    i_i2c_slave_model.mem[41] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[42] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[43] = read_data[23:16] ;
+    i_i2c_slave_model.mem[44] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[2] ;
+    i_i2c_slave_model.mem[45] = {1'b1, `P_TA2_ADDR} ;
+    i_i2c_slave_model.mem[46] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[47] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[48] = read_data[23:16] ;
+    i_i2c_slave_model.mem[49] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[3] ;
+    i_i2c_slave_model.mem[50] = {1'b1, `P_TA3_ADDR} ;
+    i_i2c_slave_model.mem[51] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[52] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[53] = read_data[23:16] ;
+    i_i2c_slave_model.mem[54] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[4] ;
+    i_i2c_slave_model.mem[55] = {1'b1, `P_TA4_ADDR} ;
+    i_i2c_slave_model.mem[56] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[57] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[58] = read_data[23:16] ;
+    i_i2c_slave_model.mem[59] = read_data[31:24] ;
+
+    read_data = Target_Base_Addr_R[5] ;
+    i_i2c_slave_model.mem[60] = {1'b1, `P_TA5_ADDR} ;
+    i_i2c_slave_model.mem[61] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[62] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[63] = read_data[23:16] ;
+    i_i2c_slave_model.mem[64] = read_data[31:24] ;
+
+    read_data = Target_Addr_Mask_R[1] ;
+    i_i2c_slave_model.mem[65] = {1'b1, `P_AM1_ADDR} ;
+    i_i2c_slave_model.mem[66] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[67] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[68] = read_data[23:16] ;
+    i_i2c_slave_model.mem[69] = read_data[31:24] ;
+
+    read_data = Target_Addr_Mask_R[2] ;
+    i_i2c_slave_model.mem[70] = {1'b1, `P_AM2_ADDR} ;
+    i_i2c_slave_model.mem[71] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[72] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[73] = read_data[23:16] ;
+    i_i2c_slave_model.mem[74] = read_data[31:24] ;
+    
+    read_data = Target_Addr_Mask_R[3] ;
+    i_i2c_slave_model.mem[75] = {1'b1, `P_AM3_ADDR} ;
+    i_i2c_slave_model.mem[76] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[77] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[78] = read_data[23:16] ;
+    i_i2c_slave_model.mem[79] = read_data[31:24] ;
+
+    read_data = Target_Addr_Mask_R[4] ;
+    i_i2c_slave_model.mem[80] = {1'b1, `P_AM4_ADDR} ;
+    i_i2c_slave_model.mem[81] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[82] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[83] = read_data[23:16] ;
+    i_i2c_slave_model.mem[84] = read_data[31:24] ;
+
+    read_data = Target_Addr_Mask_R[5] ;
+    i_i2c_slave_model.mem[85] = {1'b1, `P_AM5_ADDR} ;
+    i_i2c_slave_model.mem[86] = read_data[ 7: 0] ;
+    i_i2c_slave_model.mem[87] = read_data[15: 8] ;
+    i_i2c_slave_model.mem[88] = read_data[23:16] ;
+    i_i2c_slave_model.mem[89] = read_data[31:24] ;
+
+    // add first 4 wishbone address masks
+    i_i2c_slave_model.mem[90] = {1'b1, `W_AM1_ADDR} ;
+    i_i2c_slave_model.mem[91] = 'h00                ;
+    i_i2c_slave_model.mem[92] = 'hf0                ;
+    i_i2c_slave_model.mem[93] = 'hff                ;
+    i_i2c_slave_model.mem[94] = 'hff                ;
+
+    i_i2c_slave_model.mem[95] = {1'b1, `W_AM2_ADDR} ;
+    i_i2c_slave_model.mem[96] = 'h00                ;
+    i_i2c_slave_model.mem[97] = 'hf0                ;
+    i_i2c_slave_model.mem[98] = 'hff                ;
+    i_i2c_slave_model.mem[99] = 'hff                ;
+
+    i_i2c_slave_model.mem[100] = {1'b1, `W_AM3_ADDR} ;
+    i_i2c_slave_model.mem[101] = 'h00                ;
+    i_i2c_slave_model.mem[102] = 'hf0                ;
+    i_i2c_slave_model.mem[103] = 'hff                ;
+    i_i2c_slave_model.mem[104] = 'hff                ;
+
+    i_i2c_slave_model.mem[105] = {1'b1, `W_AM4_ADDR} ;
+    i_i2c_slave_model.mem[106] = 'h00                ;
+    i_i2c_slave_model.mem[107] = 'hf0                ;
+    i_i2c_slave_model.mem[108] = 'hff                ;
+    i_i2c_slave_model.mem[109] = 'hff                ;
+
+    // add first 4 wishbone images' base addresses
+    target_address  = `BEH_TAR1_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[110] = {1'b1, `W_BA1_ADDR} ;
+    i_i2c_slave_model.mem[111] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[112] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[113] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[114] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR1_IO_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[115] = {1'b1, `W_BA2_ADDR} ;
+    i_i2c_slave_model.mem[116] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[117] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[118] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[119] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR2_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[120] = {1'b1, `W_BA3_ADDR} ;
+    i_i2c_slave_model.mem[121] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[122] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[123] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[124] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR2_IO_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[125] = {1'b1, `W_BA4_ADDR} ;
+    i_i2c_slave_model.mem[126] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[127] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[128] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[129] =  image_base[31:24]          ;
+
+    // add first 4 wishbone images' translation addresses
+    target_address  = `BEH_TAR1_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[130] = {1'b1, `W_TA1_ADDR} ;
+    i_i2c_slave_model.mem[131] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[132] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[133] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[134] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR1_IO_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[135] = {1'b1, `W_TA2_ADDR} ;
+    i_i2c_slave_model.mem[136] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[137] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[138] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[139] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR2_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[140] = {1'b1, `W_TA3_ADDR} ;
+    i_i2c_slave_model.mem[141] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[142] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[143] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[144] =  image_base[31:24]          ;
+
+    target_address  = `BEH_TAR2_IO_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+    
+    i_i2c_slave_model.mem[145] = {1'b1, `W_TA4_ADDR} ;
+    i_i2c_slave_model.mem[146] = {image_base[ 7: 1], 1'b0}   ;
+    i_i2c_slave_model.mem[147] =  image_base[15: 8]          ;
+    i_i2c_slave_model.mem[148] =  image_base[23:16]          ;
+    i_i2c_slave_model.mem[149] =  image_base[31:24]          ;
+
+    i_i2c_slave_model.mem[150] = 'hff   ;
+
+    fork
+    begin
+        // set valid eprom slave address
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the second byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b00000000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid address byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // wait for serial slave to start receiving the third byte
+        wait(i_i2c_slave_model.acc_done === 1'b0) ;
+
+        // wait till the data is received
+        wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+        // check what was transmited by the pci bridge
+        if (i_i2c_slave_model.sr !== 8'b10100001)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            test_fail("PCI Bridge transmited invalid control byte to serial EPROM") ;
+            ok = 1'b0 ;
+        end
+
+        // now wait for 12c eprom to transmit all configured bytes
+        repeat(151)
+        begin
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+        end
+
+        // stop generating configuration cycles
+        generate_config_cycles = 1'b0 ;
+
+        // after last bit is sent, negedge on SCL is first to happen
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // after negedge SCL, posedge SCL is expected - no acknowledge condition
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // after no ack, negedge on SCL must happen, then negedge on SDA must happen
+        // when bridge prepares for stop transmition, then posedge on SCL, then
+        // posedge on SDA
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b0) | (SCL !== 1'b0))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b0) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        @(SDA or SCL) ;
+
+        if ((SDA !== 1'b1) | (SCL !== 1'b1))
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Bridge violated the serial interface protocol") ;
+            test_fail("PCI Bridge violated the serial interface protocol") ;
+            ok = 1'b0 ;
+        end
+
+        // stop was transmited
+    end
+    begin
+        // as PCI Images are loaded with enabled values, 
+        // generate memory or IO read/write accesses to
+        // PCI Images' address spaces. The Bridge must not
+        // respond to those, while power on configuration
+        // is in progress.
+        read_address = 0 ;
+        read_address[`TAR0_IDSEL_INDEX] = 1'b1 ;
+
+        // configure the behavioral targets first,
+        // wishbone slave unit will use them later
+        configure_target(1) ;
+        configure_target(2) ;
+        
+        while (generate_config_cycles)
+        begin
+
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[0]) ;
+
+            do_pause(1) ;
+
+            PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[0]) ;
+            do_pause(1) ;
+
+            if (generate_config_cycles)
+            begin
+                if (`PCI_BA1_MEM_IO)
+                begin
+                    PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+                    do_pause(1) ;
+                    PCIU_IO_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+                end
+                else
+                begin
+                    PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+                    do_pause(1) ;
+                    PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+                end
+
+                do_pause(1) ;
+            end
+
+            if (generate_config_cycles)
+            begin
+                if (`PCI_BA2_MEM_IO)
+                begin
+                    PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+                    do_pause(1) ;
+                    PCIU_IO_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+                end
+                else
+                begin
+                    PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+                    do_pause(1) ;
+                    PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+                end
+
+                do_pause(1) ;
+            end
+
+            if (generate_config_cycles)
+            begin
+                if (`PCI_BA3_MEM_IO)
+                begin
+                    PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+                    do_pause(1) ;
+                    PCIU_IO_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+                end
+                else
+                begin
+                    PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+                    do_pause(1) ;
+                    PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+                end
+
+                do_pause(1) ;
+            end
+
+            if (generate_config_cycles)
+            begin
+                if (`PCI_BA4_MEM_IO)
+                begin
+                    PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+                    do_pause(1) ;
+                    PCIU_IO_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+                end
+                else
+                begin
+                    PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+                    do_pause(1) ;
+                    PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+                end
+
+                do_pause(1) ;
+            end
+
+            if (generate_config_cycles)
+            begin
+                if (`PCI_BA5_MEM_IO)
+                begin
+                    PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+                    do_pause(1) ;
+                    PCIU_IO_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+                end
+                else
+                begin
+                    PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+                    do_pause(1) ;
+                    PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+                end
+
+                do_pause(1) ;
+            end
+        end
+    end
+    begin:wb_master_aborts_blk
+        reg `READ_STIM_TYPE     read_data       ;
+        reg `READ_RETURN_TYPE   read_status     ;
+        reg `WRITE_STIM_TYPE    write_data      ;
+        reg `WRITE_RETURN_TYPE  write_status    ;
+        reg `WB_TRANSFER_FLAGS  flags           ;
+
+        // while wishbone slave images are loaded with enabled values,
+        // generate write and read cycles on the wishbone slave interface
+        // the PCI Bridge should not respond to these accesses
+
+        $display("**** WISHBONE Master Model and Monitor will complain in this section, due to bridge not responding during configuration load procedure *******") ;
+
+        flags                       = 0                 ;
+        flags`INIT_WAITS            = wb_init_waits     ;
+        flags`SUBSEQ_WAITS          = wb_subseq_waits   ;
+        flags`WB_TRANSFER_AUTO_RTY  = 0                 ;            
+
+        while (generate_config_cycles)
+        begin
+            target_address  = `BEH_TAR1_MEM_START ;
+            image_base      = 0 ;
+            image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+            write_data`WRITE_ADDRESS = image_base   ;
+            write_data`WRITE_DATA    = $random      ;
+            write_data`WRITE_SEL     = 4'hF         ;
+
+            wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+
+            if (write_status`CYC_RESPONSE !== 'h0)
+            begin
+                $display("Time %t", $time) ;
+                $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                ok = 1'b0 ;
+            end
+
+            if (generate_config_cycles)
+            begin
+                read_data`READ_ADDRESS = image_base   ;
+                read_data`READ_SEL     = 4'hF         ;
+
+                wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+                if (read_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                target_address  = `BEH_TAR1_IO_START ;
+                image_base      = 0 ;
+                image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+                
+                write_data`WRITE_ADDRESS = image_base   ;
+                write_data`WRITE_DATA    = $random      ;
+                write_data`WRITE_SEL     = 4'hF         ;
+                
+                wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+                
+                if (write_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                read_data`READ_ADDRESS = image_base   ;
+                read_data`READ_SEL     = 4'hF         ;
+
+                wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+                if (read_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                target_address  = `BEH_TAR2_MEM_START ;
+                image_base      = 0 ;
+                image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+                
+                write_data`WRITE_ADDRESS = image_base   ;
+                write_data`WRITE_DATA    = $random      ;
+                write_data`WRITE_SEL     = 4'hF         ;
+                
+                wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+                
+                if (write_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                read_data`READ_ADDRESS = image_base   ;
+                read_data`READ_SEL     = 4'hF         ;
+
+                wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+                if (read_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                target_address  = `BEH_TAR2_IO_START ;
+                image_base      = 0 ;
+                image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+                
+                write_data`WRITE_ADDRESS = image_base   ;
+                write_data`WRITE_DATA    = $random      ;
+                write_data`WRITE_SEL     = 4'hF         ;
+                
+                wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+                
+                if (write_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+
+            if (generate_config_cycles)
+            begin
+                read_data`READ_ADDRESS = image_base   ;
+                read_data`READ_SEL     = 4'hF         ;
+
+                wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+                if (read_status`CYC_RESPONSE !== 'h0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    test_fail("WISHBONE Slave interface response was detected while configuration sequence was in progress") ;
+                    ok = 1'b0 ;
+                end
+            end
+        end
+
+        $display("**** WISHBONE Master Model and Monitor should not complain anymore *******") ;
+
+    end
+    join
+
+    // after configuration is complete, the PCI Image 0 (configuration) should be accessible
+    // via the memory read/write cycles
+
+    config_read( 12'h3FC, 4'hF, read_data ) ;
+
+    if (read_data !== 32'h0000_0000)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom control and status register returned unexpected data value") ;
+        test_fail("Read from serial eprom control and status register returned unexpected data value") ;
+        ok = 1'b0 ;
+    end
+
+    // access all implemented PCI images after power on configuration is complete
+    // set wishbone slave response to acknowledge
+    wishbone_slave.cycle_response(3'b100, wb_subseq_waits, 8'h0);
+
+    fork:access_all_images_after_po_cfg
+        reg     error_monitor_done ;
+    begin:pci_trans_gen
+        reg             do              ;
+        integer         rty_cnt         ;
+        integer         transfered      ;
+        reg     [ 2: 0] termination     ;
+        integer         rnd_seed        ;
+        reg     [31: 0] cur_wdata       ;
+        reg     [31: 0] cur_rdata       ;
+
+        rnd_seed = 32'h1234_8765    ;
+
+        // image 1 is always implemented
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        cur_wdata = $random(rnd_seed) ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[1]                               ,   //  start address
+                (`PCI_BA1_MEM_IO) ? `BC_IO_WRITE : `BC_MEM_WRITE    ,   //  bus command
+                cur_wdata                                           ,   //  data
+                4'hf                                                ,   //  byte enable - active high
+                transfered                                          ,   //  actual transfer count
+                termination                                             //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[1]                           ,   //  start address
+                (`PCI_BA1_MEM_IO) ? `BC_IO_READ : `BC_MEM_READ  ,   //  bus command
+                cur_rdata                                       ,   //  data
+                4'hf                                            ,   //  byte enable - active high
+                transfered                                      ,   //  actual transfer count
+                termination                                         //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        if (cur_rdata !== cur_wdata)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value returned by PCI Target Unit during delayed read completion was wrong!") ;
+            test_fail("Data value returned by PCI Target Unit during delayed read completion was wrong") ;
+            ok = 1'b0 ;
+        end
+
+        // test master abort on the address space opposite of the image's space
+        if (`PCI_BA1_MEM_IO)
+        begin
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+            do_pause(1) ;
+            PCIU_MEM_WRITE_MASTER_ABORT("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+        end
+        else
+        begin
+            PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+            do_pause(1) ;
+            PCIU_IO_WRITE_MASTER_ABORT("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[1]) ;
+        end
+
+        do_pause ( 1 ) ;
+
+    `ifdef PCI_IMAGE2
+        
+        // image 2 is implemented
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        cur_wdata = $random(rnd_seed) ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[2]                               ,   //  start address
+                (`PCI_BA2_MEM_IO) ? `BC_IO_WRITE : `BC_MEM_WRITE    ,   //  bus command
+                cur_wdata                                           ,   //  data
+                4'hf                                                ,   //  byte enable - active high
+                transfered                                          ,   //  actual transfer count
+                termination                                             //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[2]                           ,   //  start address
+                (`PCI_BA2_MEM_IO) ? `BC_IO_READ : `BC_MEM_READ  ,   //  bus command
+                cur_rdata                                       ,   //  data
+                4'hf                                            ,   //  byte enable - active high
+                transfered                                      ,   //  actual transfer count
+                termination                                         //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        if (cur_rdata !== cur_wdata)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value returned by PCI Target Unit during delayed read completion was wrong!") ;
+            test_fail("Data value returned by PCI Target Unit during delayed read completion was wrong") ;
+            ok = 1'b0 ;
+        end
+
+        // test master abort on the address space opposite of the image's space
+        if (`PCI_BA2_MEM_IO)
+        begin
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+            do_pause(1) ;
+            PCIU_MEM_WRITE_MASTER_ABORT("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        end
+        else
+        begin
+            PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+            do_pause(1) ;
+            PCIU_IO_WRITE_MASTER_ABORT("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        end
+
+        do_pause ( 1 ) ;
+
+    `else
+        // image 2 is not implemented
+        PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        do_pause(1) ;
+        // image 2 is not implemented
+        PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[2]) ;
+        do_pause(1) ;
+    `endif
+
+    `ifdef PCI_IMAGE3
+        
+        // image 3 is implemented
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        cur_wdata = $random(rnd_seed) ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[3]                               ,   //  start address
+                (`PCI_BA3_MEM_IO) ? `BC_IO_WRITE : `BC_MEM_WRITE    ,   //  bus command
+                cur_wdata                                           ,   //  data
+                4'hf                                                ,   //  byte enable - active high
+                transfered                                          ,   //  actual transfer count
+                termination                                             //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[3]                           ,   //  start address
+                (`PCI_BA3_MEM_IO) ? `BC_IO_READ : `BC_MEM_READ  ,   //  bus command
+                cur_rdata                                       ,   //  data
+                4'hf                                            ,   //  byte enable - active high
+                transfered                                      ,   //  actual transfer count
+                termination                                         //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        if (cur_rdata !== cur_wdata)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value returned by PCI Target Unit during delayed read completion was wrong!") ;
+            test_fail("Data value returned by PCI Target Unit during delayed read completion was wrong") ;
+            ok = 1'b0 ;
+        end
+
+        // test master abort on the address space opposite of the image's space
+        if (`PCI_BA3_MEM_IO)
+        begin
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+            do_pause(1) ;
+            PCIU_MEM_WRITE_MASTER_ABORT("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        end
+        else
+        begin
+            PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+            do_pause(1) ;
+            PCIU_IO_WRITE_MASTER_ABORT("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        end
+
+        do_pause ( 1 ) ;
+
+    `else
+        // image 3 is not implemented
+        PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        do_pause(1) ;
+
+        PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[3]) ;
+        do_pause(1) ;
+    `endif
+
+    `ifdef PCI_IMAGE4
+        
+        // image 4 is implemented
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        cur_wdata = $random(rnd_seed) ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[4]                               ,   //  start address
+                (`PCI_BA4_MEM_IO) ? `BC_IO_WRITE : `BC_MEM_WRITE    ,   //  bus command
+                cur_wdata                                           ,   //  data
+                4'hf                                                ,   //  byte enable - active high
+                transfered                                          ,   //  actual transfer count
+                termination                                             //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[4]                           ,   //  start address
+                (`PCI_BA4_MEM_IO) ? `BC_IO_READ : `BC_MEM_READ  ,   //  bus command
+                cur_rdata                                       ,   //  data
+                4'hf                                            ,   //  byte enable - active high
+                transfered                                      ,   //  actual transfer count
+                termination                                         //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        if (cur_rdata !== cur_wdata)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value returned by PCI Target Unit during delayed read completion was wrong!") ;
+            test_fail("Data value returned by PCI Target Unit during delayed read completion was wrong") ;
+            ok = 1'b0 ;
+        end
+
+        // test master abort on the address space opposite of the image's space
+        if (`PCI_BA4_MEM_IO)
+        begin
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+            do_pause(1) ;
+            PCIU_MEM_WRITE_MASTER_ABORT("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        end
+        else
+        begin
+            PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+            do_pause(1) ;
+            PCIU_IO_WRITE_MASTER_ABORT("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        end
+
+        do_pause ( 1 ) ;
+
+    `else
+        // image 4 is not implemented
+        PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        do_pause(1) ;
+
+        PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[4]) ;
+        do_pause(1) ;
+    `endif
+
+    `ifdef PCI_IMAGE5
+        
+        // image 5 is implemented
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        cur_wdata = $random(rnd_seed) ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[5]                               ,   //  start address
+                (`PCI_BA5_MEM_IO) ? `BC_IO_WRITE : `BC_MEM_WRITE    ,   //  bus command
+                cur_wdata                                           ,   //  data
+                4'hf                                                ,   //  byte enable - active high
+                transfered                                          ,   //  actual transfer count
+                termination                                             //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single posted write as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single posted write as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        do      = 1'b1  ;
+        rty_cnt = 0     ;
+
+        while(do & (rty_cnt < 1000))
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[5]                           ,   //  start address
+                (`PCI_BA5_MEM_IO) ? `BC_IO_READ : `BC_MEM_READ  ,   //  bus command
+                cur_rdata                                       ,   //  data
+                4'hf                                            ,   //  byte enable - active high
+                transfered                                      ,   //  actual transfer count
+                termination                                         //  target signaled termination
+            ) ;
+
+            if (transfered !== 'd1)
+            begin
+                if (termination !== ipci_unsupported_commands_master.retry)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    rty_cnt = rty_cnt + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (rty_cnt == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            test_fail("PCI Target Unit didn't handle the single delayed read as expected!") ;
+            ok = 1'b0 ;
+        end
+
+        if (cur_rdata !== cur_wdata)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value returned by PCI Target Unit during delayed read completion was wrong!") ;
+            test_fail("Data value returned by PCI Target Unit during delayed read completion was wrong") ;
+            ok = 1'b0 ;
+        end
+
+        // test master abort on the address space opposite of the image's space
+        if (`PCI_BA5_MEM_IO)
+        begin
+            PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+            do_pause(1) ;
+            PCIU_MEM_WRITE_MASTER_ABORT("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        end
+        else
+        begin
+            PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+            do_pause(1) ;
+            PCIU_IO_WRITE_MASTER_ABORT("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        end
+
+        do_pause ( 1 ) ;
+
+    `else
+        // image 5 is not implemented
+        PCIU_MEM_READ_MASTER_ABORT ("MEM_READ  ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("MEM_WRITE ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        do_pause(1) ;
+
+        PCIU_IO_READ_MASTER_ABORT ("IO_READ   ", `Test_Master_1, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        do_pause(1) ;
+        PCIU_MEM_WRITE_MASTER_ABORT ("IO_WRITE  ", `Test_Master_2, ({$random} % 2) + 1'b1, Target_Base_Addr_R[5]) ;
+        do_pause(1) ;
+    `endif
+
+        do_pause ( 10 ) ;
+
+        error_monitor_done = 1'b1 ;
+
+    end
+    begin:pci_monitor_err_detect_blk
+        error_monitor_done = 1'b0 ;
+
+        @(error_event_int or error_monitor_done) ;
+
+        if (error_monitor_done !== 1'b1)
+        begin
+            test_fail("either PCI Monitor or PCI Master detected an error while accessing PCI Target Unit") ;
+            ok = 0 ;
+        end
+    end
+    begin:wb_trans_gen_blk
+        integer rnd_seed    ;
+        integer num_of_rty  ;
+        reg     do          ;
+        reg `READ_STIM_TYPE     read_data       ;
+        reg `READ_RETURN_TYPE   read_status     ;
+        reg `WRITE_STIM_TYPE    write_data      ;
+        reg `WRITE_RETURN_TYPE  write_status    ;
+        reg `WB_TRANSFER_FLAGS  flags           ;
+        reg [31: 0] data ;
+
+        rnd_seed = 'hcdef_3210 ;
+
+        target_address  = `BEH_TAR1_MEM_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+        write_data`WRITE_ADDRESS = image_base + ({$random} % 'h4) ;
+        write_data`WRITE_DATA    = $random(rnd_seed)    ;
+        write_data`WRITE_SEL     = 4'hF                 ;
+
+        wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+
+        if (write_status`CYC_ACTUAL_TRANSFER !== 'd1)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to post single memory write as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to post single memory write as expected") ;
+            ok = 1'b0 ;
+        end
+
+    `ifdef WB_IMAGE2
+
+        target_address  = `BEH_TAR1_IO_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+
+        write_data`WRITE_ADDRESS = image_base + 'h4 + ({$random} % 'h4) ;
+        write_data`WRITE_DATA    = $random(rnd_seed)    ;
+        write_data`WRITE_SEL     = 4'hF                 ;
+
+        wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+
+        if (write_status`CYC_ACTUAL_TRANSFER !== 'd1)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to post single memory write as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to post single memory write as expected") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+    `ifdef WB_IMAGE3
+
+        target_address  = `BEH_TAR2_MEM_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+        write_data`WRITE_ADDRESS = image_base + ({$random} % 'h4) ;
+        write_data`WRITE_DATA    = $random(rnd_seed)    ;
+        write_data`WRITE_SEL     = 4'hF                 ;
+
+        wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+
+        if (write_status`CYC_ACTUAL_TRANSFER !== 'd1)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to post single memory write as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to post single memory write as expected") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+    `ifdef WB_IMAGE4
+
+        target_address  = `BEH_TAR2_IO_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+
+        write_data`WRITE_ADDRESS = image_base + 'h4 + ({$random} % 'h4) ;
+        write_data`WRITE_DATA    = $random(rnd_seed)    ;
+        write_data`WRITE_SEL     = 4'hF                 ;
+
+        do          = 1'b1  ;
+        num_of_rty  = 0     ;
+
+        while (do & (num_of_rty < 1000))
+        begin
+            wishbone_master.wb_single_write( write_data, flags, write_status ) ;
+
+            if (write_status`CYC_ACTUAL_TRANSFER !== 'd1)
+            begin
+                if (write_status`CYC_RTY !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("The WISHBONE Slave Unit failed to post single memory write as expected!") ;
+                    test_fail("The WISHBONE Slave Unit failed to post single memory write as expected") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                begin
+                    num_of_rty = num_of_rty + 1'b1 ;
+                end
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (num_of_rty == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to post single memory write as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to post single memory write as expected") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+        rnd_seed = 'hcdef_3210 ;
+
+        target_address  = `BEH_TAR1_MEM_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+        read_data`READ_ADDRESS = image_base + ({$random} % 'h4) ;
+        read_data`READ_SEL     = 4'hF                       ;
+
+        do          = 1'b1  ;
+        num_of_rty  = 0     ;
+
+        while (do & (num_of_rty < 1000))
+        begin
+            wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+            if (read_status`CYC_ACTUAL_TRANSFER !== 'd1)
+            begin
+                if (read_status`CYC_RTY !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+                    test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    num_of_rty = num_of_rty + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (num_of_rty == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+            ok = 1'b0 ;
+        end
+
+        data = $random(rnd_seed) ;
+        if (read_status`READ_DATA !== data)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit returned wrong data during single memory read through WB image 1!") ;
+            $display("Expected 0x%h, actual 0x%h", data, read_status`READ_DATA) ;
+            test_fail("The WISHBONE Slave Unit returned wrong data during single memory read") ;
+            ok = 1'b0 ;
+        end
+
+    `ifdef WB_IMAGE2
+        target_address  = `BEH_TAR1_IO_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+
+        read_data`READ_ADDRESS = image_base + 'h4 + ({$random} % 'h4)   ;
+        read_data`READ_SEL     = 4'hF                               ;
+
+        do          = 1'b1  ;
+        num_of_rty  = 0     ;
+
+        while (do & (num_of_rty < 1000))
+        begin
+            wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+            if (read_status`CYC_ACTUAL_TRANSFER !== 'd1)
+            begin
+                if (read_status`CYC_RTY !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+                    test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    num_of_rty = num_of_rty + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (num_of_rty == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+            ok = 1'b0 ;
+        end
+
+        data = $random(rnd_seed) ;
+        if (read_status`READ_DATA !== data)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit returned wrong data during single memory read through WB image 2!") ;
+            $display("Expected 0x%h, actual 0x%h", data, read_status`READ_DATA) ;
+            test_fail("The WISHBONE Slave Unit returned wrong data during single memory read") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+    `ifdef WB_IMAGE3
+        target_address  = `BEH_TAR2_MEM_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+        read_data`READ_ADDRESS = image_base + ({$random} % 'h4) ;
+        read_data`READ_SEL     = 4'hF                       ;
+
+        do          = 1'b1  ;
+        num_of_rty  = 0     ;
+
+        while (do & (num_of_rty < 1000))
+        begin
+            wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+            if (read_status`CYC_ACTUAL_TRANSFER !== 'd1)
+            begin
+                if (read_status`CYC_RTY !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+                    test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    num_of_rty = num_of_rty + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (num_of_rty == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+            ok = 1'b0 ;
+        end
+
+        data = $random(rnd_seed) ;
+        if (read_status`READ_DATA !== data)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit returned wrong data during single memory read through WB image 3!") ;
+            $display("Expected 0x%h, actual 0x%h", data, read_status`READ_DATA) ;
+            test_fail("The WISHBONE Slave Unit returned wrong data during single memory read") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+    `ifdef WB_IMAGE4
+        target_address  = `BEH_TAR2_IO_START ;
+        image_base      = 0 ;
+        image_base[`PCI_BASE_ADDR1_MATCH_RANGE] = target_address[`PCI_BASE_ADDR1_MATCH_RANGE] ;
+
+        read_data`READ_ADDRESS = image_base + 'h4 + ({$random} % 'h4)   ;
+        read_data`READ_SEL     = 4'hF                                   ;
+
+        do          = 1'b1  ;
+        num_of_rty  = 0     ;
+
+        while (do & (num_of_rty < 1000))
+        begin
+            wishbone_master.wb_single_read( read_data, flags, read_status ) ;
+
+            if (read_status`CYC_ACTUAL_TRANSFER !== 'd1)
+            begin
+                if (read_status`CYC_RTY !== 1'b1)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+                    test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+                    ok = 1'b0 ;
+                    do = 1'b0 ;
+                end
+                else
+                    num_of_rty = num_of_rty + 1'b1 ;
+            end
+            else
+                do = 1'b0 ;
+        end
+
+        if (num_of_rty == 1000)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit failed to process single memory read as expected!") ;
+            test_fail("The WISHBONE Slave Unit failed to process single memory read as expected") ;
+            ok = 1'b0 ;
+        end
+
+        data = $random(rnd_seed) ;
+        if (read_status`READ_DATA !== data)
+        begin
+            $display("Time %t", $time) ;
+            $display("The WISHBONE Slave Unit returned wrong data during single memory read through WB image 4!") ;
+            $display("Expected 0x%h, actual 0x%h", data, read_status`READ_DATA) ;
+            test_fail("The WISHBONE Slave Unit returned wrong data during single memory read") ;
+            ok = 1'b0 ;
+        end
+
+    `endif
+
+    end
+    join
+
+    if (ok)
+        test_ok ;
+
+    test_name = "READ/WRITE SERIAL EPROM ON TOP ADDRESSES" ;
+
+    ok = 1'b1 ;
+
+    // write/read to last 8 bit address
+    i2c_eprom_write
+    (
+        'hff    ,   //  eprom address
+        'h01    ,   //  value
+        no_error    //  success/failure
+    ) ;
+
+    if (!no_error)
+        ok = 1'b0 ;
+
+    i2c_eprom_read
+    (
+        'hff                ,   //  eprom address
+        read_data[ 7: 0]    ,   //  value
+        no_error                //  success/failure
+    ) ;
+
+    if (no_error)
+    begin
+        if (read_data[7:0] !== 'h01)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value read from serial eprom address 'h0ff not as expected");
+            test_fail("Data value read from serial eprom address 'h0ff not as expected");
+            ok = 1'b0 ;
+        end
+    end
+    else
+        ok = 1'b0 ;
+
+    // write/read to first 11 bit address
+    i2c_eprom_write
+    (
+        'h100   ,   //  eprom address
+        'h23    ,   //  value
+        no_error    //  success/failure
+    ) ;
+
+    if (!no_error)
+        ok = 1'b0 ;
+
+    i2c_eprom_read
+    (
+        'h100               ,   //  eprom address
+        read_data[ 7: 0]    ,   //  value
+        no_error                //  success/failure
+    ) ;
+
+    if (no_error)
+    begin
+        if (read_data[7:0] !== 'h23)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value read from serial eprom address 'h100 not as expected");
+            test_fail("Data value read from serial eprom address 'h100 not as expected");
+            ok = 1'b0 ;
+        end
+    end
+    else
+        ok = 1'b0 ;
+
+    // write/read to second 11 bit address
+    i2c_eprom_write
+    (
+        'h2ff   ,   //  eprom address
+        'h45    ,   //  value
+        no_error    //  success/failure
+    ) ;
+
+    if (!no_error)
+        ok = 1'b0 ;
+
+    i2c_eprom_read
+    (
+        'h2ff               ,   //  eprom address
+        read_data[ 7: 0]    ,   //  value
+        no_error                //  success/failure
+    ) ;
+
+    if (no_error)
+    begin
+        if (read_data[7:0] !== 'h45)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value read from serial eprom address 'h2ff not as expected");
+            test_fail("Data value read from serial eprom address 'h2ff not as expected");
+            ok = 1'b0 ;
+        end
+    end
+    else
+        ok = 1'b0 ;
+
+    // write/read to third 11 bit address
+    i2c_eprom_write
+    (
+        'h300   ,   //  eprom address
+        'h67    ,   //  value
+        no_error    //  success/failure
+    ) ;
+
+    if (!no_error)
+        ok = 1'b0 ;
+
+    i2c_eprom_read
+    (
+        'h300               ,   //  eprom address
+        read_data[ 7: 0]    ,   //  value
+        no_error                //  success/failure
+    ) ;
+
+    if (no_error)
+    begin
+        if (read_data[7:0] !== 'h67)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value read from serial eprom address 'h300 not as expected");
+            test_fail("Data value read from serial eprom address 'h300 not as expected");
+            ok = 1'b0 ;
+        end
+    end
+    else
+        ok = 1'b0 ;
+
+    // write/read to last 11 bit address
+    i2c_eprom_write
+    (
+        'h7ff   ,   //  eprom address
+        'h89    ,   //  value
+        no_error    //  success/failure
+    ) ;
+
+    if (!no_error)
+        ok = 1'b0 ;
+    
+    i2c_eprom_read
+    (
+        'h7ff               ,   //  eprom address
+        read_data[ 7: 0]    ,   //  value
+        no_error                //  success/failure
+    ) ;
+
+    if (no_error)
+    begin
+        if (read_data[7:0] !== 'h89)
+        begin
+            $display("Time %t", $time) ;
+            $display("Data value read from serial eprom address 'h7ff not as expected");
+            test_fail("Data value read from serial eprom address 'h7ff not as expected");
+            ok = 1'b0 ;
+        end
+    end
+    else
+        ok = 1'b0 ;
+
+    if (ok)
+        test_ok ;
+
+    ok = 1'b1 ;
+
+    test_name = "SERIAL EPROM NO_ACK HANDLING DURING WRITE USING SERIAL EPROM CONTROL AND STATUS REGISTER" ;
+
+    fork:write_no_ack_handle_blk
+        reg poll_spoci_cs_reg ;
+        reg timeout ;
+    begin
+
+        // set invalid i2c address to i2c slave
+        i_i2c_slave_model.I2C_ADR = 7'b1111111 ;    
+        
+        // do a random data write to random eprom address
+        read_data = 'h0 ;
+        read_data[25] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        config_write( 'h3fc, read_data, 4'hF, no_error) ;
+
+        if (!no_error)
+            ok = 1'b0 ;
+
+        timeout = 1'b0 ;
+        poll_spoci_cs_reg = 1'b1 ;
+
+        while (~timeout & poll_spoci_cs_reg & ok)
+        begin
+            config_read( 'h3fc, 4'hF, read_data ) ;
+
+            if (read_data[25] !== 1'b1)
+            begin
+                poll_spoci_cs_reg = 1'b0 ;
+            end
+        end
+
+        if (timeout)
+        begin
+            $display("Time %t", $time) ;
+            $display("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+            test_fail("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+            ok = 1'b0 ;
+        end
+
+        if (read_data[25] !== 1'b0)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+            test_fail("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+            ok = 1'b0 ;
+        end
+
+        if (read_data[31] !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+            test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+            ok = 1'b0 ;
+        end
+
+        // set valid i2c address to i2c slave
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;    
+
+        // do a random data write to random eprom address
+        read_data = 'h0 ;
+        read_data[31] = 'h1 ;
+        read_data[25] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        fork
+        begin
+            config_write( 'h3fc, read_data, 4'hF, no_error) ;
+    
+            if (!no_error)
+                ok = 1'b0 ;
+    
+            poll_spoci_cs_reg = 1'b1 ;
+            timeout = 1'b0 ;
+    
+            while (~timeout & poll_spoci_cs_reg & ok)
+            begin
+                config_read( 'h3fc, 4'hF, read_data ) ;
+    
+                if (read_data[25] !== 1'b1)
+                begin
+                    poll_spoci_cs_reg = 1'b0 ;
+                end
+            end
+    
+            if (timeout)
+            begin
+                $display("Time %t", $time) ;
+                $display("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+                test_fail("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[25] !== 1'b0)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[31] !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                ok = 1'b0 ;
+            end
+        end
+        begin:force_no_ack_on_adr_transfer_blk
+            // monitor serial bus and force no_ack on address transfer
+
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // wait for serial slave to start receiving the second byte
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            // wait till the data is received
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // falling edge of SCL
+            @(negedge SCL) ;
+    
+            # 10 ;
+
+            // after eprom receives the address, force sda to 1 on falling edge of SCL, to produce no ack condition
+            force SDA = 1'b1 ;
+    
+            // posedge on scl - the no acknowledge condition is sent
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b1))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+        
+            // negedge on scl - the no acknowledge condition was detected
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b0))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+
+            # 10 ;
+    
+            // unforce sda
+            release SDA ;
+        end
+        join
+
+        // do a random data write to random eprom address
+        read_data = 'h0 ;
+        read_data[31] = 'h1 ;
+        read_data[25] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        fork
+        begin
+            config_write( 'h3fc, read_data, 4'hF, no_error) ;
+    
+            if (!no_error)
+                ok = 1'b0 ;
+    
+            poll_spoci_cs_reg = 1'b1 ;
+            timeout = 1'b0 ;
+    
+            while (~timeout & poll_spoci_cs_reg & ok)
+            begin
+                config_read( 'h3fc, 4'hF, read_data ) ;
+    
+                if (read_data[25] !== 1'b1)
+                begin
+                    poll_spoci_cs_reg = 1'b0 ;
+                end
+            end
+    
+            if (timeout)
+            begin
+                $display("Time %t", $time) ;
+                $display("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+                test_fail("Write byte to EPROM sequence was not finished in a reasonable amount of time") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[25] !== 1'b0)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected Write bit value") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[31] !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                ok = 1'b0 ;
+            end
+            else
+            begin
+                config_write('h3fc, 32'h8000_0000, 4'hf, no_error) ;
+                if (!no_error)  
+                    ok = 1'b0 ;
+            end
+        
+        end
+        begin:force_no_ack_on_dat_transfer_blk
+            // monitor serial bus and force no_ack on data transfer
+
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // wait for serial slave to start receiving the second byte
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            // wait till the address is received
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+            // wait till the data starts to be received
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            // wait till the data starts is received
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+            // falling edge of SCL
+            @(negedge SCL) ;
+    
+            # 10 ;
+
+            // after eprom receives the address, force sda to 1 on falling edge of SCL, to produce no ack condition
+            force SDA = 1'b1 ;
+    
+            // posedge on scl - the no acknowledge condition is sent
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b1))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+        
+            // negedge on scl - the no acknowledge condition was detected
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b0))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+
+            # 10 ;
+    
+            // unforce sda
+            release SDA ;
+        end
+        join
+
+        disable poll_spoci_cs_timeout_blk ;
+    end
+    begin:poll_spoci_cs_timeout_blk
+        // wait for 4 byte times - 2 * 11 bit times before disabling the polling of serial eprom register
+        forever
+        begin
+            fork
+            begin:timeout_blk
+                #(4.0 * 11.0 * 1000000000.0 / 50000.0) ;
+                timeout = 1'b1 ;
+            end
+            begin
+                @(negedge poll_spoci_cs_reg) ;
+                disable timeout_blk ;
+            end
+            join
+        end
+    end
+    join
+
+    if (ok)
+        test_ok ;
+
+    ok = 1'b1 ;
+
+    test_name = "SERIAL EPROM NO_ACK HANDLING DURING READ USING SERIAL EPROM CONTROL AND STATUS REGISTER" ;
+
+    fork:read_no_ack_handle_blk
+        reg poll_spoci_cs_reg ;
+        reg timeout ;
+    begin
+
+        // set invalid i2c address to i2c slave
+        i_i2c_slave_model.I2C_ADR = 7'b1111111 ;    
+        
+        // do a random data read from random eprom address
+        read_data = 'h0 ;
+        read_data[24] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        config_write( 'h3fc, read_data, 4'hF, no_error) ;
+
+        if (!no_error)
+            ok = 1'b0 ;
+
+        timeout = 1'b0 ;
+        poll_spoci_cs_reg = 1'b1 ;
+
+        while (~timeout & poll_spoci_cs_reg & ok)
+        begin
+            config_read( 'h3fc, 4'hF, read_data ) ;
+
+            if (read_data[24] !== 1'b1)
+            begin
+                poll_spoci_cs_reg = 1'b0 ;
+            end
+        end
+
+        if (timeout)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+            test_fail("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+            ok = 1'b0 ;
+        end
+
+        if (read_data[24] !== 1'b0)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+            test_fail("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+            ok = 1'b0 ;
+        end
+
+        if (read_data[31] !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+            test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+            ok = 1'b0 ;
+        end
+
+        // set valid i2c address to i2c slave
+        i_i2c_slave_model.I2C_ADR = 7'b1010000 ;    
+
+        // do a random data read from random eprom address
+        read_data = 'h0 ;
+        read_data[31] = 'h1 ;
+        read_data[24] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        fork
+        begin
+            config_write( 'h3fc, read_data, 4'hF, no_error) ;
+    
+            if (!no_error)
+                ok = 1'b0 ;
+    
+            poll_spoci_cs_reg = 1'b1 ;
+            timeout = 1'b0 ;
+    
+            while (~timeout & poll_spoci_cs_reg & ok)
+            begin
+                config_read( 'h3fc, 4'hF, read_data ) ;
+    
+                if (read_data[24] !== 1'b1)
+                begin
+                    poll_spoci_cs_reg = 1'b0 ;
+                end
+            end
+    
+            if (timeout)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+                test_fail("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[24] !== 1'b0)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[31] !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                ok = 1'b0 ;
+            end
+        end
+        begin:force_no_ack_on_adr_transfer_blk
+            // monitor serial bus and force no_ack on address transfer
+
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // wait for serial slave to start receiving the second byte
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            // wait till the data is received
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // falling edge of SCL
+            @(negedge SCL) ;
+    
+            # 10 ;
+
+            // after eprom receives the address, force sda to 1 on falling edge of SCL, to produce no ack condition
+            force SDA = 1'b1 ;
+    
+            // posedge on scl - the no acknowledge condition is sent
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b1))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+        
+            // negedge on scl - the no acknowledge condition was detected
+            @(SDA or SCL) ;
+    
+            if ((SDA !== 1'b1) | (SCL !== 1'b0))
+            begin
+                $display("Time %t", $time) ;
+                $display("PCI Bridge violated the serial interface protocol") ;
+                test_fail("PCI Bridge violated the serial interface protocol") ;
+                ok = 1'b0 ;
+            end
+
+            # 10 ;
+    
+            // unforce sda
+            release SDA ;
+        end
+        join
+
+        // do a random data read from random eprom address
+        read_data = 'h0 ;
+        read_data[31] = 'h1 ;
+        read_data[24] = 'h1 ;
+        read_data[18:8] = $random ;
+        read_data[7:0]  = $random ;
+    
+        fork
+        begin
+            config_write( 'h3fc, read_data, 4'hF, no_error) ;
+    
+            if (!no_error)
+                ok = 1'b0 ;
+    
+            poll_spoci_cs_reg = 1'b1 ;
+            timeout = 1'b0 ;
+    
+            while (~timeout & poll_spoci_cs_reg & ok)
+            begin
+                config_read( 'h3fc, 4'hF, read_data ) ;
+    
+                if (read_data[24] !== 1'b1)
+                begin
+                    poll_spoci_cs_reg = 1'b0 ;
+                end
+            end
+    
+            if (timeout)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+                test_fail("Read byte from EPROM sequence was not finished in a reasonable amount of time") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[24] !== 1'b0)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected Read bit value") ;
+                ok = 1'b0 ;
+            end
+    
+            if (read_data[31] !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                test_fail("Read from Serial EPROM Control and Status Register returned unexpected NO_ACK bit value") ;
+                ok = 1'b0 ;
+            end
+            else
+            begin
+                config_write('h3fc, 32'h8000_0000, 4'hf, no_error) ;
+                if (!no_error)  
+                    ok = 1'b0 ;
+            end
+        
+        end
+        begin:force_no_ack_on_second_ctrl_transfer_blk
+            // monitor serial bus and force no_ack on data transfer
+
+            // wait for 1st control transfer to finish
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+    
+            // wait for serial slave to start receiving the second byte
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            
+            // wait for address transfer
+            wait(i_i2c_slave_model.acc_done === 1'b1) ;
+
+            // wait till the data starts to be received
+            wait(i_i2c_slave_model.acc_done === 1'b0) ;
+    
+            // set invalid slave address
+            i_i2c_slave_model.I2C_ADR = 7'b1111111 ;    
+        end
+        join
+
+        disable poll_spoci_cs_timeout_blk ;
+    end
+    begin:poll_spoci_cs_timeout_blk
+        // wait for 4 byte times - 2 * 11 bit times before disabling the polling of serial eprom register
+        forever
+        begin
+            fork
+            begin:timeout_blk
+                #(5.0 * 11.0 * 1000000000.0 / 50000.0) ;
+                timeout = 1'b1 ;
+            end
+            begin
+                @(negedge poll_spoci_cs_reg) ;
+                disable timeout_blk ;
+            end
+            join
+        end
+    end
+    join
+
+    if (ok)
+        test_ok ;
+
+    // clear i2c memory
+    for (i = 0 ; i < (1 << 11) ; i = i + 1)
+    begin
+        i_i2c_slave_model.mem[i] = 8'hxx ;
+    end
+
+    test_name = "WRITE EPROM VIA SERIAL EPROM CONTROL AND STATUS REGISTER" ;
+
+    ok = 1'b1 ;
+
+    // program values for PCI Device Control and Status register
+    // and values for all not yet accessed registers into the eprom
+
+    begin:eprom_write_sequence
+        integer rnd_seed ;
+
+        rnd_seed = 'h0123_fedc ;
+
+        // device status register
+        i2c_eprom_write_register_val
+        (
+            'd0             ,   //  eprom address
+            'h1             ,   //  register number
+            32'h0000_0007   ,   //  register value
+            ok                  //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+
+        // pci base address 0 register
+        i2c_eprom_write_register_val
+        (
+            'd5                     ,   //  eprom address
+            'h4                     ,   //  register number
+            Target_Base_Addr_R[0]   ,   //  register value
+            ok                          //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // write all image control registers
+        // WB Image Control 1
+        i2c_eprom_write_register_val
+        (
+            'd10                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL1_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b001} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // WB Image Control 2
+        i2c_eprom_write_register_val
+        (
+            'd15                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL2_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // WB Image Control 3
+        i2c_eprom_write_register_val
+        (
+            'd20                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL3_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b011} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // WB Image Control 4
+        i2c_eprom_write_register_val
+        (
+            'd25                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL4_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // WB Image Control 5
+        i2c_eprom_write_register_val
+        (
+            'd30                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL5_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b101} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Image Control 1
+        i2c_eprom_write_register_val
+        (
+            'd35                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL1_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Image Control 2
+        i2c_eprom_write_register_val
+        (
+            'd40                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL2_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Image Control 3
+        i2c_eprom_write_register_val
+        (
+            'd45                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL3_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b110} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Image Control 4
+        i2c_eprom_write_register_val
+        (
+            'd50                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL4_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Image Control 5
+        i2c_eprom_write_register_val
+        (
+            'd55                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL5_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // write both error control and status registers
+        // WB Error Control and Status
+        i2c_eprom_write_register_val
+        (
+            'd60                        ,   //  eprom address
+            {1'b1, `W_ERR_CS_ADDR}      ,   //  register number
+            {$random(rnd_seed), 1'b1}   ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // PCI Error Control and Status
+        i2c_eprom_write_register_val
+        (
+            'd65                        ,   //  eprom address
+            {1'b1, `P_ERR_CS_ADDR}      ,   //  register number
+            {$random(rnd_seed), 1'b1}   ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // write interrupt control register
+        i2c_eprom_write_register_val
+        (
+            'd70                        ,   //  eprom address
+            {1'b1, `ICR_ADDR}           ,   //  register number
+            {$random(rnd_seed), 3'b111} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+    
+        // write Latency Timer and Cache Line size registers
+        i2c_eprom_write_register_val
+        (
+            'd75                                ,   //  eprom address
+            3                                   ,   //  register number
+            {$random(rnd_seed), 8'd16, 8'd8}    ,   //  register value
+            ok                                      //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_write_sequence ;
+
+        // set last register number to 'hff
+        i2c_eprom_write
+        (
+            'd80    ,   //  eprom address
+            'hff    ,   //  value
+            ok          //  success/failure
+        ) ;
+
+    end // eprom_write_sequence
+
+    if (ok)
+        test_ok ;
+
+    ok = 1'b1 ;
+
+    test_name = "VERIFY EPROM CONTENTS - READ VALUES USING SERIAL EPROM CONTROL AND STATUS REGISTER" ;
+
+    begin:eprom_verify_sequence
+        integer rnd_seed ;
+        reg [ 7: 0] last_reg_num_val ;
+        rnd_seed = 'h0123_fedc ;
+
+        // device status register
+        i2c_eprom_verify_register_val
+        (
+            'd0             ,   //  eprom address
+            'h1             ,   //  register number
+            32'h0000_0007   ,   //  register value
+            ok                  //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+
+        // pci base address 0 register
+        i2c_eprom_verify_register_val
+        (
+            'd5                     ,   //  eprom address
+            'h4                     ,   //  register number
+            Target_Base_Addr_R[0]   ,   //  register value
+            ok                          //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // write all image control registers
+        // WB Image Control 1
+        i2c_eprom_verify_register_val
+        (
+            'd10                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL1_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b001} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // WB Image Control 2
+        i2c_eprom_verify_register_val
+        (
+            'd15                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL2_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // WB Image Control 3
+        i2c_eprom_verify_register_val
+        (
+            'd20                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL3_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b011} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // WB Image Control 4
+        i2c_eprom_verify_register_val
+        (
+            'd25                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL4_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // WB Image Control 5
+        i2c_eprom_verify_register_val
+        (
+            'd30                        ,   //  eprom address
+            {1'b1, `W_IMG_CTRL5_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b101} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Image Control 1
+        i2c_eprom_verify_register_val
+        (
+            'd35                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL1_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Image Control 2
+        i2c_eprom_verify_register_val
+        (
+            'd40                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL2_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Image Control 3
+        i2c_eprom_verify_register_val
+        (
+            'd45                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL3_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b110} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Image Control 4
+        i2c_eprom_verify_register_val
+        (
+            'd50                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL4_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b010} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Image Control 5
+        i2c_eprom_verify_register_val
+        (
+            'd55                        ,   //  eprom address
+            {1'b1, `P_IMG_CTRL5_ADDR}   ,   //  register number
+            {$random(rnd_seed), 3'b100} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // write both error control and status registers
+        // WB Error Control and Status
+        i2c_eprom_verify_register_val
+        (
+            'd60                        ,   //  eprom address
+            {1'b1, `W_ERR_CS_ADDR}      ,   //  register number
+            {$random(rnd_seed), 1'b1}   ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // PCI Error Control and Status
+        i2c_eprom_verify_register_val
+        (
+            'd65                        ,   //  eprom address
+            {1'b1, `P_ERR_CS_ADDR}      ,   //  register number
+            {$random(rnd_seed), 1'b1}   ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // write interrupt control register
+        i2c_eprom_verify_register_val
+        (
+            'd70                        ,   //  eprom address
+            {1'b1, `ICR_ADDR}           ,   //  register number
+            {$random(rnd_seed), 3'b111} ,   //  register value
+            ok                              //  success/failure
+        ) ;
+
+        if (ok !== 1'b1)
+            disable eprom_verify_sequence ;
+    
+        // verify Latency Timer and Cache Line size registers
+        i2c_eprom_verify_register_val
+        (
+            'd75                                ,   //  eprom address
+            3                                   ,   //  register number
+            {$random(rnd_seed), 8'd16, 8'd8}    ,   //  register value
+            ok                                      //  success/failure
+        ) ;
+
+        // read last register number - expect 'hff
+        i2c_eprom_read
+        (
+            'd80                ,   //  eprom address
+            last_reg_num_val    ,   //  value
+            ok                      //  success/failure
+        ) ;
+
+        if (ok)
+        begin
+            if (last_reg_num_val !== 'hff)
+            begin
+                ok = 1'b0 ;
+                $display("Time %t", $time) ;
+                $display("Last register number in serial eprom didn't have a value of 'hff!") ;
+                test_fail("Last register number in serial eprom didn't have a value of 'hff") ;
+            end
+        end
+
+    end // eprom_verify_sequence
+
+    if (ok)
+        test_ok ;
+    
+    // wait for stop bit to be transmited
+    ok = 1'b0 ;
+    while (!ok)
+    begin
+        @(posedge SDA) ;
+        if (SCL === 1'b1)
+            ok = 1'b1 ;
+    end
+
+    test_name = "RESET BRIDGE AFTER EPROM PROGRAMING, CHECK REGISTER VALUES AFTER CONFIGURATION SEQUENCE COMLETES" ;
+
+    LOCAL_PCI_RST = 1'b0 ;
+
+    do_pause(10) ;
+
+    LOCAL_PCI_RST <= 1'b1 ;
+
+    // set valid i2c slave address
+    i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+    fork:check_spoci_register_value_after_reset_blk
+        reg poll_spoci_cs_reg           ;
+        reg [31: 0] spoci_cs_val        ;
+        integer     transfered          ;
+        reg         [ 2: 0] termination ;
+    begin
+        poll_spoci_cs_reg = 1'b1 ;
+
+        transfered = 0 ;
+
+        while ((transfered == 0) & poll_spoci_cs_reg)
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[0] + 'h3fc   ,   //  start address
+                `BC_MEM_READ                    ,   //  bus command
+                spoci_cs_val                    ,   //  data
+                4'hf                            ,   //  byte enable - active high
+                transfered                      ,   //  actual transfer count
+                termination                         //  target signaled termination
+            ) ;
+
+            if (transfered == 0)
+            begin
+                if (termination !== ipci_unsupported_commands_master.master_abort)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("PCI Target unit generated unexpected termination during power on configuration sequence!") ;
+                    test_fail("PCI Target unit generated unexpected termination during power on configuration sequence") ;
+                    ok = 1'b0 ;
+                    if (poll_spoci_cs_reg)
+                    begin
+                        poll_spoci_cs_reg = 1'b0 ;
+                        disable poll_deadlock_blk ;
+                    end
+                end
+            end
+        end
+
+        if (transfered !== 1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Power On configuration not completed as expected!") ;
+            test_fail("Power On configuration was not completed as expected") ;
+            ok = 1'b0 ;
+        end
+        else if (poll_spoci_cs_reg)
+        begin
+            disable poll_deadlock_blk ;
+        end
+
+        if (spoci_cs_val !== 32'h0000_0000)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from Serial EPROM Control and Status register") ;
+            test_fail("Invalid value was read from Serial EPROM Control and Status register") ;
+            ok = 1'b0 ;
+        end
+    end
+    begin:poll_deadlock_blk
+        // the serial power on configuration interface must read 80 bytes to
+        // complete the sequence. Assume 2 bytes of 11 bits for each
+        // byte read
+        repeat(80)
+        begin
+            #(2.0 * 11.0 * 1000000000.0 / 50000.0) ;
+        end
+        poll_spoci_cs_reg = 1'b0 ;
+    end
+    join
+
+    // read written registers
+    fork
+    begin:check_register_values_after_reset_blk
+        reg [31: 0] read_adr    ;
+        reg [31: 0] read_dat    ;
+        integer     transfered  ;
+        reg [ 2: 0] termination ;
+        reg [31: 0] exp_dat     ;
+
+        // PCI Device Control and Status register
+        config_read( 'h4, 4'hF, read_dat ) ;
+
+        // device status register
+        exp_dat[31:27] = 'h0            ;   //  various status bits - must be 0 after reset
+        exp_dat[26:25] = 'b01           ;   //  DEVSEL timing
+        exp_dat[24]    = 1'b0           ;   //  status bit
+        exp_dat[23]    = 1'b1           ;   //  fast b2b
+        exp_dat[22]    = 1'b0           ;   //  reserved
+        exp_dat[21]    = `HEADER_66MHz  ;   //  66MHz indicator
+        exp_dat[20]    = 1'b0           ;   //  cap list
+    `ifdef PCI_CPCI_HS_IMPLEMENT
+        exp_dat[20]    = 1'b1           ;   //  cap list
+    `endif
+        exp_dat[19:16] = 'h0            ;   //  reserved
+
+        // device control register
+        exp_dat[15:10] = 'h0    ;   //  reserved
+        exp_dat[9]     = 'h0    ;   //  fast b2b en
+        exp_dat[8]     = 'h0    ;   //  serr en
+        exp_dat[7]     = 'h0    ;   //  stepping
+        exp_dat[6]     = 'h0    ;   //  PERR resp.
+        exp_dat[5]     = 'h0    ;   //  VGA pallete
+        exp_dat[4]     = 'h0    ;   //  write and inval use
+        exp_dat[3]     = 'h0    ;   //  special_cyc
+        exp_dat[2]     = 'h1    ;   //  bus master
+        exp_dat[1]     = 'h1    ;   //  memory space enabled
+        exp_dat[0]     = 'h1    ;   //  io space enabled
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Device Control and Status register") ;
+            test_fail("Invalid value was read from PCI Device Control and Status register") ;
+            ok = 1'b0 ;
+        end
+
+        // PCI Ba0 Register
+        config_read( 'h10, 4'hF, read_dat ) ;
+
+        // device status register
+        exp_dat = Target_Base_Addr_R[0] ;
+        exp_dat[31 - `PCI_NUM_OF_DEC_ADDR_LINES:0] = 'h0 ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI BA0 register") ;
+            test_fail("Invalid value was read from PCI BA0 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // WB Image Control 1
+        config_read({1'b1, `W_IMG_CTRL1_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+        exp_dat[0] = 'h1 ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Image Control 1 register") ;
+            test_fail("Invalid value was read from WB Image Control 1 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // WB Image Control 2
+        config_read({1'b1, `W_IMG_CTRL2_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+
+    `ifdef WB_IMAGE2
+        exp_dat[1] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Image Control 2 register") ;
+            test_fail("Invalid value was read from WB Image Control 2 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // WB Image Control 3
+        config_read({1'b1, `W_IMG_CTRL3_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+
+    `ifdef WB_IMAGE3
+        exp_dat[1:0] = 'h3 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Image Control 3 register") ;
+            test_fail("Invalid value was read from WB Image Control 3 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // WB Image Control 4
+        config_read({1'b1, `W_IMG_CTRL4_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+
+    `ifdef WB_IMAGE4
+        exp_dat[2] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Image Control 4 register") ;
+            test_fail("Invalid value was read from WB Image Control 4 register") ;
+            ok = 1'b0 ;
+        end
+        
+        // WB Image Control 5
+        config_read({1'b1, `W_IMG_CTRL5_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+
+    `ifdef WB_IMAGE5
+        exp_dat[0] = 1'b1 ;
+        exp_dat[2] = 1'b1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Image Control 5 register") ;
+            test_fail("Invalid value was read from WB Image Control 5 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // PCI Image Control 1
+        config_read({1'b1, `P_IMG_CTRL1_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+        exp_dat[1] = 'h1 ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Image Control 1 register") ;
+            test_fail("Invalid value was read from PCI Image Control 1 register") ;
+            ok = 1'b0 ;
+        end
+        
+        // PCI Image Control 2
+        config_read({1'b1, `P_IMG_CTRL2_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+    `ifdef PCI_IMAGE2
+        exp_dat[2] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Image Control 2 register") ;
+            test_fail("Invalid value was read from PCI Image Control 2 register") ;
+            ok = 1'b0 ;
+        end
+        
+        // PCI Image Control 3
+        config_read({1'b1, `P_IMG_CTRL3_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+    `ifdef PCI_IMAGE3
+        exp_dat[1] = 'h1 ;
+        exp_dat[2] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Image Control 3 register") ;
+            test_fail("Invalid value was read from PCI Image Control 3 register") ;
+            ok = 1'b0 ;
+        end
+        
+        // PCI Image Control 4
+        config_read({1'b1, `P_IMG_CTRL4_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+    `ifdef PCI_IMAGE4
+        exp_dat[1] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Image Control 4 register") ;
+            test_fail("Invalid value was read from PCI Image Control 4 register") ;
+            ok = 1'b0 ;
+        end
+    
+        // PCI Image Control 5
+        config_read({1'b1, `P_IMG_CTRL5_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat = 0 ;
+    `ifdef PCI_IMAGE5
+        exp_dat[2] = 'h1 ;
+    `endif
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Image Control 5 register") ;
+            test_fail("Invalid value was read from PCI Image Control 5 register") ;
+            ok = 1'b0 ;
+        end
+
+        // write both error control and status registers
+        // WB Error Control and Status
+        config_read({1'b1, `W_ERR_CS_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat     = 0 ;
+        exp_dat[0]  = 'h1 ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from WB Error Control and Status register") ;
+            test_fail("Invalid value was read from WB Error Control and Status register") ;
+            ok = 1'b0 ;
+        end
+
+        // PCI Error Control and Status
+        config_read({1'b1, `P_ERR_CS_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat     = 0 ;
+        exp_dat[0]  = 'h1 ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from PCI Error Control and Status register") ;
+            test_fail("Invalid value was read from PCI Error Control and Status register") ;
+            ok = 1'b0 ;
+        end
+    
+        // interrupt control register
+        config_read({1'b1, `ICR_ADDR, 2'b00}, 4'hF, read_dat) ;
+
+        exp_dat         = 0     ;
+        exp_dat[2:0]    = 'h7   ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from Interrupt Control register") ;
+            test_fail("Invalid value was read from Interrupt Control register") ;
+            ok = 1'b0 ;
+        end
+    
+        // verify Latency Timer and Cache Line size registers
+        config_read('hC, 4'hF, read_dat) ;
+
+        exp_dat[ 7: 0]  = 'd8   ;
+        exp_dat[15: 8]  = 'd16  ;
+        exp_dat[31:16]  = 'h0   ;
+
+        if (read_dat !== exp_dat)
+        begin
+            $display("Time %t", $time) ;
+            $display("Invalid value was read from Latency Timer Register") ;
+            test_fail("Invalid value was read from Latency Timer register") ;
+            ok = 1'b0 ;
+        end
+    end
+    begin:wait_stop_condition_blk
+        reg wait_for_stop ;
+
+        wait_for_stop = 1'b1 ;
+        while(wait_for_stop)
+        begin
+            @(posedge SDA) ;
+            if (SCL === 1'b1)
+                wait_for_stop = 1'b0 ;
+        end
+
+        disable no_stop_condition_detect_blk ;
+    end
+    begin:no_stop_condition_detect_blk
+        // wait for 4 bit times for stop condition to occur
+        #(4 * 20000) ;
+        $display("Time %t", $time) ;
+        $display("Waited 4 bit times for stop condition but none was detected") ;
+        test_fail("Stop condition was not detected on serial power on configuration interface in 4 bit times after last bit was received") ;
+        ok = 1'b0 ;
+        disable wait_stop_condition_blk ;
+    end
+    join
+
+    if (ok)
+        test_ok ;
+    
+end
+endtask // test_power_on_spoci
+
+task i2c_eprom_write_register_val ;
+    input   [10: 0] eprom_adr_i ;
+    input   [ 7: 0] reg_num_i   ;
+    input   [31: 0] reg_val_i   ;
+    output          ok_o        ;
+begin:main
+    ok_o = 1'b1 ;
+
+    i2c_eprom_write
+    (
+        eprom_adr_i ,   //  eprom location
+        reg_num_i   ,   //  data - register number
+        ok_o            //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    i2c_eprom_write
+    (
+        eprom_adr_i + 'h1   ,   //  eprom location
+        reg_val_i[ 7: 0]    ,   //  data - byte 0
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    i2c_eprom_write
+    (
+        eprom_adr_i + 'h2   ,   //  eprom location
+        reg_val_i[15: 8]    ,   //  data - byte 1
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    i2c_eprom_write
+    (
+        eprom_adr_i + 'h3   ,   //  eprom location
+        reg_val_i[23:16]    ,   //  data - byte 2
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    i2c_eprom_write
+    (
+        eprom_adr_i + 'h4   ,   //  eprom location
+        reg_val_i[31:24]    ,   //  data - byte 3
+        ok_o                    //  success/failure
+    ) ;
+
+end
+endtask
+
+task i2c_eprom_verify_register_val ;
+    input   [10: 0] eprom_adr_i ;
+    input   [ 7: 0] reg_num_i   ;
+    input   [31: 0] reg_val_i   ;
+    output          ok_o        ;
+
+    reg [ 7: 0] cur_byte ;
+begin:main
+    ok_o = 1'b1 ;
+
+    i2c_eprom_read
+    (
+        eprom_adr_i ,   //  eprom location
+        cur_byte    ,   //  data - register number
+        ok_o            //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    if (cur_byte !== reg_num_i)
+    begin
+        $display("Time %t", $time) ;
+        $display("Register number read from eprom address 0x%h had wrong value", eprom_adr_i) ;
+        $display("Expected 0x%h, actual 0x%h", reg_num_i, cur_byte) ;
+        test_fail("Wrong register number value was read from Serial EPROM");
+        ok_o = 1'b0 ;
+        disable main ;
+    end
+
+    i2c_eprom_read
+    (
+        eprom_adr_i + 'h1   ,   //  eprom location
+        cur_byte            ,   //  data - byte 0
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    if (cur_byte !== reg_val_i[ 7: 0])
+    begin
+        $display("Time %t", $time) ;
+        $display("Byte 0 value read from eprom address 0x%h had wrong value", eprom_adr_i + 'h1) ;
+        $display("Expected 0x%h, actual 0x%h", reg_val_i[ 7: 0], cur_byte) ;
+        test_fail("Wrong byte 0 value was read from Serial EPROM");
+        ok_o = 1'b0 ;
+        disable main ;
+    end
+
+    i2c_eprom_read
+    (
+        eprom_adr_i + 'h2   ,   //  eprom location
+        cur_byte            ,   //  data - byte 1
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    if (cur_byte !== reg_val_i[ 15: 8])
+    begin
+        $display("Time %t", $time) ;
+        $display("Byte 1 value read from eprom address 0x%h had wrong value", eprom_adr_i + 'h2) ;
+        $display("Expected 0x%h, actual 0x%h", reg_val_i[15: 8], cur_byte) ;
+        test_fail("Wrong byte 1 value was read from Serial EPROM");
+        ok_o = 1'b0 ;
+        disable main ;
+    end
+
+    i2c_eprom_read
+    (
+        eprom_adr_i + 'h3   ,   //  eprom location
+        cur_byte            ,   //  data - byte 2
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    if (cur_byte !== reg_val_i[23:16])
+    begin
+        $display("Time %t", $time) ;
+        $display("Byte 2 value read from eprom address 0x%h had wrong value", eprom_adr_i + 'h3) ;
+        $display("Expected 0x%h, actual 0x%h", reg_val_i[23:16], cur_byte) ;
+        test_fail("Wrong byte 2 value was read from Serial EPROM");
+        ok_o = 1'b0 ;
+        disable main ;
+    end
+
+    i2c_eprom_read
+    (
+        eprom_adr_i + 'h4   ,   //  eprom location
+        cur_byte            ,   //  data - byte 3
+        ok_o                    //  success/failure
+    ) ;
+
+    if (ok_o !== 1'b1)
+        disable main ;
+
+    if (cur_byte !== reg_val_i[31:24])
+    begin
+        $display("Time %t", $time) ;
+        $display("Byte 3 value read from eprom address 0x%h had wrong value", eprom_adr_i + 'h4) ;
+        $display("Expected 0x%h, actual 0x%h", reg_val_i[31:24], cur_byte) ;
+        test_fail("Wrong byte 3 value was read from Serial EPROM");
+        ok_o = 1'b0 ;
+    end
+
+end
+endtask
+
+task i2c_eprom_write ;
+    input   [10: 0] adr_i   ;
+    input   [ 7: 0] dat_i   ;
+    output          ok_o    ;
+    reg             poll_serial_eprom_reg   ;
+    reg             write_done              ;
+    integer         transfered              ;
+    reg     [ 2: 0] termination             ;
+    reg     [31: 0] rdata                   ;
+    reg     [31: 0] wdata                   ;
+begin
+    ok_o = 1'b1 ;
+
+    // set valid i2c slave address
+    i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+    wdata = {8'h2, 5'h0, adr_i[10: 8], adr_i[ 7: 0], dat_i} ;
+
+    // write address, byte value and write bit to the serial eprom control and status register
+    ipci_unsupported_commands_master.single_transfer
+    (
+        Target_Base_Addr_R[0] + 'h3fc   ,   //  start address
+        `BC_MEM_WRITE                   ,   //  bus command
+        wdata                           ,   //  data
+        4'hf                            ,   //  byte enable - active high
+        transfered                      ,   //  actual transfer count
+        termination                         //  target signaled termination
+    ) ;
+
+    if (transfered !== 1'b1)
+    begin
+        $display("Time %t", $time) ;
+        $display("Write to Serial EPROM Control and Status register failed") ;
+        test_fail("Write to Serial EPROM Control and Status register failed") ;
+        ok_o = 1'b0 ;
+    end
+
+    // poll write bit for maximum byte write time
+    // assume maximum transfer of 3 bytes, each takes 11 bits at 50kbps
+    poll_serial_eprom_reg = 1'b1 ;
+    write_done = 1'b0 ;
+
+    fork
+    begin
+        while (poll_serial_eprom_reg & ~write_done & ok_o)
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[0] + 'h3fc   ,   //  start address
+                `BC_MEM_READ                    ,   //  bus command
+                rdata                           ,   //  data
+                4'hf                            ,   //  byte enable - active high
+                transfered                      ,   //  actual transfer count
+                termination                         //  target signaled termination
+            ) ;
+    
+            if (transfered !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status register failed") ;
+                test_fail("Read from Serial EPROM Control and Status register failed") ;
+                ok_o = 1'b0 ;
+            end
+            else
+            begin
+                if (rdata[ 7: 0] !== dat_i)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected byte value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected byte value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[18: 8] !== adr_i)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected address value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected address value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[31] !== 1'b0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected NO_ACK bit value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected NO_ACK bit value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[24] !== 1'b0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected Read bit value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected Read bit value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[25] === 1'b0)
+                begin
+                    write_done = 1'b1 ;
+                end
+            end
+        end
+
+        if (poll_serial_eprom_reg)
+            disable stop_poll_blk ;
+
+    end
+    begin:stop_poll_blk
+        #(3.0 * 11.0 * 1000000000.0 / 50000.0) ;
+        poll_serial_eprom_reg = 1'b0 ;
+    end
+    join
+
+    if (~write_done & ok_o)
+    begin
+        $display("Time %t", $time) ;
+        $display("Write to serial eprom through Serial EPROM Control and Status register not processed as expected") ;
+        test_fail("Write to serial eprom through Serial EPROM Control and Status register was not processed as expected") ;
+        ok_o = 1'b0 ;
+    end
+end
+endtask // i2c_eprom_write
+
+task i2c_eprom_read ;
+    input   [10: 0] adr_i   ;
+    output  [ 7: 0] dat_o   ;
+    output          ok_o    ;
+    reg             poll_serial_eprom_reg   ;
+    reg             read_done               ;
+    integer         transfered              ;
+    reg     [ 2: 0] termination             ;
+    reg     [31: 0] rdata                   ;
+    reg     [31: 0] wdata                   ;
+begin
+    ok_o = 1'b1 ;
+
+    // set valid i2c slave address
+    i_i2c_slave_model.I2C_ADR = 7'b1010000 ;
+
+    wdata = {8'h1, 5'h0, adr_i[10: 8], adr_i[ 7: 0], 8'h0} ;
+
+    // write address, byte value and read bit to the serial eprom control and status register
+    ipci_unsupported_commands_master.single_transfer
+    (
+        Target_Base_Addr_R[0] + 'h3fc   ,   //  start address
+        `BC_MEM_WRITE                   ,   //  bus command
+        wdata                           ,   //  data
+        4'hf                            ,   //  byte enable - active high
+        transfered                      ,   //  actual transfer count
+        termination                         //  target signaled termination
+    ) ;
+
+    if (transfered !== 1'b1)
+    begin
+        $display("Time %t", $time) ;
+        $display("Write to Serial EPROM Control and Status register failed") ;
+        test_fail("Write to Serial EPROM Control and Status register failed") ;
+        ok_o = 1'b0 ;
+    end
+
+    // poll read bit for maximum byte write time
+    // assume maximum transfer of 4 bytes, each takes 11 bits at 50kbps
+    poll_serial_eprom_reg = 1'b1 ;
+    read_done = 1'b0 ;
+
+    fork
+    begin
+        while (poll_serial_eprom_reg & ~read_done & ok_o)
+        begin
+            ipci_unsupported_commands_master.single_transfer
+            (
+                Target_Base_Addr_R[0] + 'h3fc   ,   //  start address
+                `BC_MEM_READ                    ,   //  bus command
+                rdata                           ,   //  data
+                4'hf                            ,   //  byte enable - active high
+                transfered                      ,   //  actual transfer count
+                termination                         //  target signaled termination
+            ) ;
+    
+            if (transfered !== 1'b1)
+            begin
+                $display("Time %t", $time) ;
+                $display("Read from Serial EPROM Control and Status register failed") ;
+                test_fail("Read from Serial EPROM Control and Status register failed") ;
+                ok_o = 1'b0 ;
+            end
+            else
+            begin
+                dat_o = rdata[ 7: 0] ;
+    
+                if (rdata[18: 8] !== adr_i)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected address value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected address value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[31] !== 1'b0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected NO_ACK bit value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected NO_ACK bit value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[25] !== 1'b0)
+                begin
+                    $display("Time %t", $time) ;
+                    $display("Read from Serial EPROM Control and Status register returned unexpected Write bit value") ;
+                    test_fail("Read from Serial EPROM Control and Status register returned unexpected Write bit value") ;
+                    ok_o = 1'b0 ;
+                end
+    
+                if (rdata[24] === 1'b0)
+                begin
+                    read_done = 1'b1 ;
+                end
+            end
+        end
+        
+        if (poll_serial_eprom_reg)
+            disable stop_poll_blk ;
+    end
+    begin:stop_poll_blk
+        #(3.0 * 11.0 * 1000000000.0 / 50000.0) ;
+        poll_serial_eprom_reg = 1'b0 ;
+    end
+    join
+
+    if (~read_done & ok_o)
+    begin
+        $display("Time %t", $time) ;
+        $display("Read from serial eprom through Serial EPROM Control and Status register not processed as expected") ;
+        test_fail("Read from serial eprom through Serial EPROM Control and Status register was not processed as expected") ;
+        ok_o = 1'b0 ;
+    end
+end
+endtask // i2c_eprom_read
+
+`endif
+
 task display_warning;
     input [31:0] error_address ;
     input [31:0] expected_data ;
@@ -15414,28 +19873,58 @@ task PCIU_MEM_READ_MASTER_ABORT;
   input  [79:0] name;
   input  [2:0] master_number;
   input  [9:0] size;
+  input  [31:0] adr_i ;
   begin
-    DO_REF (name[79:0], master_number[2:0], `NO_DEVICE_IDSEL_ADDR,
+    DO_REF (name[79:0], master_number[2:0], adr_i,
                PCI_COMMAND_MEMORY_READ, 32'h76543210, `Test_All_Bytes, size[9:0],
-              `Test_Addr_Perr, `Test_Data_Perr, 8'h0_0,
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, 8'h0_0,
               `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
   end
 endtask // PCIU_MEM_READ_MASTER_ABORT
+
+task PCIU_IO_READ_MASTER_ABORT;
+  input  [79:0] name;
+  input  [2:0] master_number;
+  input  [9:0] size;
+  input  [31:0] adr_i ;
+  begin
+    DO_REF (name[79:0], master_number[2:0], adr_i,
+               PCI_COMMAND_IO_READ, 32'h76543210, `Test_All_Bytes, size[9:0],
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, 8'h0_0,
+              `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
+              `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
+  end
+endtask // PCIU_IO_READ_MASTER_ABORT
 
 // Access a location with no high-order bits set, assuring that no device responds
 task PCIU_MEM_WRITE_MASTER_ABORT;
   input  [79:0] name;
   input  [2:0] master_number;
   input  [9:0] size;
+  input  [31:0] adr_i ;
   begin
-    DO_REF (name[79:0], master_number[2:0], `NO_DEVICE_IDSEL_ADDR,
+    DO_REF (name[79:0], master_number[2:0], adr_i,
                PCI_COMMAND_MEMORY_WRITE, 32'h76543210, `Test_All_Bytes, size[9:0],
-              `Test_Addr_Perr, `Test_Data_Perr, 8'h0_0,
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, 8'h0_0,
               `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
               `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
   end
 endtask // PCIU_MEM_WRITE_MASTER_ABORT
+
+task PCIU_IO_WRITE_MASTER_ABORT;
+  input  [79:0] name;
+  input  [2:0] master_number;
+  input  [9:0] size;
+  input  [31:0] adr_i ;
+  begin
+    DO_REF (name[79:0], master_number[2:0], adr_i,
+               PCI_COMMAND_IO_WRITE, 32'h76543210, `Test_All_Bytes, size[9:0],
+              `Test_No_Addr_Perr, `Test_No_Data_Perr, 8'h0_0,
+              `Test_One_Zero_Target_WS, `Test_Devsel_Medium, `Test_No_Fast_B2B,
+              `Test_Target_Normal_Completion, `Test_Expect_Master_Abort);
+  end
+endtask // PCIU_IO_WRITE_MASTER_ABORT
 
 // Do variable length transfers with various paramaters
 task PCIU_CONFIG_READ;
@@ -16536,6 +21025,139 @@ begin:main
         error_monitor_done = 1 ;
     end
     join
+
+    begin:single_distributed_writes_test_blk
+        integer clocks_between_transfers    ;
+        reg     do_retry                    ;
+        reg [31: 0] image_ba_val            ;
+        integer     rnd_seed                ;
+        reg [31: 0] cur_wdata               ;
+        reg [31: 0] cur_rdata               ;
+        integer     transfered              ;
+        reg [ 2: 0] termination             ;
+
+        addr_offset = {4'h1, `P_IMG_CTRL0_ADDR, 2'b00} + (12'h10 * Image_num);
+        // disable all image's features
+        config_write( addr_offset, 32'h0000_0000, 4'hF, ok) ;
+
+        if (ok !== 1'b1)
+        begin
+            $display("Time %t", $time) ;
+            $display("Write to PCI Image Control Register %0d failed", Image_num) ;
+            test_fail("Write to one of the PCI Image Control Registers failed") ;
+        end
+
+        addr_offset = {4'h1, `P_BA0_ADDR, 2'b00} + (12'h10 * Image_num);
+        config_read( addr_offset, 4'hF, image_ba_val ) ;
+
+        fork
+        begin
+            rnd_seed = 32'h0f1e_2d3c ;
+
+            for (clocks_between_transfers = 128 ; clocks_between_transfers > 0 ; clocks_between_transfers = clocks_between_transfers - 1)
+            begin
+                do_retry = 1'b1 ;
+                cur_wdata = $random(rnd_seed) ;
+
+                while (do_retry)
+                begin
+                    ipci_unsupported_commands_master.single_transfer
+                    (
+                        {image_ba_val[31: 1], 1'b0} + clocks_between_transfers * 4  ,   //  start address
+                        image_ba_val[0] ? `BC_IO_WRITE : `BC_MEM_WRITE              ,   //  bus command
+                        cur_wdata                                                   ,   //  data
+                        4'hf                                                        ,   //  byte enable - active high
+                        transfered                                                  ,   //  actual transfer count
+                        termination                                                     //  target signaled termination
+                    ) ;
+
+                    if (transfered !== 1)
+                    begin
+                        if (termination !== ipci_unsupported_commands_master.retry)
+                        begin
+                            $display("Time %t", $time) ;
+                            $display("Unexpected termination was received while writing through PCI Target Unit") ;
+                            test_fail("Unexpected termination was received while writing through PCI Target Unit") ;
+                            do_retry = 1'b0 ;
+                            ok = 1'b0 ;
+                        end
+                    end
+                    else
+                        do_retry = 1'b0 ;
+                end
+
+                do_pause(clocks_between_transfers) ;
+            end
+        end
+        begin:monitor_writes_on_wb_bus
+            integer cur_adr ;
+            reg no_error ;
+
+            for (cur_adr = 128 * 4 ; (cur_adr > 0) & ok ; cur_adr = cur_adr - 4)
+            begin
+                wb_transaction_progress_monitor
+                ( 
+                    {image_ba_val[31: 1], 1'b0} + cur_adr,  // address
+                    1'b1,                                   // write = 1, read = 0
+                    4'h1,                                   // number of transfers
+                    1'b1,                                   // check transfers
+                    no_error                                // error not detected
+                ) ;
+
+                if (no_error !== 1'b1)
+                begin
+                    ok = 1'b0 ;
+                    $display("Time %t", $time) ;
+                    $display("WISHBONE Transaction monitor detected invalid transaction from WISHBONE Master") ;
+                    test_fail("WISHBONE Transaction monitor detected invalid transaction initiated by WISHBONE Master") ;
+                end
+            end
+        end
+        join
+
+        rnd_seed = 32'h0f1e_2d3c ;
+
+        for (clocks_between_transfers = 128 ; clocks_between_transfers > 0 ; clocks_between_transfers = clocks_between_transfers - 1)
+        begin
+            do_retry = 1'b1 ;
+            cur_wdata = $random(rnd_seed) ;
+
+            while (do_retry)
+            begin
+                ipci_unsupported_commands_master.single_transfer
+                (
+                    {image_ba_val[31: 1], 1'b0} + clocks_between_transfers * 4  ,   //  start address
+                    image_ba_val[0] ? `BC_IO_READ : `BC_MEM_READ                ,   //  bus command
+                    cur_rdata                                                   ,   //  data
+                    4'hf                                                        ,   //  byte enable - active high
+                    transfered                                                  ,   //  actual transfer count
+                    termination                                                     //  target signaled termination
+                ) ;
+
+                if (transfered !== 1)
+                begin
+                    if (termination !== ipci_unsupported_commands_master.retry)
+                    begin
+                        $display("Time %t", $time) ;
+                        $display("Unexpected termination was received while writing through PCI Target Unit") ;
+                        test_fail("Unexpected termination was received while writing through PCI Target Unit") ;
+                        do_retry = 1'b0 ;
+                        ok = 1'b0 ;
+                    end
+                end
+                else
+                    do_retry = 1'b0 ;
+            end
+
+            if (cur_wdata !== cur_rdata)
+            begin
+                $display("Time %t", $time) ;
+                $display("Data value read through PCI Target Unit not as expected") ;
+                test_fail("Data value read through PCI Target Unit was not as expected") ;
+                ok = 1'b0 ;
+            end
+        end
+    end
 
     if ( ok )
         test_ok ;

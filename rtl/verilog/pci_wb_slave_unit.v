@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_slave_unit.v,v $
+// Revision 1.3  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.2  2003/10/17 09:11:52  markom
 // mbist signals updated according to newest convention
 //
@@ -126,6 +129,7 @@ module pci_wb_slave_unit
     wbu_at_en_in,
     wbu_ccyc_addr_in ,
     wbu_master_enable_in,
+    wb_init_complete_in,
     wbu_cache_line_size_not_zero,
     wbu_cache_line_size_in,
     wbu_pciif_gnt_in,
@@ -225,7 +229,8 @@ input   [5:0]                               wbu_at_en_in ;
 
 input   [23:0]  wbu_ccyc_addr_in ;
 
-input           wbu_master_enable_in ;
+input           wbu_master_enable_in    ;
+input           wb_init_complete_in     ;
 
 input			wbu_cache_line_size_not_zero ;
 input   [7:0]   wbu_cache_line_size_in ;
@@ -476,6 +481,7 @@ wire [3:0]  wbs_sm_sel_in                   =       SEL_I ;
 wire [31:0] wbs_sm_sdata_in                 =       SDATA_I ;
 wire        wbs_sm_cab_in                   =       CAB_I ;
 wire [31:0] wbs_sm_ccyc_addr_in             =       ccyc_addr_out ;
+wire        wbs_sm_init_complete_in         =       wb_init_complete_in ;
 
 // WISHBONE slave interface instantiation
 pci_wb_slave wishbone_slave(
@@ -520,6 +526,7 @@ pci_wb_slave wishbone_slave(
                         .wbr_fifo_empty_in        (wbs_sm_wbr_empty_in),
                         .pciw_fifo_empty_in       (wbs_sm_pciw_empty_in),
                         .wbs_lock_in              (wbs_sm_lock_in),
+                        .init_complete_in         (wbs_sm_init_complete_in),
                         .cache_line_size_not_zero (wbs_sm_cache_line_size_not_zero),
                         .del_in_progress_out      (wbs_sm_del_in_progress_out),
                         .ccyc_addr_in             (wbs_sm_ccyc_addr_in),

@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.13  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.12  2003/12/28 09:54:48  fr2201
 // def_wb_imagex_addr_map  defined correctly
 //
@@ -97,8 +100,8 @@
 `define PCIW_ADDR_LENGTH 7
 `define PCIR_ADDR_LENGTH 7
 
-//`define FPGA
-//`define XILINX
+`define FPGA
+`define XILINX
 
 //`define WB_RAM_DONT_SHARE
 //`define PCI_RAM_DONT_SHARE
@@ -172,10 +175,10 @@
 // address masks as well as base addresses!
 `define PCI_AM0 20'hffff_f
 `define PCI_AM1 20'hffff_f
-`define PCI_AM2 20'hffff_8
-`define PCI_AM3 20'hffff_0
-`define PCI_AM4 20'hfffe_0
-`define PCI_AM5 20'h0000_0
+`define PCI_AM2 20'hffff_f
+`define PCI_AM3 20'hffff_f
+`define PCI_AM4 20'hffff_f
+`define PCI_AM5 20'hffff_f
 
 // initial value for PCI image maping to MEMORY or IO spaces.  If initial define is set to 0,
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
@@ -190,12 +193,19 @@
 // initial value for PCI translation addresses. The  initial values
 // are set after reset. When ADDR_TRAN_IMPL is defined then then Images 
 // are transleted to this adresses whithout access to pci_ta registers.
-`define PCI_TA0 20'h1000_0
-`define PCI_TA1 20'h2000_0
-`define PCI_TA2 20'h3000_0
-`define PCI_TA3 20'h4000_0
-`define PCI_TA4 20'h5000_0
-`define PCI_TA5 20'h6000_0
+`define PCI_TA0 20'h0000_0
+`define PCI_TA1 20'h0000_0
+`define PCI_TA2 20'h0000_0
+`define PCI_TA3 20'h0000_0
+`define PCI_TA4 20'h0000_0
+`define PCI_TA5 20'h0000_0
+
+`define PCI_AT_EN0 1'b0
+`define PCI_AT_EN1 1'b0
+`define PCI_AT_EN2 1'b0
+`define PCI_AT_EN3 1'b0
+`define PCI_AT_EN4 1'b0
+`define PCI_AT_EN5 1'b0
 
 // number defined here specifies how many MS bits in WB address are compared with base address, to decode
 // accesses. Maximum number allows for minimum image size ( number = 20, image size = 4KB ), minimum number
@@ -245,6 +255,12 @@
 `define WB_TA4 20'h0000_0
 `define WB_TA5 20'h0000_0
 
+`define WB_AT_EN1 1'b0
+`define WB_AT_EN2 1'b0
+`define WB_AT_EN3 1'b0
+`define WB_AT_EN4 1'b0
+`define WB_AT_EN5 1'b0
+
 // If this define is commented out, then address translation will not be implemented.
 // addresses will pass through bridge unchanged, regardles of address translation enable bits.
 // Address translation also slows down the decoding
@@ -282,11 +298,6 @@ capable device
 `define HEADER_DEVICE_ID    16'h0001
 `define HEADER_REVISION_ID  8'h01
 
-// Turn registered WISHBONE master outputs on or off
-// all outputs from WB Master state machine are registered, if this is defined - WB bus outputs as well as
-// outputs to internals of the core.
-//`define REGISTER_WBM_OUTPUTS
-
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
 `define WB_RTY_CNT_MAX			8'hff
@@ -300,4 +311,5 @@ capable device
 
 `ifdef GUEST
     `define PCI_CPCI_HS_IMPLEMENT
+    `define PCI_SPOCI
 `endif

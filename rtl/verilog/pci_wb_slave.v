@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_wb_slave.v,v $
+// Revision 1.5  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.4  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -123,6 +126,7 @@ module pci_wb_slave
                     wbr_fifo_empty_in,
                     pciw_fifo_empty_in,
                     wbs_lock_in,
+                    init_complete_in,
                     cache_line_size_not_zero,
                     sample_address_out,
                     CYC_I,
@@ -261,8 +265,11 @@ input           pciw_fifo_empty_in ;        // empty status indicator from PCIW_
 /*----------------------------------------------------------------------------------------------------------------------
 wbs_lock_in: internal signal that locks out all accesses, except delayed completions or configuration accesses.
 ( when master operation is disabled via master enable bit in configuration spacei )
+init_complete_in: while initialization sequence is in progress, the state machine
+remains in the idle state - it does not respond to accesses.
 ---------------------------------------------------------------------------------------------------------------------*/
 input           wbs_lock_in ;
+input           init_complete_in ;
 
 // cache line size register must hold appropriate value to enable read bursts and special commands on PCI bus!
 input           cache_line_size_not_zero ;
@@ -653,7 +660,8 @@ always@(
         wbw_fifo_almost_full_in     or
         wbw_fifo_full_in            or
         do_del_request              or
-        wbr_fifo_empty_in
+        wbr_fifo_empty_in           or
+        init_complete_in
        )
 begin
     // default signal values
@@ -692,7 +700,7 @@ begin
 
     case (c_state)
     S_IDLE: begin
-                if ( wattempt || rattempt )
+                if ( (wattempt || rattempt) & init_complete_in )
                 begin
                 
                 `ifdef PCI_WB_SLAVE_S_DEC1

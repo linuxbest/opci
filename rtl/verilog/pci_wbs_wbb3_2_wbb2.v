@@ -40,6 +40,9 @@
 // CVS Revision History
 //
 // $Log: pci_wbs_wbb3_2_wbb2.v,v $
+// Revision 1.4  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.3  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -82,35 +85,37 @@ module pci_wbs_wbb3_2_wbb2
     wbs_rty_o,
     wbs_cti_i,
     wbs_bte_i,
-    wbs_cab_o
+    wbs_cab_o,
+    wb_init_complete_i
 ) ;
 
 input       wb_clk_i    ;
 input       wb_rst_i    ;
 
-input           wbs_cyc_i   ;
-output          wbs_cyc_o   ;
-input           wbs_stb_i   ;
-output          wbs_stb_o   ;
-input   [31:0]  wbs_adr_i   ;
-output  [31:0]  wbs_adr_o   ;
-input   [31:0]  wbs_dat_i_i ;
-output  [31:0]  wbs_dat_i_o ;
-input   [31:0]  wbs_dat_o_i ;
-output  [31:0]  wbs_dat_o_o ;
-input           wbs_we_i    ;
-output          wbs_we_o    ;
-input   [ 3:0]  wbs_sel_i   ;
-output  [ 3:0]  wbs_sel_o   ;
-input           wbs_ack_i   ;
-output          wbs_ack_o   ;
-input           wbs_err_i   ;
-output          wbs_err_o   ;
-input           wbs_rty_i   ;
-output          wbs_rty_o   ;
-input   [ 2:0]  wbs_cti_i   ;
-input   [ 1:0]  wbs_bte_i   ;
-output          wbs_cab_o   ;
+input           wbs_cyc_i           ;
+output          wbs_cyc_o           ;
+input           wbs_stb_i           ;
+output          wbs_stb_o           ;
+input   [31:0]  wbs_adr_i           ;
+output  [31:0]  wbs_adr_o           ;
+input   [31:0]  wbs_dat_i_i         ;
+output  [31:0]  wbs_dat_i_o         ;
+input   [31:0]  wbs_dat_o_i         ;
+output  [31:0]  wbs_dat_o_o         ;
+input           wbs_we_i            ;
+output          wbs_we_o            ;
+input   [ 3:0]  wbs_sel_i           ;
+output  [ 3:0]  wbs_sel_o           ;
+input           wbs_ack_i           ;
+output          wbs_ack_o           ;
+input           wbs_err_i           ;
+output          wbs_err_o           ;
+input           wbs_rty_i           ;
+output          wbs_rty_o           ;
+input   [ 2:0]  wbs_cti_i           ;
+input   [ 1:0]  wbs_bte_i           ;
+output          wbs_cab_o           ;
+input           wb_init_complete_i  ;
 
 reg             wbs_cyc_o           ;
 reg     [31:0]  wbs_adr_o           ;
@@ -143,7 +148,7 @@ begin
         reg [3:0] end_cycle        ;
         reg generate_int_adr       ;
         
-        start_cycle  = ~wbs_cyc_o & wbs_cyc_i & wbs_stb_i & ~wbs_ack_o & ~wbs_err_o & ~wbs_rty_o ;
+        start_cycle  = ~wbs_cyc_o & wbs_cyc_i & wbs_stb_i & ~wbs_ack_o & ~wbs_err_o & ~wbs_rty_o & wb_init_complete_i ;
         
         // there is a few conditions when cycle must be terminated
         // I've put them into bit array for better readability of the code
@@ -176,7 +181,7 @@ begin
         end
         else
         begin
-            if (wbs_cyc_i & wbs_stb_i & wbs_we_i & ~wbs_ack_o & ~wbs_err_o & ~wbs_rty_o)
+            if (wbs_cyc_i & wbs_stb_i & wbs_we_i & ~wbs_ack_o & ~wbs_err_o & ~wbs_rty_o & wb_init_complete_i)
             begin
                 wbs_dat_i_o       <= wbs_dat_i_i ;
                 wbs_dat_i_o_valid <= 1'b1 ;

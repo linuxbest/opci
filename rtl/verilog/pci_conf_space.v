@@ -1,6 +1,6 @@
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
-////  File name: conf_space.v                                     ////
+////  File name: pci_conf_space.v                                 ////
 ////                                                              ////
 ////  This file is part of the "PCI bridge" project               ////
 ////  http://www.opencores.org/cores/pci/                         ////
@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_conf_space.v,v $
+// Revision 1.7  2004/01/24 11:54:18  mihad
+// Update! SPOCI Implemented!
+//
 // Revision 1.6  2003/12/28 09:54:48  fr2201
 // def_wb_imagex_addr_map  defined correctly
 //
@@ -100,7 +103,7 @@ registers from the PCI conf. header !!!
 					// normal R/W address, data and control
 module pci_conf_space 
                 (	w_conf_address_in, w_conf_data_in, w_conf_data_out, r_conf_address_in, r_conf_data_out,
-					w_we, w_re, r_re, w_byte_en, w_clock, reset, pci_clk, wb_clk,
+					w_we_i, w_re, r_re, w_byte_en_in, w_clock, reset, pci_clk, wb_clk,
 					// outputs from command register of the PCI header
 					serr_enable, perr_response, pci_master_enable, memory_space_enable, io_space_enable,
 					// inputs to status register of the PCI header
@@ -130,11 +133,16 @@ module pci_conf_space
 					// input to interrupt status register
 					isr_sys_err_int, isr_par_err_int, isr_int_prop,
 
-                    init_complete 
+                    pci_init_complete_out, wb_init_complete_out
 
                 `ifdef PCI_CPCI_HS_IMPLEMENT
                     ,
                     pci_cpci_hs_enum_oe_o, pci_cpci_hs_led_oe_o, pci_cpci_hs_es_i
+                `endif
+
+                `ifdef PCI_SPOCI
+                    ,
+                    spoci_scl_oe_o, spoci_sda_i, spoci_sda_oe_o
                 `endif
                 ) ;
 
@@ -164,10 +172,10 @@ wire	[31 : 0]				w_conf_wdata_reduced ; // reduced data written into WB  image r
 input	[11 : 0]				w_conf_address_in ;
 input	[11 : 0]				r_conf_address_in ;
 // input control signals
-input							w_we ;
-input							w_re ;
-input							r_re ;
-input	[3 : 0]					w_byte_en ;
+input							w_we_i ;
+input							w_re   ;
+input							r_re   ;
+input	[3 : 0]					w_byte_en_in ;
 input							w_clock ;
 input							reset ;
 input							pci_clk ;
@@ -278,7 +286,8 @@ input                           isr_sys_err_int ;
 input                           isr_par_err_int ;
 input							isr_int_prop ;
 
-output                          init_complete ;
+output                          pci_init_complete_out ;
+output                          wb_init_complete_out  ;
 
 `ifdef PCI_CPCI_HS_IMPLEMENT
 output  pci_cpci_hs_enum_oe_o   ; 
@@ -310,6 +319,20 @@ reg pci_cpci_hs_led_oe_o    ;
 `endif
 
 `endif
+
+`ifdef PCI_SPOCI
+output  spoci_scl_oe_o  ;
+input   spoci_sda_i     ;
+output  spoci_sda_oe_o  ;
+
+reg spoci_cs_nack,
+    spoci_cs_write,
+    spoci_cs_read;
+
+reg [10: 0] spoci_cs_adr   ; 
+reg [ 7: 0] spoci_cs_dat   ;
+`endif
+
 /*###########################################################################################################
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	REGISTERS definition
@@ -762,6 +785,55 @@ wire rst_inactive = 1'b1 ;
 
 reg init_complete   ;
 
+wire    sync_init_complete ;
+
+`ifdef HOST
+assign  wb_init_complete_out = init_complete ;
+
+pci_synchronizer_flop #(1, 0) i_pci_init_complete_sync
+(
+    .data_in        (   init_complete       ), 
+    .clk_out        (   pci_clk             ), 
+    .sync_data_out  (   sync_init_complete  ), 
+    .async_reset    (   reset               )
+);
+
+reg pci_init_complete_out ;
+
+always@(posedge pci_clk or posedge reset)
+begin
+    if (reset)
+        pci_init_complete_out <= 1'b0 ;
+    else
+        pci_init_complete_out <= sync_init_complete ;
+end
+
+`endif
+
+`ifdef GUEST
+
+assign  pci_init_complete_out = init_complete ;
+
+pci_synchronizer_flop #(1, 0) i_wb_init_complete_sync
+(
+    .data_in        (   init_complete       ), 
+    .clk_out        (   wb_clk              ), 
+    .sync_data_out  (   sync_init_complete  ), 
+    .async_reset    (   reset               )
+);
+
+reg wb_init_complete_out ;
+
+always@(posedge wb_clk or posedge reset)
+begin
+    if (reset)
+        wb_init_complete_out <= 1'b0 ;
+    else
+        wb_init_complete_out <= sync_init_complete ;
+end
+
+`endif
+
 /*###########################################################################################################
 -------------------------------------------------------------------------------------------------------------
 
@@ -800,318 +872,310 @@ reg init_complete   ;
         `ifdef PCI_CPCI_HS_IMPLEMENT
             or hs_ins or hs_ext or hs_pi or hs_loo or hs_eim or hs_cap_id
         `endif
+
+        `ifdef PCI_SPOCI
+            or spoci_cs_nack or spoci_cs_write or spoci_cs_read or spoci_cs_adr or spoci_cs_dat
+        `endif
     		)
     begin
-    	case (r_conf_address_in[8])
-    	1'b0 :
+    	case (r_conf_address_in[9:2])
+    	// PCI header - configuration space
+    	8'h0: r_conf_data_out = { r_device_id, r_vendor_id } ;
+    	8'h1: r_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
+    								 4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
+    	8'h2: r_conf_data_out = { r_class_code, r_revision_id } ;
+    	8'h3: r_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
+    	8'h4: 
     	begin
-    	  case ({r_conf_address_in[7], r_conf_address_in[6]})
-    	  2'b00 :
-    	  begin
-    		// PCI header - configuration space
-    		case (r_conf_address_in[5:2])
-    		4'h0: r_conf_data_out = { r_device_id, r_vendor_id } ;
-    		4'h1: r_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
-    									 4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
-    		4'h2: r_conf_data_out = { r_class_code, r_revision_id } ;
-    		4'h3: r_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
-    		4'h4: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
-    		end
-    		4'h5: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-    		end
-    		4'h6: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-    		end
-    		4'h7: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-    		end
-    		4'h8: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-    		end
-    		4'h9: 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-    		end
-        `ifdef PCI_CPCI_HS_IMPLEMENT
-            4'hD:
-            begin
-                r_conf_data_out = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
-            end
-        `endif
-    		4'hf: r_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
-    		default: r_conf_data_out = 32'h0000_0000 ;
-    		endcase
-    	  end
-    	  default :
-          begin
-          `ifdef PCI_CPCI_HS_IMPLEMENT
-            if ( (r_conf_address_in[7:0] >> 2) == ((`PCI_CAP_PTR_VAL) >> 2) )
-            begin
-              r_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
-            end
-            else
-            begin
-              r_conf_data_out = 32'h0000_0000 ;
-            end
-          `else
-	        r_conf_data_out = 32'h0000_0000 ;
-          `endif
-          end
-    	  endcase
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
     	end
-    	default :
+    	8'h5: 
     	begin
-    		// PCI target - configuration space
-    		case (r_conf_address_in[7:2])
-    		`P_IMG_CTRL0_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
-            `P_BA0_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
-    		end
-            `P_AM0_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA0_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_IMG_CTRL1_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl1_bit2_1, 1'h0 } ;
-            `P_BA1_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-    		end
-            `P_AM1_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA1_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_IMG_CTRL2_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl2_bit2_1, 1'h0 } ;
-            `P_BA2_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-    		end
-            `P_AM2_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA2_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_IMG_CTRL3_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl3_bit2_1, 1'h0 } ;
-            `P_BA3_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-    		end
-            `P_AM3_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA3_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_IMG_CTRL4_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl4_bit2_1, 1'h0 } ;
-            `P_BA4_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-    		end
-            `P_AM4_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA4_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_IMG_CTRL5_ADDR: r_conf_data_out = { 29'h00000000, pci_img_ctrl5_bit2_1, 1'h0 } ;
-            `P_BA5_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    																 pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    			r_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-    		end
-            `P_AM5_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_TA5_ADDR		 : 
-    		begin
-            	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-    		end
-            `P_ERR_CS_ADDR	 : r_conf_data_out = { pci_err_cs_bit31_24, 13'h0000, pci_err_cs_bit10, pci_err_cs_bit9,
-            									   pci_err_cs_bit8, 7'h00, pci_err_cs_bit0 } ;
-            `P_ERR_ADDR_ADDR : r_conf_data_out = pci_err_addr ;
-            `P_ERR_DATA_ADDR : r_conf_data_out = pci_err_data ;
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
+    	end
+    	8'h6: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
+    	end
+    	8'h7: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
+    	end
+    	8'h8: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
+    	end
+    	8'h9: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															 pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
+    	end
+    `ifdef PCI_CPCI_HS_IMPLEMENT
+        8'hD:
+        begin
+            r_conf_data_out = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
+        end
+    `endif
+    	8'hf: r_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
+    `ifdef PCI_CPCI_HS_IMPLEMENT
+        (`PCI_CAP_PTR_VAL >> 2):
+        begin
+            r_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
+        end
+    `endif
+  		// PCI target - configuration space
+    	{2'b01, `P_IMG_CTRL0_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA0_ADDR}	  : 
+        begin
+    	    r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    		  													  pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
+    	end
+        {2'b01, `P_AM0_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA0_ADDR}: 
+    	begin
+            r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_IMG_CTRL1_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl1_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA1_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    	 														  pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
+    	end
+        {2'b01, `P_AM1_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA1_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_IMG_CTRL2_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl2_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA2_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															  pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
+    	end
+        {2'b01, `P_AM2_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA2_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_IMG_CTRL3_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl3_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA3_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															  pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
+    	end
+        {2'b01, `P_AM3_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA3_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_IMG_CTRL4_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl4_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA4_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															  pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
+    	end
+        {2'b01, `P_AM4_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA4_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_IMG_CTRL5_ADDR}: r_conf_data_out = { 29'h00000000, pci_img_ctrl5_bit2_1, 1'h0 } ;
+        {2'b01, `P_BA5_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    															  pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    		r_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
+    	end
+        {2'b01, `P_AM5_ADDR}:
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_TA5_ADDR}: 
+    	begin
+           	r_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+    	end
+        {2'b01, `P_ERR_CS_ADDR}: r_conf_data_out = { pci_err_cs_bit31_24, 13'h0000, pci_err_cs_bit10, pci_err_cs_bit9,
+            					 				     pci_err_cs_bit8, 7'h00, pci_err_cs_bit0 } ;
+        {2'b01, `P_ERR_ADDR_ADDR}: r_conf_data_out = pci_err_addr ;
+        {2'b01, `P_ERR_DATA_ADDR}: r_conf_data_out = pci_err_data ;
     		// WB slave - configuration space
-    		`WB_CONF_SPC_BAR_ADDR: r_conf_data_out = { wb_ba0_bit31_12, 11'h000, wb_ba0_bit0 } ;
-    		`W_IMG_CTRL1_ADDR: r_conf_data_out = { 29'h00000000, wb_img_ctrl1_bit2_0 } ;
-    		`W_BA1_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba1_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    																wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    			r_conf_data_out[0] = wb_ba1_bit0 ;
-    		end
-    		`W_AM1_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_TA1_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_IMG_CTRL2_ADDR: r_conf_data_out = { 29'h00000000, wb_img_ctrl2_bit2_0 } ;
-    		`W_BA2_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba2_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    																wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    			r_conf_data_out[0] = wb_ba2_bit0 ;
-    		end
-    		`W_AM2_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_TA2_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_IMG_CTRL3_ADDR: r_conf_data_out = { 29'h00000000, wb_img_ctrl3_bit2_0 } ;
-    		`W_BA3_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba3_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    																wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    			r_conf_data_out[0] = wb_ba3_bit0 ;
-    		end
-    		`W_AM3_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_TA3_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_IMG_CTRL4_ADDR: r_conf_data_out = { 29'h00000000, wb_img_ctrl4_bit2_0 } ;
-    		`W_BA4_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba4_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    																wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    			r_conf_data_out[0] = wb_ba4_bit0 ;
-    		end
-    		`W_AM4_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_TA4_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_IMG_CTRL5_ADDR: r_conf_data_out = { 29'h00000000, wb_img_ctrl5_bit2_0 } ;
-    		`W_BA5_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba5_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    																wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    			r_conf_data_out[0] = wb_ba5_bit0 ;
-    		end
-    		`W_AM5_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_TA5_ADDR		 : 
-    		begin
-    			r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    			r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-    		end
-    		`W_ERR_CS_ADDR	 : r_conf_data_out = { wb_err_cs_bit31_24, /*13*/14'h0000, /*wb_err_cs_bit10,*/
-            									   wb_err_cs_bit9, wb_err_cs_bit8, 7'h00, wb_err_cs_bit0 } ;
-    		`W_ERR_ADDR_ADDR : r_conf_data_out = wb_err_addr ;
-    		`W_ERR_DATA_ADDR : r_conf_data_out = wb_err_data ;
+    	{2'b01, `WB_CONF_SPC_BAR_ADDR}: r_conf_data_out = { wb_ba0_bit31_12, 11'h000, wb_ba0_bit0 } ;
+    	{2'b01, `W_IMG_CTRL1_ADDR}: r_conf_data_out = { 29'h00000000, wb_img_ctrl1_bit2_0 } ;
+    	{2'b01, `W_BA1_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba1_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    															 wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    		r_conf_data_out[0] = wb_ba1_bit0 ;
+    	end
+    	{2'b01, `W_AM1_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_TA1_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_IMG_CTRL2_ADDR}: r_conf_data_out = { 29'h00000000, wb_img_ctrl2_bit2_0 } ;
+    	`W_BA2_ADDR		 : 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba2_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    															 wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    		r_conf_data_out[0] = wb_ba2_bit0 ;
+    	end
+    	{2'b01, `W_AM2_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_TA2_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_IMG_CTRL3_ADDR}: r_conf_data_out = { 29'h00000000, wb_img_ctrl3_bit2_0 } ;
+    	{2'b01, `W_BA3_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba3_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    															 wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    		r_conf_data_out[0] = wb_ba3_bit0 ;
+    	end
+    	{2'b01, `W_AM3_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_TA3_ADDR}: 
+    	begin
+    	    r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_IMG_CTRL4_ADDR}: r_conf_data_out = { 29'h00000000, wb_img_ctrl4_bit2_0 } ;
+    	{2'b01, `W_BA4_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba4_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    															 wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    		r_conf_data_out[0] = wb_ba4_bit0 ;
+    	end
+    	{2'b01, `W_AM4_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_TA4_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_IMG_CTRL5_ADDR}: r_conf_data_out = { 29'h00000000, wb_img_ctrl5_bit2_0 } ;
+    	{2'b01, `W_BA5_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba5_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    															 wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    		r_conf_data_out[0] = wb_ba5_bit0 ;
+    	end
+    	{2'b01, `W_AM5_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_TA5_ADDR}: 
+    	begin
+    		r_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    		r_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+    	end
+    	{2'b01, `W_ERR_CS_ADDR}: r_conf_data_out = { wb_err_cs_bit31_24, /*13*/14'h0000, /*wb_err_cs_bit10,*/
+            									     wb_err_cs_bit9, wb_err_cs_bit8, 7'h00, wb_err_cs_bit0 } ;
+    	{2'b01, `W_ERR_ADDR_ADDR}: r_conf_data_out = wb_err_addr ;
+    	{2'b01, `W_ERR_DATA_ADDR}: r_conf_data_out = wb_err_data ;
 
-    		`CNF_ADDR_ADDR	 : r_conf_data_out = { 8'h00, cnf_addr_bit23_2, 1'h0, cnf_addr_bit0 } ;
+    	{2'b01, `CNF_ADDR_ADDR}: r_conf_data_out = { 8'h00, cnf_addr_bit23_2, 1'h0, cnf_addr_bit0 } ;
     		// `CNF_DATA_ADDR: implemented elsewhere !!!
     		// `INT_ACK_ADDR : implemented elsewhere !!!
-            `ICR_ADDR		 : r_conf_data_out = { icr_bit31, 26'h0000_000, icr_bit4_3, icr_bit2_0 } ;
-            `ISR_ADDR		 : r_conf_data_out = { 27'h0000_000, isr_bit4_3, isr_bit2_0 } ;
+        {2'b01, `ICR_ADDR}: r_conf_data_out = { icr_bit31, 26'h0000_000, icr_bit4_3, icr_bit2_0 } ;
+        {2'b01, `ISR_ADDR}: r_conf_data_out = { 27'h0000_000, isr_bit4_3, isr_bit2_0 } ;
 
-    		default	: r_conf_data_out = 32'h0000_0000 ;
-    		endcase
-    	end
+    `ifdef PCI_SPOCI
+        8'hff: r_conf_data_out = {spoci_cs_nack, 5'h0, spoci_cs_write, spoci_cs_read,
+                                  5'h0, spoci_cs_adr[10:8],
+                                  spoci_cs_adr[7:0],
+                                  spoci_cs_dat[7:0]} ;
+    `endif
+    	default	: r_conf_data_out = 32'h0000_0000 ;
     	endcase
     end
 
 `endif
 
-always@(w_conf_address_in or
+`ifdef PCI_SPOCI
+reg [ 7: 0] spoci_reg_num ;
+wire [11: 0] w_conf_address = init_complete ? w_conf_address_in : {2'b00, spoci_reg_num, 2'b00} ;
+`else
+wire [11: 0] w_conf_address = w_conf_address_in ;
+`endif
+
+always@(w_conf_address or
 		status_bit15_11 or status_bit8 or r_status_bit4 or command_bit8 or command_bit6 or command_bit2_0 or
 		latency_timer or cache_line_size_reg or
 		pci_ba0_bit31_12 or
@@ -1137,474 +1201,474 @@ always@(w_conf_address_in or
     `ifdef PCI_CPCI_HS_IMPLEMENT
         or hs_ins or hs_ext or hs_pi or hs_loo or hs_eim or hs_cap_id
     `endif
+
+    `ifdef PCI_SPOCI
+        or spoci_cs_nack or spoci_cs_write or spoci_cs_read or spoci_cs_adr or spoci_cs_dat
+    `endif
 		)
 begin
-	case (w_conf_address_in[8])
-	1'b0 :
+	case (w_conf_address[9:2])
+	8'h0:
 	begin
-	  case ({w_conf_address_in[7], w_conf_address_in[6]})
-	  2'b00 :
-	  begin
-		// PCI header - configuration space
-		case (w_conf_address_in[5:2])
-		4'h0:
-		begin
-			w_conf_data_out = { r_device_id, r_vendor_id } ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
-		end
-		4'h1: // w_reg_select_dec bit 0
-		begin
-			w_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
-								 4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_0001 ;
-		end
-		4'h2:
-		begin
-			w_conf_data_out = { r_class_code, r_revision_id } ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
-		end
-		4'h3: // w_reg_select_dec bit 1
-		begin
-			w_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
-			w_reg_select_dec = 57'h000_0000_0000_0002 ;
-		end
-		4'h4: // w_reg_select_dec bit 4
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
-			w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
-		end
-		4'h5: // w_reg_select_dec bit 8
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-			w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
-		end
-		4'h6: // w_reg_select_dec bit 12
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-			w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
-		end
-		4'h7: // w_reg_select_dec bit 16
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-			w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
-		end
-		4'h8: // w_reg_select_dec bit 20
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-			w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
-		end
-		4'h9: // w_reg_select_dec bit 24
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-			w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
-		end
-    `ifdef PCI_CPCI_HS_IMPLEMENT
-        4'hD:
-        begin
-            w_conf_data_out  = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
-            w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
-        end
-    `endif
-		4'hf: // w_reg_select_dec bit 2
-		begin
-			w_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
-			w_reg_select_dec = 57'h000_0000_0000_0004 ;
-		end
-		default	:
-		begin
-			w_conf_data_out = 32'h0000_0000 ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ;
-		end
-		endcase
-	  end
-	  default :
-	  begin
-      `ifdef PCI_CPCI_HS_IMPLEMENT
-        if ( (w_conf_address_in[7:0] >> 2) == ((`PCI_CAP_PTR_VAL) >> 2) )
-        begin
-            w_reg_select_dec = 57'h100_0000_0000_0000 ;
-            w_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
-        end
-        else
-        begin
-            w_reg_select_dec = 57'h000_0000_0000_0000 ;
-            w_conf_data_out = 32'h0000_0000 ;
-        end
-      `else
-	    w_conf_data_out = 32'h0000_0000 ;
-		w_reg_select_dec = 57'h000_0000_0000_0000 ;
-      `endif
-	  end
-	  endcase
+		w_conf_data_out = { r_device_id, r_vendor_id } ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
 	end
-	default :
+	8'h1: // w_reg_select_dec bit 0
 	begin
-		// PCI target - configuration space
-		case (w_conf_address_in[7:2])
-		`P_IMG_CTRL0_ADDR:  // w_reg_select_dec bit 3
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_0008 ;
-		end
-        `P_BA0_ADDR:   // w_reg_select_dec bit 4
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
-			w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
-		end
-        `P_AM0_ADDR:   // w_reg_select_dec bit 5
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_0020 ;
-		end
-        `P_TA0_ADDR:   // w_reg_select_dec bit 6
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_0040 ;
-		end
-        `P_IMG_CTRL1_ADDR:   // w_reg_select_dec bit 7
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl1_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_0080 ;
-		end
-        `P_BA1_ADDR:   // w_reg_select_dec bit 8
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
-			w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
-		end
-        `P_AM1_ADDR:   // w_reg_select_dec bit 9
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_0200 ;
-		end
-        `P_TA1_ADDR:   // w_reg_select_dec bit 10
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_0400 ;
-		end
-        `P_IMG_CTRL2_ADDR:   // w_reg_select_dec bit 11
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl2_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_0800 ;
-		end
-        `P_BA2_ADDR:   // w_reg_select_dec bit 12
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
-			w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
-		end
-        `P_AM2_ADDR:   // w_reg_select_dec bit 13
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_2000 ;
-		end
-        `P_TA2_ADDR:   // w_reg_select_dec bit 14
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0000_4000 ;
-		end
-        `P_IMG_CTRL3_ADDR:   // w_reg_select_dec bit 15
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl3_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_8000 ;
-		end
-        `P_BA3_ADDR:   // w_reg_select_dec bit 16
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
-			w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
-		end
-        `P_AM3_ADDR:   // w_reg_select_dec bit 17
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0002_0000 ;
-		end
-        `P_TA3_ADDR:   // w_reg_select_dec bit 18
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0004_0000 ;
-		end
-        `P_IMG_CTRL4_ADDR:   // w_reg_select_dec bit 19
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl4_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0008_0000 ;
-		end
-        `P_BA4_ADDR:   // w_reg_select_dec bit 20
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
-			w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
-		end
-        `P_AM4_ADDR:   // w_reg_select_dec bit 21
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0020_0000 ;
-		end
-        `P_TA4_ADDR:   // w_reg_select_dec bit 22
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0040_0000 ;
-		end
-        `P_IMG_CTRL5_ADDR:   // w_reg_select_dec bit 23
-		begin
-			w_conf_data_out = { 29'h00000000, pci_img_ctrl5_bit2_1, 1'h0 } ;
-			w_reg_select_dec = 57'h000_0000_0080_0000 ;
-		end
-        `P_BA5_ADDR:   // w_reg_select_dec bit 24
-		begin
-    		w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
-    															 pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
-    		w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
-			w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
-		end
-        `P_AM5_ADDR:   // w_reg_select_dec bit 25
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0200_0000 ;
-		end
-        `P_TA5_ADDR:   // w_reg_select_dec bit 26
-		begin
-            w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
-			w_reg_select_dec = 57'h000_0000_0400_0000 ;
-		end
-        `P_ERR_CS_ADDR:   // w_reg_select_dec bit 27
-		begin
-			w_conf_data_out = { pci_err_cs_bit31_24, 13'h0000, pci_err_cs_bit10, pci_err_cs_bit9,
-        									   pci_err_cs_bit8, 7'h00, pci_err_cs_bit0 } ;
-			w_reg_select_dec = 57'h000_0000_0800_0000 ;
-		end
-        `P_ERR_ADDR_ADDR:   // w_reg_select_dec bit 28
-		begin
-			w_conf_data_out = pci_err_addr ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_1000_0000 ;
-		end
-        `P_ERR_DATA_ADDR:   // w_reg_select_dec bit 29
-		begin
-			w_conf_data_out = pci_err_data ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_2000_0000 ;
-		end
-		// WB slave - configuration space
-		`WB_CONF_SPC_BAR_ADDR:
-		begin
-			w_conf_data_out = { wb_ba0_bit31_12, 11'h000, wb_ba0_bit0 } ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
-		end
-		`W_IMG_CTRL1_ADDR:   // w_reg_select_dec bit 30
-		begin
-			w_conf_data_out = { 29'h00000000, wb_img_ctrl1_bit2_0 } ;
-			w_reg_select_dec = 57'h000_0000_4000_0000 ;
-		end
-		`W_BA1_ADDR:   // w_reg_select_dec bit 31
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba1_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    															wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    		w_conf_data_out[0] = wb_ba1_bit0 ;
-			w_reg_select_dec = 57'h000_0000_8000_0000 ;
-		end
-		`W_AM1_ADDR:   // w_reg_select_dec bit 32
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0001_0000_0000 ;
-		end
-		`W_TA1_ADDR:   // w_reg_select_dec bit 33
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0002_0000_0000 ;
-		end
-		`W_IMG_CTRL2_ADDR:   // w_reg_select_dec bit 34
-		begin
-			w_conf_data_out = { 29'h00000000, wb_img_ctrl2_bit2_0 } ;
-			w_reg_select_dec = 57'h000_0004_0000_0000 ;
-		end
-		`W_BA2_ADDR:   // w_reg_select_dec bit 35
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba2_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    															wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    		w_conf_data_out[0] = wb_ba2_bit0 ;
-			w_reg_select_dec = 57'h000_0008_0000_0000 ;
-		end
-		`W_AM2_ADDR:   // w_reg_select_dec bit 36
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0010_0000_0000 ;
-		end
-		`W_TA2_ADDR:   // w_reg_select_dec bit 37
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0020_0000_0000 ;
-		end
-		`W_IMG_CTRL3_ADDR:   // w_reg_select_dec bit 38
-		begin
-			w_conf_data_out = { 29'h00000000, wb_img_ctrl3_bit2_0 } ;
-			w_reg_select_dec = 57'h000_0040_0000_0000 ;
-		end
-		`W_BA3_ADDR:   // w_reg_select_dec bit 39
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba3_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    															wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    		w_conf_data_out[0] = wb_ba3_bit0 ;
-			w_reg_select_dec = 57'h000_0080_0000_0000 ;
-		end
-		`W_AM3_ADDR:   // w_reg_select_dec bit 40
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0100_0000_0000 ;
-		end
-		`W_TA3_ADDR:   // w_reg_select_dec bit 41
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_0200_0000_0000 ;
-		end
-		`W_IMG_CTRL4_ADDR:   // w_reg_select_dec bit 42
-		begin
-			w_conf_data_out = { 29'h00000000, wb_img_ctrl4_bit2_0 } ;
-			w_reg_select_dec = 57'h000_0400_0000_0000 ;
-		end
-		`W_BA4_ADDR:   // w_reg_select_dec bit 43
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba4_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    															wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    		w_conf_data_out[0] = wb_ba4_bit0 ;
-			w_reg_select_dec = 57'h000_0800_0000_0000 ;
-		end
-		`W_AM4_ADDR:   // w_reg_select_dec bit 44
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_1000_0000_0000 ;
-		end
-		`W_TA4_ADDR:   // w_reg_select_dec bit 45
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h000_2000_0000_0000 ;
-		end
-		`W_IMG_CTRL5_ADDR:   // w_reg_select_dec bit 46
-		begin
-			w_conf_data_out = { 29'h00000000, wb_img_ctrl5_bit2_0 } ;
-			w_reg_select_dec = 57'h000_4000_0000_0000 ;
-		end
-		`W_BA5_ADDR:   // w_reg_select_dec bit 47
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba5_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
-    															wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
-    		w_conf_data_out[0] = wb_ba5_bit0 ;
-			w_reg_select_dec = 57'h000_8000_0000_0000 ;
-		end
-		`W_AM5_ADDR:   // w_reg_select_dec bit 48
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h001_0000_0000_0000 ;
-		end
-		`W_TA5_ADDR:   // w_reg_select_dec bit 49
-		begin
-    		w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
-    		w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
-			w_reg_select_dec = 57'h002_0000_0000_0000 ;
-		end
-		`W_ERR_CS_ADDR:   // w_reg_select_dec bit 50
-		begin
-			w_conf_data_out = { wb_err_cs_bit31_24, /*13*/14'h0000, /*wb_err_cs_bit10,*/
-        									   wb_err_cs_bit9, wb_err_cs_bit8, 7'h00, wb_err_cs_bit0 } ;
-			w_reg_select_dec = 57'h004_0000_0000_0000 ;
-		end
-		`W_ERR_ADDR_ADDR:   // w_reg_select_dec bit 51
-		begin
-			w_conf_data_out = wb_err_addr ;
-			w_reg_select_dec = 57'h008_0000_0000_0000 ;
-		end
-		`W_ERR_DATA_ADDR:   // w_reg_select_dec bit 52
-		begin
-			w_conf_data_out = wb_err_data ;
-			w_reg_select_dec = 57'h010_0000_0000_0000 ;
-		end
-		`CNF_ADDR_ADDR:   // w_reg_select_dec bit 53
-		begin
-			w_conf_data_out = { 8'h00, cnf_addr_bit23_2, 1'h0, cnf_addr_bit0 } ;
-			w_reg_select_dec = 57'h020_0000_0000_0000 ;
-		end
+		w_conf_data_out = { status_bit15_11, r_status_bit10_9, status_bit8, r_status_bit7, 1'h0, r_status_bit5, r_status_bit4, 
+	 					    4'h0, 7'h00, command_bit8, 1'h0, command_bit6, 3'h0, command_bit2_0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_0001 ;
+	end
+	8'h2:
+	begin
+		w_conf_data_out = { r_class_code, r_revision_id } ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+	end
+	8'h3: // w_reg_select_dec bit 1
+	begin
+		w_conf_data_out = { 8'h00, r_header_type, latency_timer, cache_line_size_reg } ;
+		w_reg_select_dec = 57'h000_0000_0000_0002 ;
+	end
+	8'h4: // w_reg_select_dec bit 4
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
+		w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
+	end
+	8'h5: // w_reg_select_dec bit 8
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
+		w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
+	end
+	8'h6: // w_reg_select_dec bit 12
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
+		w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
+	end
+	8'h7: // w_reg_select_dec bit 16
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
+		w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
+	end
+	8'h8: // w_reg_select_dec bit 20
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
+		w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
+	end
+	8'h9: // w_reg_select_dec bit 24
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
+		w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
+	end
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    8'hD:
+    begin
+        w_conf_data_out  = {24'h0000_00, `PCI_CAP_PTR_VAL} ;
+        w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+    end
+`endif
+	8'hf: // w_reg_select_dec bit 2
+	begin
+		w_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
+		w_reg_select_dec = 57'h000_0000_0000_0004 ;
+	end
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    (`PCI_CAP_PTR_VAL >> 2):
+    begin
+        w_reg_select_dec = 57'h100_0000_0000_0000 ;
+        w_conf_data_out  = {8'h00, hs_ins, hs_ext, hs_pi, hs_loo, 1'b0, hs_eim, 1'b0, 8'h00, hs_cap_id} ;
+    end
+`endif
+	{2'b01, `P_IMG_CTRL0_ADDR}:  // w_reg_select_dec bit 3
+	begin
+		w_conf_data_out = { 29'h00000000, pci_img_ctrl0_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_0008 ;
+	end
+    {2'b01, `P_BA0_ADDR}:   // w_reg_select_dec bit 4
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba0_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba0_bit0 & pci_am0[31];
+		w_reg_select_dec = 57'h000_0000_0000_0010 ; // The same for another address
+	end
+    {2'b01, `P_AM0_ADDR}:   // w_reg_select_dec bit 5
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_0020 ;
+	end
+    {2'b01, `P_TA0_ADDR}:   // w_reg_select_dec bit 6
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta0[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_0040 ;
+	end
+    {2'b01, `P_IMG_CTRL1_ADDR}:   // w_reg_select_dec bit 7
+	begin
+	    w_conf_data_out = { 29'h00000000, pci_img_ctrl1_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_0080 ;
+	end
+    {2'b01, `P_BA1_ADDR}:   // w_reg_select_dec bit 8
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba1_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba1_bit0 & pci_am1[31];
+		w_reg_select_dec = 57'h000_0000_0000_0100 ; // The same for another address
+	end
+    {2'b01, `P_AM1_ADDR}:   // w_reg_select_dec bit 9
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_0200 ;
+	end
+    {2'b01, `P_TA1_ADDR}:   // w_reg_select_dec bit 10
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta1[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_0400 ;
+	end
+    {2'b01, `P_IMG_CTRL2_ADDR}:   // w_reg_select_dec bit 11
+	begin
+	    w_conf_data_out = { 29'h00000000, pci_img_ctrl2_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_0800 ;
+	end
+    {2'b01, `P_BA2_ADDR}:   // w_reg_select_dec bit 12
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba2_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba2_bit0 & pci_am2[31];
+		w_reg_select_dec = 57'h000_0000_0000_1000 ; // The same for another address
+	end
+    {2'b01, `P_AM2_ADDR}:   // w_reg_select_dec bit 13
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_2000 ;
+	end
+    {2'b01, `P_TA2_ADDR}:   // w_reg_select_dec bit 14
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta2[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0000_4000 ;
+	end
+    {2'b01, `P_IMG_CTRL3_ADDR}:   // w_reg_select_dec bit 15
+	begin
+	    w_conf_data_out = { 29'h00000000, pci_img_ctrl3_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_8000 ;
+	end
+    {2'b01, `P_BA3_ADDR}:   // w_reg_select_dec bit 16
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba3_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba3_bit0 & pci_am3[31];
+		w_reg_select_dec = 57'h000_0000_0001_0000 ; // The same for another address
+	end
+    {2'b01, `P_AM3_ADDR}:   // w_reg_select_dec bit 17
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0002_0000 ;
+	end
+    {2'b01, `P_TA3_ADDR}:   // w_reg_select_dec bit 18
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta3[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0004_0000 ;
+	end
+    {2'b01, `P_IMG_CTRL4_ADDR}:   // w_reg_select_dec bit 19
+	begin
+	    w_conf_data_out = { 29'h00000000, pci_img_ctrl4_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0008_0000 ;
+	end
+    {2'b01, `P_BA4_ADDR}:   // w_reg_select_dec bit 20
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba4_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba4_bit0 & pci_am4[31];
+		w_reg_select_dec = 57'h000_0000_0010_0000 ; // The same for another address
+	end
+    {2'b01, `P_AM4_ADDR}:   // w_reg_select_dec bit 21
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0020_0000 ;
+	end
+    {2'b01, `P_TA4_ADDR}:   // w_reg_select_dec bit 22
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta4[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0040_0000 ;
+	end
+    {2'b01, `P_IMG_CTRL5_ADDR}:   // w_reg_select_dec bit 23
+	begin
+		w_conf_data_out = { 29'h00000000, pci_img_ctrl5_bit2_1, 1'h0 } ;
+		w_reg_select_dec = 57'h000_0000_0080_0000 ;
+	end
+    {2'b01, `P_BA5_ADDR}:   // w_reg_select_dec bit 24
+	begin
+    	w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ba5_bit31_12[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] & 
+    														  pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):1] = 0 ;
+    	w_conf_data_out[0] = pci_ba5_bit0 & pci_am5[31];
+		w_reg_select_dec = 57'h000_0000_0100_0000 ; // The same for another address
+	end
+    {2'b01, `P_AM5_ADDR}:   // w_reg_select_dec bit 25
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_am5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0200_0000 ;
+	end
+    {2'b01, `P_TA5_ADDR}:   // w_reg_select_dec bit 26
+	begin
+        w_conf_data_out[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] = pci_ta5[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+        w_conf_data_out[(31-`PCI_NUM_OF_DEC_ADDR_LINES):0] = 0 ;
+		w_reg_select_dec = 57'h000_0000_0400_0000 ;
+	end
+    {2'b01, `P_ERR_CS_ADDR}:   // w_reg_select_dec bit 27
+	begin
+	    w_conf_data_out = { pci_err_cs_bit31_24, 13'h0000, pci_err_cs_bit10, pci_err_cs_bit9,
+        				    pci_err_cs_bit8, 7'h00, pci_err_cs_bit0 } ;
+		w_reg_select_dec = 57'h000_0000_0800_0000 ;
+	end
+    {2'b01, `P_ERR_ADDR_ADDR}:   // w_reg_select_dec bit 28
+	begin
+	    w_conf_data_out = pci_err_addr ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_1000_0000 ;
+	end
+    {2'b01, `P_ERR_DATA_ADDR}:   // w_reg_select_dec bit 29
+	begin
+		w_conf_data_out = pci_err_data ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ; // = 56'h00_0000_2000_0000 ;
+	end
+	// WB slave - configuration space
+	{2'b01, `WB_CONF_SPC_BAR_ADDR}:
+	begin
+		w_conf_data_out = { wb_ba0_bit31_12, 11'h000, wb_ba0_bit0 } ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ; // Read-Only register
+	end
+	{2'b01, `W_IMG_CTRL1_ADDR}:   // w_reg_select_dec bit 30
+	begin
+		w_conf_data_out = { 29'h00000000, wb_img_ctrl1_bit2_0 } ;
+		w_reg_select_dec = 57'h000_0000_4000_0000 ;
+	end
+	{2'b01, `W_BA1_ADDR}:   // w_reg_select_dec bit 31
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba1_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    														 wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    	w_conf_data_out[0] = wb_ba1_bit0 ;
+		w_reg_select_dec = 57'h000_0000_8000_0000 ;
+	end
+	{2'b01, `W_AM1_ADDR}:   // w_reg_select_dec bit 32
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0001_0000_0000 ;
+	end
+    {2'b01, `W_TA1_ADDR}:   // w_reg_select_dec bit 33
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta1[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0002_0000_0000 ;
+	end
+	{2'b01, `W_IMG_CTRL2_ADDR}:   // w_reg_select_dec bit 34
+	begin
+		w_conf_data_out = { 29'h00000000, wb_img_ctrl2_bit2_0 } ;
+		w_reg_select_dec = 57'h000_0004_0000_0000 ;
+	end
+	{2'b01, `W_BA2_ADDR}:   // w_reg_select_dec bit 35
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba2_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    														 wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    	w_conf_data_out[0] = wb_ba2_bit0 ;
+		w_reg_select_dec = 57'h000_0008_0000_0000 ;
+	end
+	{2'b01, `W_AM2_ADDR}:   // w_reg_select_dec bit 36
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0010_0000_0000 ;
+	end
+	{2'b01, `W_TA2_ADDR}:   // w_reg_select_dec bit 37
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta2[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0020_0000_0000 ;
+	end
+	{2'b01, `W_IMG_CTRL3_ADDR}:   // w_reg_select_dec bit 38
+	begin
+		w_conf_data_out = { 29'h00000000, wb_img_ctrl3_bit2_0 } ;
+		w_reg_select_dec = 57'h000_0040_0000_0000 ;
+	end
+	{2'b01, `W_BA3_ADDR}:   // w_reg_select_dec bit 39
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba3_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    														 wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    	w_conf_data_out[0] = wb_ba3_bit0 ;
+		w_reg_select_dec = 57'h000_0080_0000_0000 ;
+	end
+	{2'b01, `W_AM3_ADDR}:   // w_reg_select_dec bit 40
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0100_0000_0000 ;
+	end
+	{2'b01, `W_TA3_ADDR}:   // w_reg_select_dec bit 41
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta3[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_0200_0000_0000 ;
+	end
+	{2'b01, `W_IMG_CTRL4_ADDR}:   // w_reg_select_dec bit 42
+	begin
+		w_conf_data_out = { 29'h00000000, wb_img_ctrl4_bit2_0 } ;
+		w_reg_select_dec = 57'h000_0400_0000_0000 ;
+	end
+	{2'b01, `W_BA4_ADDR}:   // w_reg_select_dec bit 43
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba4_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    														 wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    	w_conf_data_out[0] = wb_ba4_bit0 ;
+		w_reg_select_dec = 57'h000_0800_0000_0000 ;
+	end
+	{2'b01, `W_AM4_ADDR}:   // w_reg_select_dec bit 44
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_1000_0000_0000 ;
+	end
+	{2'b01, `W_TA4_ADDR}:   // w_reg_select_dec bit 45
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta4[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h000_2000_0000_0000 ;
+	end
+	{2'b01, `W_IMG_CTRL5_ADDR}:   // w_reg_select_dec bit 46
+	begin
+		w_conf_data_out = { 29'h00000000, wb_img_ctrl5_bit2_0 } ;
+		w_reg_select_dec = 57'h000_4000_0000_0000 ;
+	end
+	{2'b01, `W_BA5_ADDR}:   // w_reg_select_dec bit 47
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ba5_bit31_12[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] & 
+    														 wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):1]  = 0 ;
+    	w_conf_data_out[0] = wb_ba5_bit0 ;
+		w_reg_select_dec = 57'h000_8000_0000_0000 ;
+	end
+	{2'b01, `W_AM5_ADDR}:   // w_reg_select_dec bit 48
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_am5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h001_0000_0000_0000 ;
+	end
+	{2'b01, `W_TA5_ADDR}:   // w_reg_select_dec bit 49
+	begin
+    	w_conf_data_out[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] = wb_ta5[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+    	w_conf_data_out[(31-`WB_NUM_OF_DEC_ADDR_LINES):0]  = 0 ;
+		w_reg_select_dec = 57'h002_0000_0000_0000 ;
+	end
+	{2'b01, `W_ERR_CS_ADDR}:   // w_reg_select_dec bit 50
+	begin
+		w_conf_data_out = { wb_err_cs_bit31_24, /*13*/14'h0000, /*wb_err_cs_bit10,*/
+    					    wb_err_cs_bit9, wb_err_cs_bit8, 7'h00, wb_err_cs_bit0 } ;
+		w_reg_select_dec = 57'h004_0000_0000_0000 ;
+	end
+	{2'b01, `W_ERR_ADDR_ADDR}:   // w_reg_select_dec bit 51
+	begin
+		w_conf_data_out = wb_err_addr ;
+		w_reg_select_dec = 57'h008_0000_0000_0000 ;
+	end
+	{2'b01, `W_ERR_DATA_ADDR}:   // w_reg_select_dec bit 52
+	begin
+		w_conf_data_out = wb_err_data ;
+		w_reg_select_dec = 57'h010_0000_0000_0000 ;
+	end
+	{2'b01, `CNF_ADDR_ADDR}:   // w_reg_select_dec bit 53
+	begin
+		w_conf_data_out = { 8'h00, cnf_addr_bit23_2, 1'h0, cnf_addr_bit0 } ;
+		w_reg_select_dec = 57'h020_0000_0000_0000 ;
+	end
 		// `CNF_DATA_ADDR: implemented elsewhere !!!
 		// `INT_ACK_ADDR: implemented elsewhere !!!
-        `ICR_ADDR:   // w_reg_select_dec bit 54
-		begin
-			w_conf_data_out = { icr_bit31, 26'h0000_000, icr_bit4_3, icr_bit2_0 } ;
-			w_reg_select_dec = 57'h040_0000_0000_0000 ;
-		end
-        `ISR_ADDR:   // w_reg_select_dec bit 55
-		begin
-			w_conf_data_out = { 27'h0000_000, isr_bit4_3, isr_bit2_0 } ;
-			w_reg_select_dec = 57'h080_0000_0000_0000 ;
-		end
-		default:
-		begin
-			w_conf_data_out = 32'h0000_0000 ;
-			w_reg_select_dec = 57'h000_0000_0000_0000 ;
-		end
-		endcase
+    {2'b01, `ICR_ADDR}:   // w_reg_select_dec bit 54
+	begin
+		w_conf_data_out = { icr_bit31, 26'h0000_000, icr_bit4_3, icr_bit2_0 } ;
+		w_reg_select_dec = 57'h040_0000_0000_0000 ;
+	end
+    {2'b01, `ISR_ADDR}:   // w_reg_select_dec bit 55
+	begin
+		w_conf_data_out = { 27'h0000_000, isr_bit4_3, isr_bit2_0 } ;
+		w_reg_select_dec = 57'h080_0000_0000_0000 ;
+	end
+
+`ifdef PCI_SPOCI
+    8'hff:
+    begin
+        w_conf_data_out = {spoci_cs_nack, 5'h0, spoci_cs_write, spoci_cs_read,
+                           5'h0, spoci_cs_adr[10:8],
+                           spoci_cs_adr[7:0],
+                           spoci_cs_dat[7:0]} ;
+
+        // this register is implemented separate from other registers, because
+        // it has special features implemented
+        w_reg_select_dec = 57'h000_0000_0000_0000 ;
+    end
+`endif
+
+	default:
+	begin
+		w_conf_data_out = 32'h0000_0000 ;
+		w_reg_select_dec = 57'h000_0000_0000_0000 ;
 	end
 	endcase
 end
 
+`ifdef PCI_SPOCI
+reg init_we ;
+reg init_cfg_done ;
+reg [31: 0] spoci_dat ;
+wire [31: 0] w_conf_data = init_cfg_done ? w_conf_data_in : spoci_dat ;
+wire [ 3: 0] w_byte_en   = init_cfg_done ? w_byte_en_in   : 4'b0000   ;
+`else
+wire init_we        = 1'b0  ;
+wire init_cfg_done  = 1'b1  ;
+wire [31: 0] w_conf_data    = w_conf_data_in ;
+wire [ 3: 0] w_byte_en      = w_byte_en_in   ;
+`endif
+
 // Reduced write data for BASE, MASK and TRANSLATION registers of PCI and WB images
-assign	w_conf_pdata_reduced[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)]	= w_conf_data_in[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
+assign	w_conf_pdata_reduced[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)]	= w_conf_data[31:(32-`PCI_NUM_OF_DEC_ADDR_LINES)] ;
 assign	w_conf_pdata_reduced[(31-`PCI_NUM_OF_DEC_ADDR_LINES): 0]	= 0 ;
-assign	w_conf_wdata_reduced[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)]	= w_conf_data_in[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
+assign	w_conf_wdata_reduced[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)]	= w_conf_data[31:(32-`WB_NUM_OF_DEC_ADDR_LINES)] ;
 assign	w_conf_wdata_reduced[(31-`WB_NUM_OF_DEC_ADDR_LINES): 0]	= 0 ;
 
+wire w_we = w_we_i | init_we ;
 
 always@(posedge w_clock or posedge reset)
 begin
@@ -1620,12 +1684,8 @@ begin
 
 		`ifdef		HOST
 		  `ifdef	NO_CNF_IMAGE	// if PCI bridge is HOST and IMAGE0 is assigned as general image space
-		 	`ifdef	PCI_IMAGE0
-			 `ifdef ADDR_TRAN_IMPL      
-			        pci_img_ctrl0_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-             `else
-			        pci_img_ctrl0_bit2_1 <= 2'h0 ;
-          	 `endif
+		 	`ifdef	PCI_IMAGE0	 
+			        pci_img_ctrl0_bit2_1 <= {`PCI_AT_EN0, 1'b0} ;
 					pci_ba0_bit31_12 <= 20'h0000_0 ;
 					pci_ba0_bit0 <= `PCI_BA0_MEM_IO ;
 					pci_am0 <= `PCI_AM0 ; 
@@ -1638,11 +1698,8 @@ begin
 					pci_ba0_bit31_12 <= 20'h0000_0 ;
 		`endif
 
-		`ifdef ADDR_TRAN_IMPL      
-		       pci_img_ctrl1_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-        `else
-		       pci_img_ctrl1_bit2_1 <= 2'h0 ;
-        `endif
+		pci_img_ctrl1_bit2_1 <= {`PCI_AT_EN1, 1'b0} ;
+
 		pci_ba1_bit31_12 <= 20'h0000_0 ; 
 	`ifdef	HOST
 		pci_ba1_bit0 <= `PCI_BA1_MEM_IO ;
@@ -1650,11 +1707,9 @@ begin
 		pci_am1 <= `PCI_AM1;
 		pci_ta1 <=  `PCI_TA1 ;//FR2201 translation address ;
 		`ifdef	PCI_IMAGE2
-			`ifdef  ADDR_TRAN_IMPL      
-			        pci_img_ctrl2_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-        	`else
-			        pci_img_ctrl2_bit2_1 <= 2'h0 ;
-        	`endif
+			
+			        pci_img_ctrl2_bit2_1 <= {`PCI_AT_EN2, 1'b0} ;
+
 					pci_ba2_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba2_bit0 <= `PCI_BA2_MEM_IO ;
@@ -1663,11 +1718,9 @@ begin
 					pci_ta2 <= `PCI_TA2 ;//FR2201 translation address ;
 		`endif
 		`ifdef	PCI_IMAGE3
-			`ifdef  ADDR_TRAN_IMPL      
-			        pci_img_ctrl3_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-            `else
-			        pci_img_ctrl3_bit2_1 <= 2'h0 ;
-        	`endif
+			
+			        pci_img_ctrl3_bit2_1 <= {`PCI_AT_EN3, 1'b0} ; //FR2201 when defined enabled
+            
         			pci_ba3_bit31_12 <= 20'h0000_0 ; 
         	`ifdef	HOST
         			pci_ba3_bit0 <= `PCI_BA3_MEM_IO ;
@@ -1676,11 +1729,9 @@ begin
 					pci_ta3 <=  `PCI_TA3 ;//FR2201 translation address ;
 		`endif
 		`ifdef	PCI_IMAGE4
-			`ifdef  ADDR_TRAN_IMPL      
-			        pci_img_ctrl4_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-        	`else
-			        pci_img_ctrl4_bit2_1 <= 2'h0 ;
-        	`endif
+			
+			        pci_img_ctrl4_bit2_1 <= {`PCI_AT_EN4, 1'b0} ; //FR2201 when defined enabled
+        	
 					pci_ba4_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba4_bit0 <= `PCI_BA4_MEM_IO ;
@@ -1689,11 +1740,9 @@ begin
 					pci_ta4 <= `PCI_TA4 ;//FR2201  translation address ;
 		`endif
 		`ifdef	PCI_IMAGE5
-			`ifdef ADDR_TRAN_IMPL      
-			        pci_img_ctrl5_bit2_1 <= 2'h2 ; //FR2201 when defined enabled
-        	`else
-			        pci_img_ctrl5_bit2_1 <= 2'h0 ;
-        	`endif
+			
+			        pci_img_ctrl5_bit2_1 <= {`PCI_AT_EN5, 1'b0} ; //FR2201 when defined enabled
+        	
 					pci_ba5_bit31_12 <= 20'h0000_0 ; 
 			`ifdef	HOST
 					pci_ba5_bit0 <= `PCI_BA5_MEM_IO ;
@@ -1705,54 +1754,39 @@ begin
 		/*pci_err_addr ;*/
         /*pci_err_data ;*/
 		//
-		`ifdef ADDR_TRAN_IMPL      
-		       wb_img_ctrl1_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
-        `else
-		       wb_img_ctrl1_bit2_0 <= 3'h0 ;
-        `endif
+		wb_img_ctrl1_bit2_0 <= {`WB_AT_EN1, 2'b00} ;
+        
 		wb_ba1_bit31_12 <=`WB_BA1; //FR2201 Address bar 
 		wb_ba1_bit0 <=`WB_BA1_MEM_IO;//
 		wb_am1 <= `WB_AM1 ;//FR2201 Address mask 
 		wb_ta1 <= `WB_TA1 ;//FR2201 20'h0000_0 ;
         `ifdef	WB_IMAGE2
-			 `ifdef ADDR_TRAN_IMPL      
-			        wb_img_ctrl2_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
-        	 `else
-			        wb_img_ctrl2_bit2_0 <= 3'h0 ;
-        	 `endif
+			        wb_img_ctrl2_bit2_0 <= {`WB_AT_EN2, 2'b00} ; 
+        	 
 					wb_ba2_bit31_12 <=`WB_BA2; //FR2201 Address bar  
 					wb_ba2_bit0 <=`WB_BA2_MEM_IO;//
 					wb_am2 <=`WB_AM2 ;//FR2201 Address mask
 					wb_ta2 <=`WB_TA2 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE3
-			 `ifdef ADDR_TRAN_IMPL      
-			        wb_img_ctrl3_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
-        	 `else
-			        wb_img_ctrl3_bit2_0 <= 3'h0 ;
-        	 `endif
+			        wb_img_ctrl3_bit2_0 <= {`WB_AT_EN3, 2'b00} ; 
+        	 
 					wb_ba3_bit31_12 <=`WB_BA3; //FR2201 Address bar  
 					wb_ba3_bit0 <=`WB_BA3_MEM_IO;//
 					wb_am3 <=`WB_AM3 ;//FR2201 Address mask
 					wb_ta3 <=`WB_TA3 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE4
-			 `ifdef ADDR_TRAN_IMPL      
-			        wb_img_ctrl4_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
-        	 `else
-			        wb_img_ctrl4_bit2_0 <= 3'h0 ;
-        	 `endif
+			        wb_img_ctrl4_bit2_0 <= {`WB_AT_EN4, 2'b00} ; 
+        	 
 					wb_ba4_bit31_12 <=`WB_BA4; //FR2201 Address bar 
 					wb_ba4_bit0 <=`WB_BA4_MEM_IO;//
 					wb_am4 <=`WB_AM4 ;//FR2201 Address mask
 					wb_ta4 <=`WB_TA4 ;//FR2201 translation address ;
 		`endif
 		`ifdef	WB_IMAGE5
-			 `ifdef ADDR_TRAN_IMPL      
-			        wb_img_ctrl5_bit2_0 <= 3'h4 ; //FR2201 when defined enabled
-        	 `else
-			        wb_img_ctrl5_bit2_0 <= 3'h0 ;
-        	 `endif
+			        wb_img_ctrl5_bit2_0 <= {`WB_AT_EN5, 2'b00} ;
+        	 
         			wb_ba5_bit31_12 <=`WB_BA5; //FR2201 Address bar  ;
         			wb_ba5_bit0 <=`WB_BA5_MEM_IO;//FR2201 1'h0 ;
 					wb_am5 <=`WB_AM5 ;//FR2201  Address mask
@@ -1824,55 +1858,55 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 		if (w_we)
 		begin
 				// PCI header - configuration space
-				if (w_reg_select_dec[0]) // w_conf_address_in[5:2] = 4'h1:
+				if (w_reg_select_dec[0]) // w_conf_address[5:2] = 4'h1:
 				begin
 					if (~w_byte_en[1])
-						command_bit8 <= w_conf_data_in[8] ;
+						command_bit8 <= w_conf_data[8] ;
 					if (~w_byte_en[0])
 					begin
-						command_bit6 <= w_conf_data_in[6] ;
-						command_bit2_0 <= w_conf_data_in[2:0] ;
+						command_bit6 <= w_conf_data[6] ;
+						command_bit2_0 <= w_conf_data[2:0] ;
 					end
 				end
-				if (w_reg_select_dec[1]) // w_conf_address_in[5:2] = 4'h3:
+				if (w_reg_select_dec[1]) // w_conf_address[5:2] = 4'h3:
 				begin
 					if (~w_byte_en[1])
-						latency_timer <= w_conf_data_in[15:8] ;
+						latency_timer <= w_conf_data[15:8] ;
 					if (~w_byte_en[0])
-						cache_line_size_reg <= w_conf_data_in[7:0] ;
+						cache_line_size_reg <= w_conf_data[7:0] ;
 				end
-//	            if (w_reg_select_dec[4]) // w_conf_address_in[5:2] = 4'h4:
+//	            if (w_reg_select_dec[4]) // w_conf_address[5:2] = 4'h4:
 //				Also used with IMAGE0
 
-//	            if (w_reg_select_dec[8]) // w_conf_address_in[5:2] = 4'h5:
+//	            if (w_reg_select_dec[8]) // w_conf_address[5:2] = 4'h5:
 //				Also used with IMAGE1
 
-//	            if (w_reg_select_dec[12]) // w_conf_address_in[5:2] = 4'h6:
+//	            if (w_reg_select_dec[12]) // w_conf_address[5:2] = 4'h6:
 //				Also used with IMAGE2
 
-//	            if (w_reg_select_dec[16]) // w_conf_address_in[5:2] = 4'h7:
+//	            if (w_reg_select_dec[16]) // w_conf_address[5:2] = 4'h7:
 //				Also used with IMAGE3
 
-//	            if (w_reg_select_dec[20]) // w_conf_address_in[5:2] = 4'h8:
+//	            if (w_reg_select_dec[20]) // w_conf_address[5:2] = 4'h8:
 //				Also used with IMAGE4
 
-//	            if (w_reg_select_dec[24]) // w_conf_address_in[5:2] = 4'h9:
+//	            if (w_reg_select_dec[24]) // w_conf_address[5:2] = 4'h9:
 //				Also used with IMAGE5 and IMAGE6
-				if (w_reg_select_dec[2]) // w_conf_address_in[5:2] = 4'hf:
+				if (w_reg_select_dec[2]) // w_conf_address[5:2] = 4'hf:
 				begin
 					if (~w_byte_en[0])
-						interrupt_line <= w_conf_data_in[7:0] ;
+						interrupt_line <= w_conf_data[7:0] ;
 				end
 				// PCI target - configuration space
 `ifdef		HOST
   `ifdef	NO_CNF_IMAGE
 	`ifdef	PCI_IMAGE0	// if PCI bridge is HOST and IMAGE0 is assigned as general image space
-				if (w_reg_select_dec[3]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL0_ADDR:
+				if (w_reg_select_dec[3]) // case (w_conf_address[7:2]) = `P_IMG_CTRL0_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl0_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl0_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[4]) // case (w_conf_address_in[7:2]) = `P_BA0_ADDR:
+	            if (w_reg_select_dec[4]) // case (w_conf_address[7:2]) = `P_BA0_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba0_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1881,9 +1915,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_ba0_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						pci_ba0_bit0 <= w_conf_data_in[0] ;
+						pci_ba0_bit0 <= w_conf_data[0] ;
 				end
-	            if (w_reg_select_dec[5]) // case (w_conf_address_in[7:2]) = `P_AM0_ADDR:
+	            if (w_reg_select_dec[5]) // case (w_conf_address[7:2]) = `P_AM0_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am0[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1892,7 +1926,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am0[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[6]) // case (w_conf_address_in[7:2]) = `P_TA0_ADDR:
+	            if (w_reg_select_dec[6]) // case (w_conf_address[7:2]) = `P_TA0_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta0[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1903,7 +1937,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 	`endif
   `else
-	            if (w_reg_select_dec[4]) // case (w_conf_address_in[7:2]) = `P_BA0_ADDR:
+	            if (w_reg_select_dec[4]) // case (w_conf_address[7:2]) = `P_BA0_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba0_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1914,7 +1948,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
   `endif
 `else // GUEST
-	            if (w_reg_select_dec[4]) // case (w_conf_address_in[7:2]) = `P_BA0_ADDR:
+	            if (w_reg_select_dec[4]) // case (w_conf_address[7:2]) = `P_BA0_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba0_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1924,12 +1958,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba0_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
 `endif
-	            if (w_reg_select_dec[7]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL1_ADDR:
+	            if (w_reg_select_dec[7]) // case (w_conf_address[7:2]) = `P_IMG_CTRL1_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl1_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl1_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[8]) // case (w_conf_address_in[7:2]) = `P_BA1_ADDR:
+	            if (w_reg_select_dec[8]) // case (w_conf_address[7:2]) = `P_BA1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba1_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1939,10 +1973,10 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba1_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 	`ifdef	HOST
 					if (~w_byte_en[0])
-						pci_ba1_bit0 <= w_conf_data_in[0] ;
+						pci_ba1_bit0 <= w_conf_data[0] ;
 	`endif
 				end
-	            if (w_reg_select_dec[9]) // case (w_conf_address_in[7:2]) = `P_AM1_ADDR:
+	            if (w_reg_select_dec[9]) // case (w_conf_address[7:2]) = `P_AM1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am1[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1951,7 +1985,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am1[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[10]) // case (w_conf_address_in[7:2]) = `P_TA1_ADDR:
+	            if (w_reg_select_dec[10]) // case (w_conf_address[7:2]) = `P_TA1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta1[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1961,12 +1995,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ta1[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
 `ifdef		PCI_IMAGE2
-	            if (w_reg_select_dec[11]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL2_ADDR:
+	            if (w_reg_select_dec[11]) // case (w_conf_address[7:2]) = `P_IMG_CTRL2_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl2_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl2_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[12]) // case (w_conf_address_in[7:2]) = `P_BA2_ADDR:
+	            if (w_reg_select_dec[12]) // case (w_conf_address[7:2]) = `P_BA2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba2_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1976,10 +2010,10 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba2_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 	`ifdef	HOST
 					if (~w_byte_en[0])
-						pci_ba2_bit0 <= w_conf_data_in[0] ;
+						pci_ba2_bit0 <= w_conf_data[0] ;
 	`endif
 				end
-	            if (w_reg_select_dec[13]) // case (w_conf_address_in[7:2]) = `P_AM2_ADDR:
+	            if (w_reg_select_dec[13]) // case (w_conf_address[7:2]) = `P_AM2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am2[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1988,7 +2022,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am2[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[14]) // case (w_conf_address_in[7:2]) = `P_TA2_ADDR:
+	            if (w_reg_select_dec[14]) // case (w_conf_address[7:2]) = `P_TA2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta2[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -1999,12 +2033,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		PCI_IMAGE3
-	            if (w_reg_select_dec[15]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL3_ADDR:
+	            if (w_reg_select_dec[15]) // case (w_conf_address[7:2]) = `P_IMG_CTRL3_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl3_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl3_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[16]) // case (w_conf_address_in[7:2]) = `P_BA3_ADDR:
+	            if (w_reg_select_dec[16]) // case (w_conf_address[7:2]) = `P_BA3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba3_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2014,10 +2048,10 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba3_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 	`ifdef	HOST
 					if (~w_byte_en[0])
-						pci_ba3_bit0 <= w_conf_data_in[0] ;
+						pci_ba3_bit0 <= w_conf_data[0] ;
 	`endif
 				end
-	            if (w_reg_select_dec[17]) // case (w_conf_address_in[7:2]) = `P_AM3_ADDR:
+	            if (w_reg_select_dec[17]) // case (w_conf_address[7:2]) = `P_AM3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am3[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2026,7 +2060,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am3[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[18]) // case (w_conf_address_in[7:2]) = `P_TA3_ADDR:
+	            if (w_reg_select_dec[18]) // case (w_conf_address[7:2]) = `P_TA3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta3[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2037,12 +2071,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		PCI_IMAGE4
-	            if (w_reg_select_dec[19]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL4_ADDR:
+	            if (w_reg_select_dec[19]) // case (w_conf_address[7:2]) = `P_IMG_CTRL4_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl4_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl4_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[20]) // case (w_conf_address_in[7:2]) = `P_BA4_ADDR:
+	            if (w_reg_select_dec[20]) // case (w_conf_address[7:2]) = `P_BA4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba4_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2052,10 +2086,10 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba4_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 	`ifdef	HOST
 					if (~w_byte_en[0])
-						pci_ba4_bit0 <= w_conf_data_in[0] ;
+						pci_ba4_bit0 <= w_conf_data[0] ;
 	`endif
 				end
-	            if (w_reg_select_dec[21]) // case (w_conf_address_in[7:2]) = `P_AM4_ADDR:
+	            if (w_reg_select_dec[21]) // case (w_conf_address[7:2]) = `P_AM4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am4[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2064,7 +2098,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am4[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[22]) // case (w_conf_address_in[7:2]) = `P_TA4_ADDR:
+	            if (w_reg_select_dec[22]) // case (w_conf_address[7:2]) = `P_TA4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta4[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2075,12 +2109,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		PCI_IMAGE5
-	            if (w_reg_select_dec[23]) // case (w_conf_address_in[7:2]) = `P_IMG_CTRL5_ADDR:
+	            if (w_reg_select_dec[23]) // case (w_conf_address[7:2]) = `P_IMG_CTRL5_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_img_ctrl5_bit2_1 <= w_conf_data_in[2:1] ;
+						pci_img_ctrl5_bit2_1 <= w_conf_data[2:1] ;
 				end
-	            if (w_reg_select_dec[24]) // case (w_conf_address_in[7:2]) = `P_BA5_ADDR:
+	            if (w_reg_select_dec[24]) // case (w_conf_address[7:2]) = `P_BA5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ba5_bit31_12[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2090,10 +2124,10 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ba5_bit31_12[15:12] <= w_conf_pdata_reduced[15:12] ;
 	`ifdef	HOST
 					if (~w_byte_en[0])
-						pci_ba5_bit0 <= w_conf_data_in[0] ;
+						pci_ba5_bit0 <= w_conf_data[0] ;
 	`endif
 				end
-	            if (w_reg_select_dec[25]) // case (w_conf_address_in[7:2]) = `P_AM5_ADDR:
+	            if (w_reg_select_dec[25]) // case (w_conf_address[7:2]) = `P_AM5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_am5[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2102,7 +2136,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						pci_am5[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
-	            if (w_reg_select_dec[26]) // case (w_conf_address_in[7:2]) = `P_TA5_ADDR:
+	            if (w_reg_select_dec[26]) // case (w_conf_address[7:2]) = `P_TA5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						pci_ta5[31:24] <= w_conf_pdata_reduced[31:24] ;
@@ -2112,18 +2146,18 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						pci_ta5[15:12] <= w_conf_pdata_reduced[15:12] ;
 				end
 `endif
-	            if (w_reg_select_dec[27]) // case (w_conf_address_in[7:2]) = `P_ERR_CS_ADDR:
+	            if (w_reg_select_dec[27]) // case (w_conf_address[7:2]) = `P_ERR_CS_ADDR:
 				begin
 					if (~w_byte_en[0])
-						pci_err_cs_bit0 <= w_conf_data_in[0] ;
+						pci_err_cs_bit0 <= w_conf_data[0] ;
 				end
 			// WB slave - configuration space
-				if (w_reg_select_dec[30]) // case (w_conf_address_in[7:2]) = `W_IMG_CTRL1_ADDR:
+				if (w_reg_select_dec[30]) // case (w_conf_address[7:2]) = `W_IMG_CTRL1_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_img_ctrl1_bit2_0 <= w_conf_data_in[2:0] ;
+						wb_img_ctrl1_bit2_0 <= w_conf_data[2:0] ;
 				end
-				if (w_reg_select_dec[31]) // case (w_conf_address_in[7:2]) = `W_BA1_ADDR:
+				if (w_reg_select_dec[31]) // case (w_conf_address[7:2]) = `W_BA1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ba1_bit31_12[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2132,9 +2166,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_ba1_bit31_12[15:12] <= w_conf_wdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						wb_ba1_bit0 <= w_conf_data_in[0] ;
+						wb_ba1_bit0 <= w_conf_data[0] ;
 				end
-				if (w_reg_select_dec[32]) // case (w_conf_address_in[7:2]) = `W_AM1_ADDR:
+				if (w_reg_select_dec[32]) // case (w_conf_address[7:2]) = `W_AM1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_am1[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2143,7 +2177,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_am1[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
-				if (w_reg_select_dec[33]) // case (w_conf_address_in[7:2]) = `W_TA1_ADDR:
+				if (w_reg_select_dec[33]) // case (w_conf_address[7:2]) = `W_TA1_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ta1[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2153,12 +2187,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						wb_ta1[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
 `ifdef		WB_IMAGE2
-				if (w_reg_select_dec[34]) // case (w_conf_address_in[7:2]) = `W_IMG_CTRL2_ADDR:
+				if (w_reg_select_dec[34]) // case (w_conf_address[7:2]) = `W_IMG_CTRL2_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_img_ctrl2_bit2_0 <= w_conf_data_in[2:0] ;
+						wb_img_ctrl2_bit2_0 <= w_conf_data[2:0] ;
 				end
-				if (w_reg_select_dec[35]) // case (w_conf_address_in[7:2]) = `W_BA2_ADDR:
+				if (w_reg_select_dec[35]) // case (w_conf_address[7:2]) = `W_BA2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ba2_bit31_12[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2167,9 +2201,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_ba2_bit31_12[15:12] <= w_conf_wdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						wb_ba2_bit0 <= w_conf_data_in[0] ;
+						wb_ba2_bit0 <= w_conf_data[0] ;
 				end
-				if (w_reg_select_dec[36]) // case (w_conf_address_in[7:2]) = `W_AM2_ADDR:
+				if (w_reg_select_dec[36]) // case (w_conf_address[7:2]) = `W_AM2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_am2[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2178,7 +2212,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_am2[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
-				if (w_reg_select_dec[37]) // case (w_conf_address_in[7:2]) = `W_TA2_ADDR:
+				if (w_reg_select_dec[37]) // case (w_conf_address[7:2]) = `W_TA2_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ta2[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2189,12 +2223,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		WB_IMAGE3
-				if (w_reg_select_dec[38]) // case (w_conf_address_in[7:2]) = `W_IMG_CTRL3_ADDR:
+				if (w_reg_select_dec[38]) // case (w_conf_address[7:2]) = `W_IMG_CTRL3_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_img_ctrl3_bit2_0 <= w_conf_data_in[2:0] ;
+						wb_img_ctrl3_bit2_0 <= w_conf_data[2:0] ;
 				end
-				if (w_reg_select_dec[39]) // case (w_conf_address_in[7:2]) = `W_BA3_ADDR:
+				if (w_reg_select_dec[39]) // case (w_conf_address[7:2]) = `W_BA3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ba3_bit31_12[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2203,9 +2237,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_ba3_bit31_12[15:12] <= w_conf_wdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						wb_ba3_bit0 <= w_conf_data_in[0] ;
+						wb_ba3_bit0 <= w_conf_data[0] ;
 				end
-				if (w_reg_select_dec[40]) // case (w_conf_address_in[7:2]) = `W_AM3_ADDR:
+				if (w_reg_select_dec[40]) // case (w_conf_address[7:2]) = `W_AM3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_am3[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2214,7 +2248,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_am3[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
-				if (w_reg_select_dec[41]) // case (w_conf_address_in[7:2]) = `W_TA3_ADDR:
+				if (w_reg_select_dec[41]) // case (w_conf_address[7:2]) = `W_TA3_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ta3[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2225,12 +2259,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		WB_IMAGE4
-				if (w_reg_select_dec[42]) // case (w_conf_address_in[7:2]) = `W_IMG_CTRL4_ADDR:
+				if (w_reg_select_dec[42]) // case (w_conf_address[7:2]) = `W_IMG_CTRL4_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_img_ctrl4_bit2_0 <= w_conf_data_in[2:0] ;
+						wb_img_ctrl4_bit2_0 <= w_conf_data[2:0] ;
 				end
-				if (w_reg_select_dec[43]) // case (w_conf_address_in[7:2]) = `W_BA4_ADDR:
+				if (w_reg_select_dec[43]) // case (w_conf_address[7:2]) = `W_BA4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ba4_bit31_12[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2239,9 +2273,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_ba4_bit31_12[15:12] <= w_conf_wdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						wb_ba4_bit0 <= w_conf_data_in[0] ;
+						wb_ba4_bit0 <= w_conf_data[0] ;
 				end
-				if (w_reg_select_dec[44]) // case (w_conf_address_in[7:2]) = `W_AM4_ADDR:
+				if (w_reg_select_dec[44]) // case (w_conf_address[7:2]) = `W_AM4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_am4[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2250,7 +2284,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_am4[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
-				if (w_reg_select_dec[45]) // case (w_conf_address_in[7:2]) = `W_TA4_ADDR:
+				if (w_reg_select_dec[45]) // case (w_conf_address[7:2]) = `W_TA4_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ta4[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2261,12 +2295,12 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 				end
 `endif
 `ifdef		WB_IMAGE5
-				if (w_reg_select_dec[46]) // case (w_conf_address_in[7:2]) = `W_IMG_CTRL5_ADDR:
+				if (w_reg_select_dec[46]) // case (w_conf_address[7:2]) = `W_IMG_CTRL5_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_img_ctrl5_bit2_0 <= w_conf_data_in[2:0] ;
+						wb_img_ctrl5_bit2_0 <= w_conf_data[2:0] ;
 				end
-				if (w_reg_select_dec[47]) // case (w_conf_address_in[7:2]) = `W_BA5_ADDR:
+				if (w_reg_select_dec[47]) // case (w_conf_address[7:2]) = `W_BA5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ba5_bit31_12[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2275,9 +2309,9 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_ba5_bit31_12[15:12] <= w_conf_wdata_reduced[15:12] ;
 					if (~w_byte_en[0])
-						wb_ba5_bit0 <= w_conf_data_in[0] ;
+						wb_ba5_bit0 <= w_conf_data[0] ;
 				end
-				if (w_reg_select_dec[48]) // case (w_conf_address_in[7:2]) = `W_AM5_ADDR:
+				if (w_reg_select_dec[48]) // case (w_conf_address[7:2]) = `W_AM5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_am5[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2286,7 +2320,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[1])
 						wb_am5[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
-				if (w_reg_select_dec[49]) // case (w_conf_address_in[7:2]) = `W_TA5_ADDR:
+				if (w_reg_select_dec[49]) // case (w_conf_address[7:2]) = `W_TA5_ADDR:
 				begin
 					if (~w_byte_en[3])
 						wb_ta5[31:24] <= w_conf_wdata_reduced[31:24] ;
@@ -2296,40 +2330,40 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 						wb_ta5[15:12] <= w_conf_wdata_reduced[15:12] ;
 				end
 `endif
-				if (w_reg_select_dec[50]) // case (w_conf_address_in[7:2]) = `W_ERR_CS_ADDR:
+				if (w_reg_select_dec[50]) // case (w_conf_address[7:2]) = `W_ERR_CS_ADDR:
 				begin
 					if (~w_byte_en[0])
-						wb_err_cs_bit0 <= w_conf_data_in[0] ;
+						wb_err_cs_bit0 <= w_conf_data[0] ;
 				end
 
 `ifdef	HOST
-				if (w_reg_select_dec[53]) // case (w_conf_address_in[7:2]) = `CNF_ADDR_ADDR:
+				if (w_reg_select_dec[53]) // case (w_conf_address[7:2]) = `CNF_ADDR_ADDR:
 				begin
 					if (~w_byte_en[2])
-						cnf_addr_bit23_2[23:16] <= w_conf_data_in[23:16] ;
+						cnf_addr_bit23_2[23:16] <= w_conf_data[23:16] ;
 					if (~w_byte_en[1])
-						cnf_addr_bit23_2[15:8] <= w_conf_data_in[15:8] ;
+						cnf_addr_bit23_2[15:8] <= w_conf_data[15:8] ;
 					if (~w_byte_en[0])
 					begin
-						cnf_addr_bit23_2[7:2] <= w_conf_data_in[7:2] ;
-						cnf_addr_bit0 <= w_conf_data_in[0] ;
+						cnf_addr_bit23_2[7:2] <= w_conf_data[7:2] ;
+						cnf_addr_bit0 <= w_conf_data[0] ;
 					end
 				end
 `endif
 				// `CNF_DATA_ADDR: implemented elsewhere !!!
 				// `INT_ACK_ADDR : implemented elsewhere !!!
-	            if (w_reg_select_dec[54]) // case (w_conf_address_in[7:2]) = `ICR_ADDR:
+	            if (w_reg_select_dec[54]) // case (w_conf_address[7:2]) = `ICR_ADDR:
 				begin
 					if (~w_byte_en[3])
-						icr_bit31 <= w_conf_data_in[31] ;
+						icr_bit31 <= w_conf_data[31] ;
 
 					if (~w_byte_en[0])
                     begin
 `ifdef	HOST
-						icr_bit4_3 <= w_conf_data_in[4:3] ;
-						icr_bit2_0 <= w_conf_data_in[2:0] ;
+						icr_bit4_3 <= w_conf_data[4:3] ;
+						icr_bit2_0 <= w_conf_data[2:0] ;
 `else
-						icr_bit2_0[2:0] <= w_conf_data_in[2:0] ;
+						icr_bit2_0[2:0] <= w_conf_data[2:0] ;
 `endif
                     end
                 end
@@ -2339,8 +2373,8 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
                 begin
                     if (~w_byte_en[2])
                     begin
-                        hs_loo <= w_conf_data_in[19];
-                        hs_eim <= w_conf_data_in[17];
+                        hs_loo <= w_conf_data[19];
+                        hs_eim <= w_conf_data[17];
                     end
                 end
 `endif
@@ -2352,7 +2386,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
         rst_inactive      <= rst_inactive_sync  ;
     `endif
 
-        if (rst_inactive)
+        if (rst_inactive & ~init_complete & init_cfg_done)
             init_complete <= 1'b1 ;
 	end
 end
@@ -2373,21 +2407,21 @@ reg			delete_isr_bit2 ;
 reg			delete_isr_bit1 ;
 
 // This are aditional register bits, which are resets when their value is '1' !!!
-always@(w_we or w_reg_select_dec or w_conf_data_in or w_byte_en)
+always@(w_we or w_reg_select_dec or w_conf_data or w_byte_en)
 begin
 // I' is written into, then it also sets signals to '1'
-	delete_status_bit15 	= w_conf_data_in[31] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_status_bit14 	= w_conf_data_in[30] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_status_bit13 	= w_conf_data_in[29] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_status_bit12 	= w_conf_data_in[28] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_status_bit11 	= w_conf_data_in[27] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_status_bit8  	= w_conf_data_in[24] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
-	delete_pci_err_cs_bit8 	= w_conf_data_in[8]  & !w_byte_en[1] & w_we & w_reg_select_dec[27] ;
-	delete_wb_err_cs_bit8 	= w_conf_data_in[8]  & !w_byte_en[1] & w_we & w_reg_select_dec[50] ;
-	delete_isr_bit4 		= w_conf_data_in[4]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
-	delete_isr_bit3 		= w_conf_data_in[3]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
-	delete_isr_bit2 		= w_conf_data_in[2]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
-	delete_isr_bit1 		= w_conf_data_in[1]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
+	delete_status_bit15 	= w_conf_data[31] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_status_bit14 	= w_conf_data[30] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_status_bit13 	= w_conf_data[29] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_status_bit12 	= w_conf_data[28] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_status_bit11 	= w_conf_data[27] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_status_bit8  	= w_conf_data[24] & !w_byte_en[3] & w_we & w_reg_select_dec[0] ;
+	delete_pci_err_cs_bit8 	= w_conf_data[8]  & !w_byte_en[1] & w_we & w_reg_select_dec[27] ;
+	delete_wb_err_cs_bit8 	= w_conf_data[8]  & !w_byte_en[1] & w_we & w_reg_select_dec[50] ;
+	delete_isr_bit4 		= w_conf_data[4]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
+	delete_isr_bit3 		= w_conf_data[3]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
+	delete_isr_bit2 		= w_conf_data[2]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
+	delete_isr_bit1 		= w_conf_data[1]  & !w_byte_en[0] & w_we & w_reg_select_dec[55] ;
 end
 
 // STATUS BITS of PCI Header status register
@@ -3364,7 +3398,7 @@ reg		interrupt_out;
             // INS
             if (hs_ins)
             begin
-                if (w_conf_data_in[23] & ~w_byte_en[2] & w_we & w_reg_select_dec[56]) // clear
+                if (w_conf_data[23] & ~w_byte_en[2] & w_we & w_reg_select_dec[56]) // clear
                     hs_ins <= 1'b0 ;
             end
             else if (hs_ins_armed)  // set
@@ -3374,12 +3408,12 @@ reg		interrupt_out;
             if (~hs_ins & hs_ins_armed & init_complete & (hs_es_cur_state == 1'b1)) // clear
                 hs_ins_armed <= 1'b0 ;
             else if (hs_ext)  // set
-                hs_ins_armed <= w_conf_data_in[22] & ~w_byte_en[2] & w_we & w_reg_select_dec[56] ;
+                hs_ins_armed <= w_conf_data[22] & ~w_byte_en[2] & w_we & w_reg_select_dec[56] ;
 
             // EXT
             if (hs_ext) // clear
             begin
-                if (w_conf_data_in[22] & ~w_byte_en[2] & w_we & w_reg_select_dec[56])
+                if (w_conf_data[22] & ~w_byte_en[2] & w_we & w_reg_select_dec[56])
                     hs_ext <= 1'b0 ;
             end
             else if (hs_ext_armed)  // set
@@ -3389,7 +3423,7 @@ reg		interrupt_out;
             if (~hs_ext & hs_ext_armed & (hs_es_cur_state == 1'b0)) // clear
                 hs_ext_armed <= 1'b0 ;
             else if (hs_ins)  // set
-                hs_ext_armed <= w_conf_data_in[23] & !w_byte_en[2] & w_we & w_reg_select_dec[56] ;
+                hs_ext_armed <= w_conf_data[23] & !w_byte_en[2] & w_we & w_reg_select_dec[56] ;
 
             // ejector switch debounce counter logic
             hs_es_sync     <= pci_cpci_hs_es_i  ;
@@ -3416,6 +3450,140 @@ reg		interrupt_out;
 	end
 `endif
 
+`ifdef PCI_SPOCI
+
+    wire spoci_write_done,
+         spoci_dat_rdy   ,
+         spoci_no_ack    ;
+
+    wire [ 7: 0] spoci_wdat ;
+    wire [ 7: 0] spoci_rdat ;
+
+    // power on configuration control and status register    
+    always@(posedge pci_clk or posedge reset)
+	begin
+	    if (reset)
+        begin
+            spoci_cs_nack   <= 1'b0 ;
+            spoci_cs_write  <= 1'b0 ;
+            spoci_cs_read   <= 1'b0 ;
+            spoci_cs_adr    <= 'h0  ;
+            spoci_cs_dat    <= 'h0  ;
+        end
+        else
+        begin
+            if (spoci_cs_write)
+            begin
+                if (spoci_write_done | spoci_no_ack)
+                    spoci_cs_write <= 1'b0 ;
+            end
+            else if ( w_we & (w_conf_address[9:2] == 8'hFF) & ~w_byte_en[3])
+                spoci_cs_write <= w_conf_data[25] ;
+
+            if (spoci_cs_read)
+            begin
+                if (spoci_dat_rdy | spoci_no_ack)
+                    spoci_cs_read <= 1'b0          ;
+            end
+            else if ( w_we & (w_conf_address[9:2] == 8'hFF) & ~w_byte_en[3] )
+                spoci_cs_read <= w_conf_data[24] ;
+
+            if (spoci_cs_nack)
+            begin
+                if ( w_we & (w_conf_address[9:2] == 8'hFF) & ~w_byte_en[3] & w_conf_data[31] )
+                    spoci_cs_nack <= 1'b0 ;
+            end
+            else if (spoci_cs_write | spoci_cs_read | ~init_cfg_done)
+            begin
+                spoci_cs_nack <= spoci_no_ack ;
+            end
+
+            if ( w_we & (w_conf_address[9:2] == 8'hFF) )
+            begin
+                if (~w_byte_en[2])
+                    spoci_cs_adr[10: 8] <= w_conf_data[18:16] ;
+
+                if (~w_byte_en[1])
+                    spoci_cs_adr[ 7: 0] <= w_conf_data[15: 8] ;
+            end
+
+            if ( w_we & (w_conf_address[9:2] == 8'hFF) & ~w_byte_en[0] )
+                spoci_cs_dat <= w_conf_data[ 7: 0] ;
+            else if (spoci_cs_read & spoci_dat_rdy)
+                spoci_cs_dat <= spoci_rdat ;
+            
+        end
+    end
+
+    reg [ 2 : 0] bytes_received ;
+
+    always@(posedge pci_clk or posedge reset)
+	begin
+	    if (reset)
+        begin
+            init_we         <= 1'b0 ;
+            init_cfg_done   <= 1'b0 ;
+            bytes_received  <= 1'b0 ;
+            spoci_dat       <= 'h0  ;
+            spoci_reg_num   <= 'h0  ;
+        end
+        else if (~init_cfg_done)
+        begin
+            if (spoci_dat_rdy)
+            begin
+                case (bytes_received)
+                'h0:spoci_reg_num       <= spoci_rdat   ;
+                'h1:spoci_dat[ 7: 0]    <= spoci_rdat   ;
+                'h2:spoci_dat[15: 8]    <= spoci_rdat   ;
+                'h3:spoci_dat[23:16]    <= spoci_rdat   ;
+                'h4:spoci_dat[31:24]    <= spoci_rdat   ;
+                default:
+                begin
+                    spoci_dat       <= 32'hxxxx_xxxx    ;
+                    spoci_reg_num   <= 'hxx             ;
+                end
+                endcase
+            end
+
+            if (init_we)
+                bytes_received <= 'h0 ;
+            else if (spoci_dat_rdy)
+                bytes_received <= bytes_received + 1'b1 ;
+
+            if (init_we)
+                init_we <= 1'b0 ;
+            else if (bytes_received == 'h5)
+                init_we <= 1'b1 ;
+            
+            if (spoci_no_ack | ((bytes_received == 'h1) & (spoci_reg_num == 'hff)) )
+                init_cfg_done <= 1'b1 ;
+        end
+    end
+
+    assign spoci_wdat = spoci_cs_dat ;
+
+    pci_spoci_ctrl i_pci_spoci_ctrl
+    (
+        .reset_i            (reset                          ),
+        .clk_i              (pci_clk                        ),
+
+        .do_rnd_read_i      (spoci_cs_read                  ),
+        .do_seq_read_i      (rst_inactive & ~init_cfg_done  ),
+        .do_write_i         (spoci_cs_write                 ),
+
+        .write_done_o       (spoci_write_done               ),
+        .dat_rdy_o          (spoci_dat_rdy                  ),
+        .no_ack_o           (spoci_no_ack                   ),
+
+        .adr_i              (spoci_cs_adr                   ),
+        .dat_i              (spoci_wdat                     ),
+        .dat_o              (spoci_rdat                     ),
+
+        .pci_spoci_sda_i    (spoci_sda_i                    ),
+        .pci_spoci_sda_oe_o (spoci_sda_oe_o                 ),
+        .pci_spoci_scl_oe_o (spoci_scl_oe_o                 )
+    );
+`endif
 
 /*-----------------------------------------------------------------------------------------------------------
         OUTPUTs from registers !!!
@@ -3470,11 +3638,11 @@ reg		interrupt_out;
   wire  sync_command_bit2 = sync_command_bit ;
 `endif
 // PCI header outputs from command register
-assign		serr_enable = sync_command_bit8 ;					// to PCI clock
-assign		perr_response = sync_command_bit6 ;          		// to PCI clock
-assign		pci_master_enable = sync_command_bit2 ;        		// to WB clock
-assign		memory_space_enable = sync_command_bit1 ;			// to PCI clock
-assign		io_space_enable = sync_command_bit0 ;				// to PCI clock
+assign		serr_enable = sync_command_bit8 & pci_init_complete_out ;           // to PCI clock
+assign		perr_response = sync_command_bit6 & pci_init_complete_out ;         // to PCI clock
+assign		pci_master_enable = sync_command_bit2 & wb_init_complete_out ;      // to WB clock
+assign		memory_space_enable = sync_command_bit1 & pci_init_complete_out ;   // to PCI clock
+assign		io_space_enable = sync_command_bit0 & pci_init_complete_out     ;   // to PCI clock
 
 // if bridge is HOST then write clock is equal to WB clock, and synchronization of outputs has to be done
 	// We don't support cache line sizes smaller that 4 and it must have last two bits zero!!!
