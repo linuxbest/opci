@@ -572,7 +572,7 @@ if ($arg_vs_hdtp == 1) then
     cat ../bin/vs_file_list.lst >> ./ncvlog.args
 endif
 
-ncvlog -file ./ncvlog.args > /dev/null;
+ncvlog -file ./ncvlog.args #> /dev/null;
 echo ""
 
 
@@ -582,9 +582,9 @@ echo "\t@@@"
 echo "\t@@@ Building design hierarchy (elaboration)"
 echo "\t@@@"
 if ($arg_xilinx == 1) then
-      ncelab -file ../bin/ncelab_xilinx.args > /dev/null;
+      ncelab -file ../bin/ncelab_xilinx.args #> /dev/null;
 else 
-      ncelab -file ../bin/ncelab.args > /dev/null;
+      ncelab -file ../bin/ncelab.args #> /dev/null;
 endif
 echo ""
 
@@ -609,7 +609,7 @@ else
 endif
 echo "worklib.bridge32:fun" >> ./ncsim.args
 
-ncsim -file ./ncsim.args > /dev/null
+ncsim -file ./ncsim.args #> /dev/null
 
 if ($status != 0) then
   echo ""
