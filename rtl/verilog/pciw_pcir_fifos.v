@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
+// Revision 1.10  2002/10/18 03:36:37  tadejm
+// Changed wrong signal name scanb_sen into scanb_en.
+//
 // Revision 1.9  2002/10/17 22:51:08  tadejm
 // Changed BIST signals for RAMs.
 //
@@ -118,7 +121,7 @@ module PCIW_PCIR_FIFOS
     scanb_clk,      // bist scan clock
     scanb_si,       // bist scan serial in
     scanb_so,       // bist scan serial out
-    scanb_sen       // bist scan shift enable
+    scanb_en        // bist scan shift enable
 `endif
 ) ;
 
@@ -238,7 +241,7 @@ input   scanb_rst;      // bist scan reset
 input   scanb_clk;      // bist scan clock
 input   scanb_si;       // bist scan serial in
 output  scanb_so;       // bist scan serial out
-input   scanb_sen;      // bist scan shift enable
+input   scanb_en;       // bist scan shift enable
 `endif
 
 /*-----------------------------------------------------------------------------------------------------------
@@ -394,7 +397,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .scanb_clk      (scanb_clk),
         .scanb_si       (scanb_si),
         .scanb_so       (scanb_so_internal),
-        .scanb_sen      (scanb_sen)
+        .scanb_en       (scanb_en)
     `endif
     );
 
@@ -425,7 +428,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .scanb_clk      (scanb_clk),
         .scanb_si       (scanb_si_internal),
         .scanb_so       (scanb_so),
-        .scanb_sen      (scanb_sen)
+        .scanb_en       (scanb_en)
     `endif
     );
 
@@ -488,7 +491,7 @@ assign pcir_data_out      = dpram_portA_output[31:0] ;
         .scanb_clk      (scanb_clk),
         .scanb_si       (scanb_si),
         .scanb_so       (scanb_so),
-        .scanb_sen      (scanb_sen)
+        .scanb_en       (scanb_en)
     `endif
     );
 

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.8  2002/10/18 03:36:37  tadejm
+// Changed wrong signal name scanb_sen into scanb_en.
+//
 // Revision 1.7  2002/10/17 22:49:22  tadejm
 // Changed BIST signals for RAMs.
 //
@@ -166,7 +169,7 @@ module WB_SLAVE_UNIT
     scanb_clk,      // bist scan clock
     scanb_si,       // bist scan serial in
     scanb_so,       // bist scan serial out
-    scanb_sen       // bist scan shift enable
+    scanb_en        // bist scan shift enable
 `endif
 );
 
@@ -277,7 +280,7 @@ input   scanb_rst;      // bist scan reset
 input   scanb_clk;      // bist scan clock
 input   scanb_si;       // bist scan serial in
 output  scanb_so;       // bist scan serial out
-input   scanb_sen;      // bist scan shift enable
+input   scanb_en;       // bist scan shift enable
 `endif
 
 // pci master interface outputs
@@ -585,7 +588,7 @@ WBW_WBR_FIFOS fifos
     .scanb_clk      (scanb_clk),
     .scanb_si       (scanb_si),
     .scanb_so       (scanb_so),
-    .scanb_sen      (scanb_sen)
+    .scanb_en       (scanb_en)
 `endif
 ) ;
 
