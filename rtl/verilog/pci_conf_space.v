@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_conf_space.v,v $
+// Revision 1.6  2003/12/28 09:54:48  fr2201
+// def_wb_imagex_addr_map  defined correctly
+//
 // Revision 1.5  2003/12/28 09:20:00  fr2201
 // Reset values for PCI, WB defined (PCI_TAx,WB_BAx,WB_TAx,WB_AMx,WB_BAx_MEM_IO)
 //
@@ -430,11 +433,11 @@ PCI Bridge default image SIZE parameters
 	parameters except for def_wb_image0_addr_map which is used for configuration space!
 -----------------------------------------------------------------------------------------------------------*/
 			// PARAMETER	def_wb_image0_addr_map	IMPLEMENTED as r_wb_am0 parameter for CONF. space !!!
-		wire	[19:0]	def_wb_image1_addr_map = 20'h0000_0 ;
-		wire	[19:0]	def_wb_image2_addr_map = 20'h0000_0 ;
-		wire	[19:0]	def_wb_image3_addr_map = 20'h0000_0 ;
-		wire	[19:0]	def_wb_image4_addr_map = 20'h0000_0 ;
-		wire	[19:0]	def_wb_image5_addr_map = 20'h0000_0 ;
+		wire	[19:0]	def_wb_image1_addr_map = `WB_AM1 ; 
+		wire	[19:0]	def_wb_image2_addr_map = `WB_AM2 ;
+		wire	[19:0]	def_wb_image3_addr_map = `WB_AM3 ;
+		wire	[19:0]	def_wb_image4_addr_map = `WB_AM4 ;
+		wire	[19:0]	def_wb_image5_addr_map = `WB_AM5 ;
 
 
 /*###########################################################################################################

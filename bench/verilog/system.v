@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.22  2003/12/28 09:54:48  fr2201
+// def_wb_imagex_addr_map  defined correctly
+//
 // Revision 1.21  2003/12/19 11:11:28  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -12543,7 +12546,7 @@ task test_insert_extract_interface ;
     reg error ;
 begin
     error = 1'b0 ;
-    rnd_seed = 32'h01020_f0e0 ;
+    rnd_seed = 32'h1020_f0e0 ;
 
     ES = 1'b0 ;
 
