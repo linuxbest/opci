@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: pci_user_constants.v,v $
+// Revision 1.6  2003/01/27 16:51:19  mihad
+// Old files with wrong names removed.
+//
 // Revision 1.5  2003/01/21 16:06:56  mihad
 // Bug fixes, testcases added.
 //
@@ -67,24 +70,24 @@
 // If RAM_DONT_SHARE is defined, then all RAM address lengths must be specified accordingly, otherwise there are two relevant lengths - PCI_FIFO_RAM_ADDR_LENGTH and
 // WB_FIFO_RAM_ADDR_LENGTH.
 
-`define WBW_ADDR_LENGTH 6
-`define WBR_ADDR_LENGTH 4
+`define WBW_ADDR_LENGTH 3
+`define WBR_ADDR_LENGTH 5
 `define PCIW_ADDR_LENGTH 3
 `define PCIR_ADDR_LENGTH 3
 
-//`define FPGA
-//`define XILINX
+`define FPGA
+`define XILINX
 
 //`define WB_RAM_DONT_SHARE
-//`define PCI_RAM_DONT_SHARE
+`define PCI_RAM_DONT_SHARE
 
 `ifdef FPGA
     `ifdef XILINX
-        `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
+        `define PCI_FIFO_RAM_ADDR_LENGTH 4      // PCI target unit fifo storage definition
         `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
-        `define PCI_XILINX_RAMB4
+        //`define PCI_XILINX_RAMB4
         `define WB_XILINX_RAMB4
-        //`define PCI_XILINX_DIST_RAM
+        `define PCI_XILINX_DIST_RAM
         //`define WB_XILINX_DIST_RAM
     `endif
 `else
@@ -103,8 +106,8 @@
 
 // HOST/GUEST implementation selection - see design document and specification for description of each implementation
 // only one can be defined at same time
+//`define GUEST
 `define GUEST
-//`define HOST
 
 // if NO_CNF_IMAGE is commented out, then READ-ONLY access to configuration space is ENABLED:
 // - ENABLED Read-Only access from WISHBONE for GUEST bridges
@@ -117,7 +120,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define PCI_NUM_OF_DEC_ADDR_LINES 20
+`define PCI_NUM_OF_DEC_ADDR_LINES 12
 
 // no. of PCI Target IMAGES
 // - PCI provides 6 base address registers for image implementation.
@@ -135,18 +138,18 @@
     `endif
 `endif
 
-`define PCI_IMAGE2
-`define PCI_IMAGE3
-`define PCI_IMAGE4
-`define PCI_IMAGE5
+//`define PCI_IMAGE2
+//`define PCI_IMAGE3
+//`define PCI_IMAGE4
+//`define PCI_IMAGE5
 
 // initial value for PCI image address masks. Address masks can be defined in enabled state,
 // to allow device independent software to detect size of image and map base addresses to
 // memory space. If initial mask for an image is defined as 0, then device independent software
 // won't detect base address implemented and device dependent software will have to configure
 // address masks as well as base addresses!
-`define PCI_AM0 20'hffff_e
-`define PCI_AM1 20'hffff_c
+`define PCI_AM0 20'hffff_f
+`define PCI_AM1 20'hffff_f
 `define PCI_AM2 20'hffff_8
 `define PCI_AM3 20'hffff_0
 `define PCI_AM4 20'hfffe_0
@@ -156,7 +159,7 @@
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
 // Device independent software sets the base addresses acording to MEMORY or IO maping!
 `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-`define PCI_BA1_MEM_IO 1'b1
+`define PCI_BA1_MEM_IO 1'b0
 `define PCI_BA2_MEM_IO 1'b0
 `define PCI_BA3_MEM_IO 1'b1
 `define PCI_BA4_MEM_IO 1'b0
@@ -167,7 +170,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of WB images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define WB_NUM_OF_DEC_ADDR_LINES 20
+`define WB_NUM_OF_DEC_ADDR_LINES 3
 
 // no. of WISHBONE Slave IMAGES
 // WB image 0 is always used for access to configuration space. In case configuration space access is not implemented,
@@ -175,8 +178,8 @@
 // WB Image 1 is always implemented and user doesnt need to specify its definition
 // WB images' 2 through 5 implementation by defining each one.
 //`define WB_IMAGE2
-`define WB_IMAGE3
-`define WB_IMAGE4
+//`define WB_IMAGE3
+//`define WB_IMAGE4
 //`define WB_IMAGE5
 
 // If this define is commented out, then address translation will not be implemented.
@@ -186,8 +189,8 @@
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow.
 // slower decode speed can be used, to provide enough time for address to be decoded.
-//`define WB_DECODE_FAST
-`define WB_DECODE_MEDIUM
+`define WB_DECODE_FAST
+//`define WB_DECODE_MEDIUM
 //`define WB_DECODE_SLOW
 
 // Base address for Configuration space access from WB bus. This value cannot be changed during runtime
