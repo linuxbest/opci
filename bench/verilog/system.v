@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.15  2003/03/14 15:33:55  mihad
+// Updated acording to RTL changes.
+//
 // Revision 1.14  2003/01/30 22:01:33  mihad
 // Updated synchronization in top level fifo modules.
 //
@@ -18398,7 +18401,7 @@ begin:main
         $display("Target completion expiration testing failed! Error status bit in PCI error reporting register set for no reason! Time %t ", $time) ;
         test_fail("Error status bit in PCI error reporting register was set for no reason") ;
     end
-    // test target retry counter expiration
+
     // set wb slave to retry response
     wishbone_slave.cycle_response(3'b001, tb_subseq_waits, 8'd255);
     test_name = "RETRY COUNTER EXPIRATION DURING WRITE THROUGH PCI TARGET UNIT" ;
@@ -18408,22 +18411,22 @@ begin:main
     begin
         if ( test_mem == 1 )
             PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
-                        pci_image_base, 32'hDEAD_BEAF, 4'hA,
+                        pci_image_base, 32'hBEAF_DEAD, 4'h5,
                         1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_Target_Normal_Completion);
         else
-            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hDEAD_BEAF, 4'hA, 1, `Test_Target_Normal_Completion) ;
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hBEAF_DEAD, 4'h5, 1, `Test_Target_Normal_Completion) ;
 
         do_pause(1) ;
 
         // do another write with same address and different data
         if ( test_mem == 1 )
             PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
-                        pci_image_base, 32'h8765_4321, 4'h0,
+                        pci_image_base, 32'h1234_5678, 4'h0,
                         1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_Target_Normal_Completion);
         else
-            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'h8765_4321, 4'h0, 1, `Test_Target_Normal_Completion) ;
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'h1234_5678, 4'h0, 1, `Test_Target_Normal_Completion) ;
  
         do_pause(1) ;
     end
@@ -18494,9 +18497,10 @@ begin:main
         test_fail("bus command field in error control and status register was wrong when retry counter expired during posted write through PCI Target unit") ;
     end
     
-    if ( temp_val1[31:28] !== 4'hA )
+    if ( temp_val1[31:28] !== 4'h5 )
     begin
         $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in byte enable field in error control and status register when retry counter expired during a write! Time %t", $time) ;
+        $display("Expected value: %h, actual value %h", 4'h5, temp_val1[31:28]) ;
         test_fail("byte enable field in error control and status register was wrong when retry counter expired during posted write through PCI Target unit") ;
     end
 
@@ -18513,9 +18517,10 @@ begin:main
 
     test_name = "ERROR DATA REGISTER VALUE CHECK AFTER RETRY COUNTER EXPIRED" ;
     config_read( pci_err_cs_offset + 8, 4'hF, temp_val1 ) ;
-    if ( temp_val1 !== 32'hDEAD_BEAF )
+    if ( temp_val1 !== (32'hBEAF_DEAD) )
     begin
         $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error data register when retry counter expired during a write! Time %t", $time) ;
+        $display("Expected value %h, actual %h", 32'hBEAF_DEAD, temp_val1) ;
         test_fail("value in error data register was wrong when retry counter expired during posted write through PCI Target unit") ;
     end
 
@@ -18615,6 +18620,9 @@ begin:main
         $display("WISHBONE Master Retry Counter expiration test failed! WB Master shouldn't signal an error when retry counter expires during a read! Time %t", $time) ;
         test_fail("error shouldn't be reported, when retry counter expires during read through PCI Target unit") ;
     end
+
+`ifdef PCI_WBM_NO_RESPONSE_CNT_DISABLE
+`else
     
     test_name = "NO RESPONSE COUNTER EXPIRATION DURING READ THROUGH PCI TARGET UNIT" ;
     $display("PCIU monitor (WB bus) will complain in following section for a few times - no WB response test!") ;
@@ -18716,11 +18724,11 @@ begin:main
     begin
         if ( test_mem == 1 )
             PCIU_MEM_WRITE ("MEM_WRITE ", `Test_Master_1,
-                        pci_image_base, 32'hBEAF_DEAD, 4'h0,
+                        pci_image_base, 32'hDEAD_BEAF, 4'hA,
                         1, `Test_One_Zero_Master_WS, `Test_One_Zero_Target_WS,
                         `Test_Devsel_Medium, `Test_Target_Normal_Completion);
         else
-            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hBEAF_DEAD, 4'h0, 1, `Test_Target_Normal_Completion) ;
+            PCIU_IO_WRITE( `Test_Master_1, pci_image_base, 32'hDEAD_BEAF, 4'h0, 1, `Test_Target_Normal_Completion) ;
  
         do_pause(1) ;
  
@@ -18801,7 +18809,7 @@ begin:main
         test_fail("bus command field in error control and status register was wrong when no response counter expired during posted write through PCI Target unit") ;
     end
  
-    if ( temp_val1[31:28] !== 4'h0 )
+    if ( temp_val1[31:28] !== 4'hA )
     begin
         $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in byte enable field in error control and status register when no response counter expired during a write! Time %t", $time) ;
         test_fail("byte enable field in error control and status register was wrong when no response counter expired during posted write through PCI Target unit") ;
@@ -18820,11 +18828,12 @@ begin:main
  
     test_name = "ERROR DATA REGISTER VALUE CHECK AFTER NO RESPONSE COUNTER EXPIRED" ;
     config_read( pci_err_cs_offset + 8, 4'hF, temp_val1 ) ;
-    if ( temp_val1 !== 32'hBEAF_DEAD )
+    if ( temp_val1 !== 32'hDEAD_BEAF )
     begin
         $display("WISHBONE Master Retry Counter expiration test failed! Invalid value in error data register when no response counter expired during a write! Time %t", $time) ;
         test_fail("value in error data register was wrong when no response counter expired during posted write through PCI Target unit") ;
     end
+`endif
     
     // disable current image - write address mask register
     config_write( pci_am_offset, 32'h0000_0000, 4'hF, ok ) ;
