@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_sync_module.v,v $
+// Revision 1.2  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -101,7 +106,7 @@ end
 assign	block_set_out = del_bit;
 
 // interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-synchronizer_flop	delete_sync
+synchronizer_flop	#(1, 0) delete_sync
 (
     .data_in        (del_bit),
     .clk_out        (set_clk_in),
@@ -130,7 +135,7 @@ end
 assign	delete_set_out = !delayed_del_bit && sync_del_bit;
 
 // interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-synchronizer_flop	clear_delete_sync
+synchronizer_flop	#(1, 0) clear_delete_sync
 (
     .data_in        (sync_del_bit),
     .clk_out        (delete_clk_in),

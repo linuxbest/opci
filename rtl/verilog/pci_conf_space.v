@@ -43,6 +43,11 @@
 // CVS Revision History
 //
 // $Log: pci_conf_space.v,v $
+// Revision 1.2  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -2462,7 +2467,7 @@ end
 								 set_status_bit8		 && !block_set_status_bit8	} ;
 	wire [5:0] meta_status_bits ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   #(6) status_bits_sync
+	synchronizer_flop   #(6, 0) status_bits_sync
 	(
 	    .data_in        (status_bits),
 	    .clk_out        (wb_clk),
@@ -2624,7 +2629,7 @@ end
 	wire	pci_err_cs_bits = set_pci_err_cs_bit8 && !block_set_pci_err_cs_bit8 ;
 	wire	meta_pci_err_cs_bits ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   pci_err_cs_bits_sync
+	synchronizer_flop #(1,0) pci_err_cs_bits_sync
 	(
 	    .data_in        (pci_err_cs_bits),
 	    .clk_out        (pci_clk),
@@ -2726,7 +2731,7 @@ end
 	wire	wb_err_cs_bits = set_wb_err_cs_bit8 && !block_set_wb_err_cs_bit8 ;
 	wire	meta_wb_err_cs_bits ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   wb_err_cs_bits_sync
+	synchronizer_flop #(1,0) wb_err_cs_bits_sync
 	(
 	    .data_in        (wb_err_cs_bits),
 	    .clk_out        (wb_clk),
@@ -2883,7 +2888,7 @@ end
 								 set_isr_bit4_3[3] && !block_set_isr_bit3	} ;
 	wire [4:3] meta_isr_bits4_3 ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   #(2) isr_bits_sync
+	synchronizer_flop   #(2, 0) isr_bits_sync
 	(
 	    .data_in        (isr_bits4_3),
 	    .clk_out        (wb_clk),
@@ -2962,7 +2967,7 @@ end
 	wire	isr_bit1	= set_isr_bit1 && !block_set_isr_bit1 ;
 	wire	meta_isr_bit1 ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   isr_bit1_sync
+	synchronizer_flop   #(1, 0) isr_bit1_sync
 	(
 	    .data_in        (isr_bit1),
 	    .clk_out        (wb_clk),
@@ -3035,7 +3040,7 @@ end
 	wire	isr_bit2	= set_isr_bit2 && !block_set_isr_bit2 ;
 	wire	meta_isr_bit2 ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   isr_bit2_sync
+	synchronizer_flop   #(1, 0) isr_bit2_sync
 	(
 	    .data_in        (isr_bit2),
 	    .clk_out        (pci_clk),
@@ -3057,7 +3062,7 @@ end
 	wire	isr_int_prop_bit = isr_int_prop && icr_bit2_0[0] ;
 	wire	meta_isr_int_prop_bit ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   isr_bit0_sync
+	synchronizer_flop   #(1, 0) isr_bit0_sync
 	(
 	    .data_in        (isr_int_prop_bit),
 	    .clk_out        (wb_clk),
@@ -3085,7 +3090,7 @@ end
 	wire	isr_int_prop_bit = isr_int_prop && icr_bit2_0[0] ;
 	wire	meta_isr_int_prop_bit ;
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   isr_bit0_sync
+	synchronizer_flop   #(1, 0) isr_bit0_sync
 	(
 	    .data_in        (isr_int_prop_bit),
 	    .clk_out        (pci_clk),
@@ -3113,7 +3118,7 @@ reg		interrupt_out;
 	assign	int_in = isr_int_prop_bit || isr_bit1      || isr_bit2_0[2] || isr_bits4_3[3] || isr_bits4_3[4];
  `endif
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   int_pin_sync
+	synchronizer_flop   #(1, 0) int_pin_sync
 	(
 	    .data_in        (int_in),
 	    .clk_out        (wb_clk),
@@ -3134,7 +3139,7 @@ reg		interrupt_out;
 	assign	int_in = isr_int_prop_bit || isr_bit2_0[1] || isr_bit2;
  `endif
 	// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-	synchronizer_flop   int_pin_sync
+	synchronizer_flop   #(1, 0) int_pin_sync
 	(
 	    .data_in        (int_in),
 	    .clk_out        (pci_clk),
@@ -3159,7 +3164,7 @@ reg		interrupt_out;
   wire [3:0] command_bits = {command_bit8, command_bit6, command_bit2_0[1:0]} ;
   wire [3:0] meta_command_bits ;
   reg  [3:0] sync_command_bits ;
-  synchronizer_flop   #(4)  command_bits_sync
+  synchronizer_flop   #(4, 0)  command_bits_sync
   (
       .data_in        (command_bits),
       .clk_out        (pci_clk),
@@ -3182,7 +3187,7 @@ reg		interrupt_out;
   wire       command_bit = command_bit2_0[2] ;
   wire       meta_command_bit ;
   reg        sync_command_bit ;
-  synchronizer_flop   command_bit_sync
+  synchronizer_flop   #(1, 0) command_bit_sync
   (
       .data_in        (command_bit),
       .clk_out        (pci_clk),
@@ -3218,7 +3223,7 @@ wire	cache_lsize_not_zero = ((cache_line_size_reg[7] || cache_line_size_reg[6] |
   wire [7:2] cache_lsize_to_pci_bits = { cache_line_size_reg[7:2] } ;
   wire [7:2] meta_cache_lsize_to_pci_bits ;
   reg  [7:2] sync_cache_lsize_to_pci_bits ;
-  synchronizer_flop   #(6)  cache_lsize_to_pci_bits_sync
+  synchronizer_flop   #(6, 0)  cache_lsize_to_pci_bits_sync
   (
       .data_in        (cache_lsize_to_pci_bits),
       .clk_out        (pci_clk),
@@ -3239,7 +3244,7 @@ wire	cache_lsize_not_zero = ((cache_line_size_reg[7] || cache_line_size_reg[6] |
   wire [7:0] latency_timer_bits = latency_timer ;
   wire [7:0] meta_latency_timer_bits ;
   reg  [7:0] sync_latency_timer_bits ;
-  synchronizer_flop   #(8)  latency_timer_bits_sync
+  synchronizer_flop   #(8, 0)  latency_timer_bits_sync
   (
       .data_in        (latency_timer_bits),
       .clk_out        (pci_clk),
@@ -3258,7 +3263,7 @@ wire	cache_lsize_not_zero = ((cache_line_size_reg[7] || cache_line_size_reg[6] |
   wire [8:2] cache_lsize_to_wb_bits = { cache_lsize_not_zero, cache_line_size_reg[7:2] } ;
   wire [8:2] meta_cache_lsize_to_wb_bits ;
   reg  [8:2] sync_cache_lsize_to_wb_bits ;
-  synchronizer_flop   #(7)  cache_lsize_to_wb_bits_sync
+  synchronizer_flop   #(7, 0)  cache_lsize_to_wb_bits_sync
   (
       .data_in        (cache_lsize_to_wb_bits),
       .clk_out        (wb_clk),

@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_delayed_sync.v,v $
+// Revision 1.2  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -219,7 +224,7 @@ end
 
 // interemediate stage request synchronization flip - flop - this one is prone to metastability
 // and should have setup and hold times disabled during simulation
-synchronizer_flop req_sync
+synchronizer_flop #(1, 0) req_sync
 (
     .data_in        (req_req_pending),
     .clk_out        (comp_clk_in),
@@ -273,7 +278,7 @@ end
 assign comp_comp_pending_out = comp_comp_pending ;
 
 // interemediate stage completion synchronization flip - flop - this one is prone to metastability
-synchronizer_flop comp_sync
+synchronizer_flop #(1, 0) comp_sync
 (
     .data_in        (comp_comp_pending),
     .clk_out        (req_clk_in),
@@ -331,7 +336,7 @@ begin
         req_done_reg <= #`FF_DELAY 1'b1 ;
 end
 
-synchronizer_flop done_sync
+synchronizer_flop  #(1, 0) done_sync
 (
     .data_in        (req_done_reg),
     .clk_out        (comp_clk_in),
@@ -379,7 +384,7 @@ begin
 end
 
 // interemediate stage retry expired synchronization flip - flop - this one is prone to metastability
-synchronizer_flop rty_exp_sync
+synchronizer_flop #(1, 0) rty_exp_sync
 (
     .data_in        (comp_rty_exp_reg),
     .clk_out        (req_clk_in),
@@ -404,7 +409,7 @@ begin
         req_rty_exp_clr <= #`FF_DELAY req_rty_exp_reg ;
 end
 
-synchronizer_flop rty_exp_back_prop_sync
+synchronizer_flop #(1, 0) rty_exp_back_prop_sync
 (
     .data_in        (req_rty_exp_reg && req_rty_exp_clr),
     .clk_out        (comp_clk_in),

@@ -263,18 +263,34 @@ reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_addr ;
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_minus2 ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_minus2 ;
 
-synchronizer_flop #(2 * ADDR_LENGTH) i_synchronizer_reg_rgrey_addr
+synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_rgrey_addr
 (
-    .data_in        ({rgrey_addr, rgrey_minus2}),
+    .data_in        (rgrey_addr),
     .clk_out        (wclock_in),
-    .sync_data_out  ({wclk_sync_rgrey_addr, wclk_sync_rgrey_minus2}),
-    .async_reset    (1'b0)
+    .sync_data_out  (wclk_sync_rgrey_addr),
+    .async_reset    (clear)
 ) ;
 
-always@(posedge wclock_in)
+synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus2
+(
+    .data_in        (rgrey_minus2),
+    .clk_out        (wclock_in),
+    .sync_data_out  (wclk_sync_rgrey_minus2),
+    .async_reset    (clear)
+) ;
+
+always@(posedge wclock_in or posedge clear)
 begin
-    wclk_rgrey_addr   <= #`FF_DELAY wclk_sync_rgrey_addr ;
-    wclk_rgrey_minus2 <= #`FF_DELAY wclk_sync_rgrey_minus2 ;
+    if (clear)
+    begin
+        wclk_rgrey_addr   <= #`FF_DELAY 3 ;
+        wclk_rgrey_minus2 <= #`FF_DELAY 0 ;
+    end
+    else
+    begin
+        wclk_rgrey_addr   <= #`FF_DELAY wclk_sync_rgrey_addr ;
+        wclk_rgrey_minus2 <= #`FF_DELAY wclk_sync_rgrey_minus2 ;
+    end
 end
 
 assign full         = (wgrey_next == wclk_rgrey_addr) ;
@@ -292,17 +308,20 @@ equal, fifo is almost empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_addr ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_addr ;
-synchronizer_flop #(ADDR_LENGTH) i_synchronizer_reg_wgrey_addr
+synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_addr
 (
     .data_in        (wgrey_addr),
     .clk_out        (rclock_in),
     .sync_data_out  (rclk_sync_wgrey_addr),
-    .async_reset    (1'b0)
+    .async_reset    (clear)
 ) ;
 
-always@(posedge rclock_in)
+always@(posedge rclock_in or posedge clear)
 begin
-    rclk_wgrey_addr <= #`FF_DELAY rclk_sync_wgrey_addr ;
+    if (clear)
+        rclk_wgrey_addr <= #`FF_DELAY 3 ;
+    else
+        rclk_wgrey_addr <= #`FF_DELAY rclk_sync_wgrey_addr ;
 end
 
 assign almost_empty = (rgrey_next == rclk_wgrey_addr) ;

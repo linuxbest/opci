@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_fifo_control.v,v $
+// Revision 1.2  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -263,18 +268,34 @@ reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_addr ;
 wire [(ADDR_LENGTH - 1):0] wclk_sync_rgrey_minus1 ;
 reg  [(ADDR_LENGTH - 1):0] wclk_rgrey_minus1 ;
 
-synchronizer_flop #(2 * ADDR_LENGTH) i_synchronizer_reg_rgrey_addr
+synchronizer_flop #(ADDR_LENGTH, 1) i_synchronizer_reg_rgrey_addr
 (
-    .data_in        ({rgrey_addr, rgrey_minus1}),
+    .data_in        (rgrey_addr),
     .clk_out        (wclock_in),
-    .sync_data_out  ({wclk_sync_rgrey_addr, wclk_sync_rgrey_minus1}),
-    .async_reset    (1'b0)
+    .sync_data_out  (wclk_sync_rgrey_addr),
+    .async_reset    (clear)
 ) ;
 
-always@(posedge wclock_in)
+synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_rgrey_minus1
+(
+    .data_in        (rgrey_minus1),
+    .clk_out        (wclock_in),
+    .sync_data_out  (wclk_sync_rgrey_minus1),
+    .async_reset    (clear)
+) ;
+
+always@(posedge wclock_in or posedge clear)
 begin
-    wclk_rgrey_addr   <= #`FF_DELAY wclk_sync_rgrey_addr ;
-    wclk_rgrey_minus1 <= #`FF_DELAY wclk_sync_rgrey_minus1 ;
+    if (clear)
+    begin
+        wclk_rgrey_addr   <= #`FF_DELAY 1 ;
+        wclk_rgrey_minus1 <= #`FF_DELAY 0 ;
+    end
+    else
+    begin
+        wclk_rgrey_addr   <= #`FF_DELAY wclk_sync_rgrey_addr ;
+        wclk_rgrey_minus1 <= #`FF_DELAY wclk_sync_rgrey_minus1 ;
+    end
 end
 
 assign full         = (wgrey_next == wclk_rgrey_addr) ;
@@ -287,17 +308,20 @@ If they are equal, fifo is empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_next ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_next ;
-synchronizer_flop #(ADDR_LENGTH) i_synchronizer_reg_wgrey_next
+synchronizer_flop #(ADDR_LENGTH, 3) i_synchronizer_reg_wgrey_next
 (
     .data_in        (wgrey_next),
     .clk_out        (rclock_in),
     .sync_data_out  (rclk_sync_wgrey_next),
-    .async_reset    (1'b0)
+    .async_reset    (clear)
 ) ;
 
-always@(posedge rclock_in)
+always@(posedge rclock_in or posedge clear)
 begin
-    rclk_wgrey_next <= #`FF_DELAY rclk_sync_wgrey_next ;
+    if (clear)
+        rclk_wgrey_next <= #`FF_DELAY 3 ;
+    else
+        rclk_wgrey_next <= #`FF_DELAY rclk_sync_wgrey_next ;
 end
 
 assign empty = (rgrey_next == rclk_wgrey_next) ;

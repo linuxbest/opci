@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_wbr_fifo_control.v,v $
+// Revision 1.2  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.1  2003/01/27 16:49:31  mihad
 // Changed module and file names. Updated scripts accordingly. FIFO synchronizations changed.
 //
@@ -238,17 +243,20 @@ If they are equal, fifo is empty.
 --------------------------------------------------------------------------------------------------------------------------------*/
 wire [(ADDR_LENGTH - 1):0] rclk_sync_wgrey_addr ;
 reg  [(ADDR_LENGTH - 1):0] rclk_wgrey_addr ;
-synchronizer_flop #(ADDR_LENGTH) i_synchronizer_reg_wgrey_addr
+synchronizer_flop #(ADDR_LENGTH, 0) i_synchronizer_reg_wgrey_addr
 (
     .data_in        (wgrey_addr),
     .clk_out        (rclock_in),
     .sync_data_out  (rclk_sync_wgrey_addr),
-    .async_reset    (1'b0)
+    .async_reset    (clear)
 ) ;
 
-always@(posedge rclock_in)
+always@(posedge rclock_in or posedge clear)
 begin
-    rclk_wgrey_addr <= #`FF_DELAY rclk_sync_wgrey_addr ;
+    if (clear)
+        rclk_wgrey_addr <= #`FF_DELAY 0 ;
+    else
+        rclk_wgrey_addr <= #`FF_DELAY rclk_sync_wgrey_addr ;
 end
 
 assign empty = (rgrey_addr == rclk_wgrey_addr) ;

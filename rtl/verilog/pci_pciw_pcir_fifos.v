@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_pciw_pcir_fifos.v,v $
+// Revision 1.3  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.2  2003/01/30 22:01:08  mihad
 // Updated synchronization in top level fifo modules.
 //
@@ -559,8 +564,7 @@ always@(posedge pci_clock_in or posedge pciw_clear)
 begin
     if (pciw_clear)
     begin
-        inGreyCount[(PCIW_ADDR_LENGTH-2)] <= #`FF_DELAY 1'b1 ;
-        inGreyCount[(PCIW_ADDR_LENGTH-3):0] <= #`FF_DELAY {(PCIW_ADDR_LENGTH-2),1'b0} ;
+        inGreyCount <= 0 ;
     end
     else
     if (in_count_en)
@@ -569,18 +573,18 @@ end
 
 wire [(PCIW_ADDR_LENGTH-2):0] wb_clk_sync_inGreyCount ;
 reg  [(PCIW_ADDR_LENGTH-2):0] wb_clk_inGreyCount ;
-synchronizer_flop #((PCIW_ADDR_LENGTH - 1)) i_synchronizer_reg_inGreyCount
+synchronizer_flop #((PCIW_ADDR_LENGTH - 1), 0) i_synchronizer_reg_inGreyCount
 (
     .data_in        (inGreyCount),
     .clk_out        (wb_clock_in),
     .sync_data_out  (wb_clk_sync_inGreyCount),
-    .async_reset    (1'b0)
+    .async_reset    (pciw_clear)
 ) ;
 
 always@(posedge wb_clock_in or posedge pciw_clear)
 begin
     if (pciw_clear)
-        wb_clk_inGreyCount <= #`FF_DELAY 1 ;
+        wb_clk_inGreyCount <= #`FF_DELAY 0 ;
     else
         wb_clk_inGreyCount <= # `FF_DELAY wb_clk_sync_inGreyCount ;
 end
@@ -589,8 +593,7 @@ always@(posedge wb_clock_in or posedge pciw_clear)
 begin
     if (pciw_clear)
     begin
-        outGreyCount[(PCIW_ADDR_LENGTH-2)]   <= #`FF_DELAY 1'b1 ;
-        outGreyCount[(PCIW_ADDR_LENGTH-3):0] <= #`FF_DELAY {(PCIW_ADDR_LENGTH-2),1'b0} ;
+        outGreyCount <= #`FF_DELAY 0 ;
     end
     else
     if (out_count_en)
@@ -600,7 +603,7 @@ end
 always@(posedge pci_clock_in or posedge pciw_clear)
 begin
     if (pciw_clear)
-        pciw_inTransactionCount <= #`FF_DELAY {(PCIW_ADDR_LENGTH-1){1'b0}} ;
+        pciw_inTransactionCount <= #`FF_DELAY 1 ;
     else
     if (in_count_en)
         pciw_inTransactionCount <= #`FF_DELAY pciw_inTransactionCount + 1'b1 ;
@@ -609,7 +612,7 @@ end
 always@(posedge wb_clock_in or posedge pciw_clear)
 begin
     if (pciw_clear)
-        pciw_outTransactionCount <= #`FF_DELAY {(PCIW_ADDR_LENGTH-1){1'b0}} ;
+        pciw_outTransactionCount <= #`FF_DELAY 1 ;
     else
     if (out_count_en)
         pciw_outTransactionCount <= #`FF_DELAY pciw_outTransactionCount + 1'b1 ;

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: synchronizer_flop.v,v 1.3 2002/02/01 15:25:13 mihad Exp $
+// $Id: synchronizer_flop.v,v 1.4 2003/03/26 13:16:18 mihad Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -62,6 +62,11 @@
 // CVS Revision History
 //
 // $Log: synchronizer_flop.v,v $
+// Revision 1.4  2003/03/26 13:16:18  mihad
+// Added the reset value parameter to the synchronizer flop module.
+// Added resets to all synchronizer flop instances.
+// Repaired initial sync value in fifos.
+//
 // Revision 1.3  2002/02/01 15:25:13  mihad
 // Repaired a few bugs, updated specification, added test bench files and design document
 //
@@ -98,6 +103,7 @@ module synchronizer_flop (
   data_in, clk_out, sync_data_out, async_reset
 );
 parameter               width = 1 ;
+parameter               reset_val = 0 ;
 
   input   [width-1:0]   data_in;
   input                 clk_out;
@@ -110,7 +116,7 @@ parameter               width = 1 ;
   begin
     if (async_reset == 1'b1)
     begin
-      sync_data_out <= 0;
+      sync_data_out <= reset_val;
     end
     else
     begin
