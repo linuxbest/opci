@@ -1,9 +1,0 @@
-#
-# hdl.var: Defines variables used by the INCA tools.
-# Created by ncprep on Mon Apr 28 13:01:59 2003
-#
-
-softinclude $CDS_INST_DIR/tools/inca/files/hdl.var
-
-define LIB_MAP ( $LIB_MAP, + => worklib )
-define VIEW_MAP ( $VIEW_MAP, .v => v)
