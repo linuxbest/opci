@@ -43,6 +43,9 @@
 // CVS Revision History
 //
 // $Log: pci_bridge32.v,v $
+// Revision 1.15  2003/12/10 12:02:54  mihad
+// The wbs B3 to B2 translation logic had wrong reset wire connected!
+//
 // Revision 1.14  2003/12/09 09:33:57  simons
 // Some warning cleanup.
 //
@@ -213,6 +216,16 @@ module pci_bridge32
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    ,
+    // Compact PCI Hot Swap signals
+    pci_cpci_hs_enum_o      ,   //  ENUM# output with output enable (open drain)
+    pci_cpci_hs_enum_oe_o   ,   //  ENUM# enum output enable
+    pci_cpci_hs_led_o       ,   //  LED output with output enable (open drain)
+    pci_cpci_hs_led_oe_o    ,   //  LED output enable
+    pci_cpci_hs_es_i            //  ejector switch state indicator input
+`endif
 );
 
 // WISHBONE system signals
@@ -328,6 +341,18 @@ BIST debug chain port signals
 input   mbist_si_i;       // bist scan serial in
 output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
+`endif
+
+`ifdef PCI_CPCI_HS_IMPLEMENT
+    // Compact PCI Hot Swap signals
+output  pci_cpci_hs_enum_o      ;   //  ENUM# output with output enable (open drain)
+output  pci_cpci_hs_enum_oe_o   ;   //  ENUM# enum output enable
+output  pci_cpci_hs_led_o       ;   //  LED output with output enable (open drain)
+output  pci_cpci_hs_led_oe_o    ;   //  LED output enable
+input   pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
+
+assign  pci_cpci_hs_enum_o = 1'b0   ;
+assign  pci_cpci_hs_led_o  = 1'b0   ;
 `endif
 
 // declare clock and reset wires
@@ -693,7 +718,7 @@ wire    [ 1:0]  wbs_wbb3_2_wbb2_bte_i   =   wbs_bte_i       ;
 pci_wbs_wbb3_2_wbb2 i_pci_wbs_wbb3_2_wbb2
 (
     .wb_clk_i       (   wb_clk_i    )   ,
-    .wb_rst_i       (   wb_rst_i    )   ,
+    .wb_rst_i       (   reset       )   ,
 
     .wbs_cyc_i      (   wbs_wbb3_2_wbb2_cyc_i   )   ,
     .wbs_cyc_o      (   wbs_wbb3_2_wbb2_cyc_o   )   ,
@@ -1277,6 +1302,13 @@ pci_conf_space configuration(
                                 .isr_int_prop               (conf_isr_int_prop_in),
                                 .isr_par_err_int            (conf_par_err_int_in),
                                 .isr_sys_err_int            (conf_sys_err_int_in)
+
+                            `ifdef PCI_CPCI_HS_IMPLEMENT
+                                ,
+                                .pci_cpci_hs_enum_oe_o      (pci_cpci_hs_enum_oe_o) ,
+                                .pci_cpci_hs_led_oe_o       (pci_cpci_hs_led_oe_o ) ,
+                                .pci_cpci_hs_es_i           (pci_cpci_hs_es_i)
+                            `endif
                             ) ;
 
 // pci data io multiplexer inputs
