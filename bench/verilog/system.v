@@ -39,6 +39,9 @@
 // CVS Revision History
 //
 // $Log: system.v,v $
+// Revision 1.8  2002/09/25 09:54:47  mihad
+// Added completion expiration test for WB Slave unit. Changed expiration signalling
+//
 // Revision 1.7  2002/08/22 09:20:16  mihad
 // Oops, never before noticed that OC header is missing
 //
@@ -864,6 +867,9 @@ begin
                 `endif
 
             end
+
+            master_completion_expiration ;
+
             $display(" ") ;
             $display("WB slave images' tests finished!") ;
 
@@ -18671,7 +18677,182 @@ begin:main
     // disable current image - write address mask register
     config_write( pci_am_offset, 32'h0000_0000, 4'hF, ok ) ;
 end
-endtask // target_completion_expired
+endtask // target_completion_expiration
+
+task master_completion_expiration ;
+    reg   [11:0] ctrl_offset ;
+    reg   [11:0] ba_offset ;
+    reg   [11:0] am_offset ;
+    reg `WRITE_STIM_TYPE write_data ;
+    reg `READ_STIM_TYPE  read_data ;
+    reg `READ_RETURN_TYPE read_status ;
+
+    reg `WRITE_RETURN_TYPE write_status ;
+    reg `WB_TRANSFER_FLAGS write_flags ;
+    reg        ok   ;
+    reg [11:0] pci_ctrl_offset ;
+    reg [31:0] image_base ;
+    reg [31:0] target_address ;
+begin:main
+    pci_ctrl_offset = 12'h4 ;
+    ctrl_offset = {4'h1, `W_IMG_CTRL1_ADDR, 2'b00} ;
+    ba_offset   = {4'h1, `W_BA1_ADDR, 2'b00} ;
+    am_offset   = {4'h1, `W_AM1_ADDR, 2'b00} ;
+    test_name   = "MASTER DELAYED COMPLETION EXPIRATION" ;
+
+    target_address  = `BEH_TAR1_MEM_START ;
+    image_base      = 0 ;
+    image_base[`PCI_BASE_ADDR0_MATCH_RANGE] = target_address[`PCI_BASE_ADDR0_MATCH_RANGE] ;
+
+    target_address[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] = image_base[31:(32 - `WB_NUM_OF_DEC_ADDR_LINES)] ;
+    target_address[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0]  = image_base[(31 - `WB_NUM_OF_DEC_ADDR_LINES):0] ;
+    write_flags                      = 0 ;
+    write_flags`INIT_WAITS           = tb_init_waits ;
+    write_flags`SUBSEQ_WAITS         = tb_subseq_waits ;
+    write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+
+    // enable master & target operation
+    config_write( pci_ctrl_offset, 32'h0000_0007, 4'h1, ok) ;
+    if ( ok !== 1 )
+    begin
+        $display("Completion expiration testing failed! Failed to write PCI Device Control register! Time %t ", $time) ;
+        test_fail("write to PCI Device Control register didn't succeede");
+        disable main ;
+    end
+
+    // prepare image control register
+    config_write( ctrl_offset, 32'h0000_0000, 4'hF, ok) ;
+    if ( ok !== 1 )
+    begin
+        $display("Completion expiration testing failed! Failed to write W_IMG_CTRL1 register! Time %t ", $time) ;
+        test_fail("write to WB Image Control register didn't succeede");
+        disable main ;
+    end
+
+    // prepare base address register
+    config_write( ba_offset, image_base, 4'hF, ok ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Completion expiration testing failed! Failed to write W_BA1 register! Time %t ", $time) ;
+        test_fail("write to WB Base Address register didn't succeede");
+        disable main ;
+    end
+
+    // write address mask register
+    config_write( am_offset, 32'hFFFF_FFFF, 4'hF, ok ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Completion expiration testing failed! Failed to write W_AM1 register! Time %t ", $time) ;
+        test_fail("write to WB Address Mask register didn't succeede");
+        disable main ;
+    end
+
+    fork
+    begin
+        // do not handle retries
+        write_flags`WB_TRANSFER_AUTO_RTY = 1'b0 ;
+
+        // initiate a read request
+        read_data`READ_ADDRESS  = target_address ;
+        read_data`READ_SEL      = 4'hF ;
+        read_data`READ_TAG_STIM = 0 ;
+        wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
+        if ((read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_RTY !== 1'b1))
+        begin
+            $display("Completion expiration testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+            test_fail("PCI bridge didn't process the read as expected - didn't respond with retry");
+            disable main ;
+        end
+
+        // handle retries from now on
+        write_flags`WB_TRANSFER_AUTO_RTY = 1'b1 ;
+
+        write_data`WRITE_ADDRESS = target_address + 4 ;
+        write_data`WRITE_DATA    = 32'hF0F0_0F0F ;
+        write_data`WRITE_SEL     = 4'hF ;
+
+        wishbone_master.wb_single_write( write_data, write_flags, write_status ) ;
+        if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+        begin
+            $display("Completion expiration testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
+            test_fail("WB Slave state machine failed to post single memory write");
+            disable main ;
+        end
+
+        // completion is present if wbr fifo for sure, since write proceeded ok, wait for completion to almost expire - 2^^16 cycles - 100
+        repeat('h1_0000 - 100)
+            @(posedge wb_clock) ;
+        
+        // now perform a read
+        read_data`READ_ADDRESS  = target_address + 4 ;
+        read_data`READ_SEL      = 4'hF ;
+        read_data`READ_TAG_STIM = 0 ;
+        wishbone_master.wb_single_read( read_data, write_flags, read_status ) ;
+        if (read_status`CYC_ACTUAL_TRANSFER !== 1)
+        begin
+            $display("Completion expiration testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+            test_fail("PCI bridge didn't process the read as expected");
+            disable main ;
+        end
+
+        if (read_status`READ_DATA !== write_data`WRITE_DATA)
+        begin
+            display_warning(target_address + 4, write_data`WRITE_DATA, read_status`READ_DATA) ;
+            test_fail("PCI bridge returned unexpected Read Data");
+        end
+        else if (ok === 1'b1)
+            test_ok ;
+    end
+    begin:monitors
+        // monitor first read, which will expire
+        pci_transaction_progress_monitor
+        ( 
+            target_address, // expected address
+            `BC_MEM_READ,   // expected bus command
+            1,              // expected number of transfers
+            0,              // expected number of cycles
+            1,              // check number of transfers true/false
+            0,              // check number of cycles true/false
+            0,              // is this fast B2B true/false
+            ok              // return 1 if as expected, anything else on error
+        ) ;
+
+        if ( ok !== 1 )
+        begin
+            test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+            #1 disable monitors ;
+        end
+
+        // monitor normal single write
+        pci_transaction_progress_monitor( target_address + 4, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok ) ;
+        if ( ok !== 1 )
+        begin
+            test_fail("because single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+            #1 disable monitors ;
+        end
+
+        // wait for 2^^16 cycles, so monitor won't complain about waiting too long
+        repeat('h1_0000 - 50)
+            @(posedge wb_clock) ;
+
+        // monitor normal single memory read
+        pci_transaction_progress_monitor( target_address + 4, `BC_MEM_READ, 1, 0, 1, 0, 0, ok ) ;
+        if ( ok !== 1 )
+        begin
+            test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
+        end
+    end
+    join
+
+    // disable the image
+    config_write( am_offset, 32'h0000_0000, 4'hF, ok ) ;
+    if ( ok !== 1 )
+    begin
+        $display("Completion expiration testing failed! Failed to write W_AM1 register! Time %t ", $time) ;
+        test_fail("write to WB Address Mask register didn't succeede");
+    end
+end
+endtask // master_completion_expiration
 
 task config_write ;
     input [11:0] offset ;

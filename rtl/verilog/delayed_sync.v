@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: delayed_sync.v,v $
+// Revision 1.5  2002/09/25 09:54:50  mihad
+// Added completion expiration test for WB Slave unit. Changed expiration signalling
+//
 // Revision 1.4  2002/03/05 11:53:47  mihad
 // Added some testcases, removed un-needed fifo signals
 //
@@ -429,7 +432,7 @@ end
 // if it counts to 2^^16 cycles the completion must be ditched
 
 // wire for clearing this counter
-wire clear_count = in_progress_in || ~req_comp_pending_out ;
+wire clear_count = in_progress_in || ~req_comp_pending_out || comp_cycle_count[16] ;
 always@(posedge req_clk_in or posedge reset_in)
 begin
     if (reset_in)
