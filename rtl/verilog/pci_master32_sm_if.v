@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:29  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,9 +53,12 @@
 //
 //
 
-`include "constants.v"
+`include "pci_constants.v"
 `include "bus_commands.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 /*====================================================================
 Module provides interface between PCI bridge internals and PCI master
@@ -62,7 +68,7 @@ module PCI_MASTER32_SM_IF
 (
     clk_in,
     reset_in,
-    
+
     // interconnect to pci master state machine
     address_out,
     bc_out,
@@ -72,7 +78,7 @@ module PCI_MASTER32_SM_IF
     req_out,
     rdy_out,
     last_out,
-    
+
     next_data_out,
     next_be_out,
     next_last_out,
@@ -82,7 +88,6 @@ module PCI_MASTER32_SM_IF
     wtransfer_in,
     rtransfer_in,
     retry_in,
-    werror_in,
     rerror_in,
     first_in ,
     mabort_in,
@@ -95,7 +100,7 @@ module PCI_MASTER32_SM_IF
     wbw_fifo_control_in,
     wbw_fifo_empty_in,
     wbw_fifo_transaction_ready_in,
-    
+
     // WISHBONE READ fifo inputs and outputs
     wbr_fifo_wenable_out,
     wbr_fifo_data_out,
@@ -120,14 +125,15 @@ module PCI_MASTER32_SM_IF
     err_bc_out,
     err_signal_out,
     err_source_out,
-    err_pending_in,
     err_rty_exp_out,
 
     cache_line_size_in,
-    
-    // two signals for pci control and status 
+
+    // two signals for pci control and status
     mabort_received_out,
-    tabort_received_out
+    tabort_received_out,
+
+    posted_write_not_present_out
 );
 
 // system inputs
@@ -138,14 +144,14 @@ input reset_in ;
 output  [31:0]  address_out ;   // address output
 
 output  [3:0]   bc_out ;        // bus command output
-reg     [3:0]   bc_out ;     
+reg     [3:0]   bc_out ;
 
 output  [31:0]  data_out ;      // data output for writes
 reg     [31:0]  data_out ;
 
 input   [31:0]  data_in ;       // data input for reads
 output  [3:0]   be_out  ;       // byte enable output
-reg     [3:0]   be_out  ;  
+reg     [3:0]   be_out  ;
 
 output          req_out ;       // request output
 
@@ -162,7 +168,6 @@ input           wait_in,
                 wtransfer_in,
                 rtransfer_in,
                 retry_in,
-                werror_in,
                 rerror_in,
                 first_in ,
                 mabort_in ;
@@ -207,14 +212,14 @@ output          err_signal_out ;                // error signalization
 
 output          err_source_out ;                // error source indicator
 
-input           err_pending_in ;
-
 input   [7:0]   cache_line_size_in ;            // cache line size value input
 
 output          err_rty_exp_out ;               // retry expired error output
 
 output          mabort_received_out ;           // master abort signaled to status register
 output          tabort_received_out ;           // target abort signaled to status register
+
+output          posted_write_not_present_out ;  // used in target state machine - must deny read completions when this signal is 0
 
 
 assign err_bc_out   = bc_out ;
@@ -260,7 +265,7 @@ end
 reg err_recovery ;
 
 // operation is locked until error recovery is in progress or error bit is not cleared in configuration space
-wire err_lock = err_recovery || err_pending_in ;
+wire err_lock = err_recovery ;
 
 // three requests are possible - posted write, delayed write and delayed read
 reg del_write_req ;
@@ -269,6 +274,9 @@ reg del_read_req ;
 
 // assign request output
 assign req_out = del_write_req || posted_write_req || del_read_req ;
+
+// posted write is not present, when WB Write Fifo is empty and posted write transaction is not beeing requested at present time
+assign posted_write_not_present_out = !posted_write_req && wbw_fifo_empty_in ;
 
 // write requests are staged, so data is read from source into current data register and next data register
 reg write_req_int ;
@@ -320,7 +328,7 @@ end
 // multiplexer for data output to PCI MASTER state machine
 reg [31:0] source_data ;
 reg [3:0]  source_be ;
-always@(data_source or wbw_fifo_addr_data_in or wbw_fifo_cbe_in or del_wdata_in or del_be_in)
+always@(data_source or wbw_fifo_addr_data_in or wbw_fifo_cbe_in or del_wdata_in or del_be_in or del_burst_in)
 begin
     case (data_source)
         POSTED_WRITE:   begin
@@ -329,7 +337,8 @@ begin
                         end
         DELAYED_WRITE:  begin
                             source_data = del_wdata_in ;
-                            source_be   = ~del_be_in ;
+                            // read all bytes during delayed burst read!
+                            source_be   = ~( del_be_in | {4{del_burst_in}} ) ;
                         end
     endcase
 end
@@ -345,7 +354,7 @@ wire     [31:0] new_address = ( ~req_out && do_posted_write ) ? wbw_fifo_addr_da
 wire     [3:0]  new_bc      = ( ~req_out && do_posted_write ) ? wbw_fifo_cbe_in : del_bc_in ;
 
 // address counter enable - only for posted writes when data is actually transfered
-wire addr_count_en = ~wait_in && posted_write_req && wtransfer_in ; 
+wire addr_count_en = ~wait_in && posted_write_req && rtransfer_in ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
@@ -354,9 +363,9 @@ begin
     else
     if (address_change)
         bc_out <= #`FF_DELAY new_bc ;
-end 
+end
 
-reg [31:2] current_dword_address ;
+reg [29:0] current_dword_address ;
 
 // DWORD address counter with load
 always@(posedge reset_in or posedge clk_in)
@@ -369,7 +378,7 @@ begin
     else
     if (addr_count_en)
         current_dword_address <= #`FF_DELAY current_dword_address + 1'b1 ;
-end 
+end
 
 reg [1:0] current_byte_address ;
 always@(posedge reset_in or posedge clk_in)
@@ -379,7 +388,7 @@ begin
     else
     if (address_change)
         current_byte_address <= #`FF_DELAY new_address[1:0] ;
-end 
+end
 
 // address output to PCI master state machine assignement
 assign address_out  = { current_dword_address, current_byte_address } ;
@@ -392,9 +401,9 @@ assign err_addr_out = { current_dword_address, current_byte_address } ;
 wire read_count_enable = ~wait_in && del_read_req && del_burst_in && wtransfer_in  ;
 
 // cache line counter is loaded when del read request is not in progress
-wire read_count_load   = ~del_read_req ; 
+wire read_count_load   = ~del_read_req ;
 
-reg [8:0] max_read_count ;
+reg [(`WBR_ADDR_LENGTH - 1):0] max_read_count ;
 always@(cache_line_size_in or del_bc_in)
 begin
     if ( (cache_line_size_in >= `WBR_DEPTH) || (~del_bc_in[1] && ~del_bc_in[0]) )
@@ -403,14 +412,16 @@ begin
         max_read_count = cache_line_size_in ;
 end
 
-reg [8:0] read_count ;
+reg [(`WBR_ADDR_LENGTH - 1):0] read_count ;
 
 // cache line bound indicator - it signals when data for one complete cacheline was read
-wire read_bound_comb = ~|(read_count[8:2]) ;
+wire read_bound_comb = ~|(read_count[(`WBR_ADDR_LENGTH - 1):2]) ;
 reg  read_bound ;
-always@(posedge clk_in)
+always@(posedge clk_in or posedge reset_in)
 begin
-    if (read_count_load)
+    if ( reset_in )
+        read_bound <= #`FF_DELAY 1'b0 ;
+    else if (read_count_load)
         read_bound <= #`FF_DELAY 1'b0 ;
     else if ( read_count_enable )
         read_bound <= #`FF_DELAY read_bound_comb ;
@@ -420,14 +431,14 @@ end
 always@(posedge reset_in or posedge clk_in)
 begin
     if (reset_in)
-        read_count <= #`FF_DELAY 8'h00 ;
+        read_count <= #`FF_DELAY 0 ;
     else
     if (read_count_load)
         read_count <= #`FF_DELAY max_read_count ;
     else
     if (read_count_enable)
         read_count <= #`FF_DELAY read_count - 1'b1 ;
-    
+
 end
 
 // flip flop indicating error recovery is in progress
@@ -470,12 +481,12 @@ of the bridge.
 reg del_write_req_input ;
 
 always@(
-    do_del_write or 
-    del_write_req or 
-    posted_write_req or 
-    del_read_req or 
-    wait_in or 
-    //retry_in or 
+    do_del_write or
+    del_write_req or
+    posted_write_req or
+    del_read_req or
+    wait_in or
+    //retry_in or
     //retry_expired or
     rtransfer_in or
     rerror_in or
@@ -483,7 +494,7 @@ always@(
 )
 begin
     if (~del_write_req)
-    begin   
+    begin
         // delayed write is not in progress and is requested
         // delayed write can be requested when no other request is in progress
         del_write_req_input = ~posted_write_req && ~del_read_req && do_del_write ;
@@ -491,10 +502,10 @@ begin
     else
     begin
         // delayed write request is in progress - assign input
-        del_write_req_input = wait_in || 
+        del_write_req_input = wait_in ||
                               ( /*~( retry_in && retry_expired) &&*/
                                 ~rtransfer_in && ~rerror_in && ~mabort_in
-                              ); 
+                              );
     end
 end
 
@@ -510,23 +521,23 @@ end
 /*================================================================================================
 Posted write request indicator.
 Posted write starts whenever no request is in progress and one whole posted write is
-stored in WBW_FIFO. It ends on error terminations ( master, target abort, retry expired) or 
+stored in WBW_FIFO. It ends on error terminations ( master, target abort, retry expired) or
 data transfer terminations if last data is on top of FIFO.
 Continues on wait, retry, and disconnect without data.
 ================================================================================================*/
 // posted write request FF input control
 reg posted_write_req_input ;
 always@(
-    do_posted_write or 
-    del_write_req or 
-    posted_write_req or 
-    del_read_req or 
-    wait_in or 
-    //retry_in or 
+    do_posted_write or
+    del_write_req or
+    posted_write_req or
+    del_read_req or
+    wait_in or
+    //retry_in or
     rerror_in or
     mabort_in or
-    //retry_expired or 
-    rtransfer_in or 
+    //retry_expired or
+    rtransfer_in or
     last_transfered
 )
 begin
@@ -542,7 +553,7 @@ begin
                                   ~rerror_in && ~mabort_in &&
                                   ~(last_transfered)
                                  ) ;
-                                  
+
     end
 end
 
@@ -553,13 +564,13 @@ begin
         posted_write_req <= #`FF_DELAY 1'b0 ;
     else
         posted_write_req <= #`FF_DELAY posted_write_req_input ;
-    
+
 end
 
 /*================================================================================================
 Delayed read request indicator.
 Delayed read starts whenever no request is in progress and delayed read request is signaled from
-other side of bridge. It ends on error terminations ( master, target abort, retry expired) or 
+other side of bridge. It ends on error terminations ( master, target abort, retry expired) or
 data transfer terminations if it is not burst transfer or on cache line bounds on burst transfer.
 It also ends on disconnects.
 Continues on wait and retry.
@@ -567,16 +578,16 @@ Continues on wait and retry.
 // delayed read FF input control
 reg del_read_req_input ;
 always@(
-    do_del_read or 
-    del_write_req or 
-    posted_write_req or 
-    del_read_req or 
-    last_transfered or 
-    wait_in or 
-    retry_in or 
-    //retry_expired or 
+    do_del_read or
+    del_write_req or
+    posted_write_req or
+    del_read_req or
+    last_transfered or
+    wait_in or
+    retry_in or
+    //retry_expired or
     mabort_in or
-    rtransfer_in or 
+    rtransfer_in or
     rerror_in or
     first_in or
     del_complete_out
@@ -622,14 +633,14 @@ begin
     if ( reset_in )
     begin
         intermediate_data <= #`FF_DELAY 32'h0000_0000 ;
-        intermediate_be   <= #`FF_DELAY 4'h0 ; 
+        intermediate_be   <= #`FF_DELAY 4'h0 ;
         intermediate_last <= #`FF_DELAY 1'b0 ;
-    end 
+    end
     else
     if ( intermediate_enable )
     begin
         intermediate_data <= #`FF_DELAY source_data ;
-        intermediate_be   <= #`FF_DELAY source_be ; 
+        intermediate_be   <= #`FF_DELAY source_be ;
         intermediate_last <= #`FF_DELAY last_int ;
     end
 end
@@ -674,7 +685,7 @@ assign wbw_renable_out = ~req_out && (do_posted_write || err_recovery) ||
                               posted_write_req && ( ~write_req_int || (~rdy_out && ~intermediate_last) || (~wait_in && rtransfer_in && ~intermediate_last)) ;
 
 /*================================================================================================
-WBR_FIFO write enable control - 
+WBR_FIFO write enable control -
 writes to FIFO are possible only when delayed read request is in progress and data transfer
 or error termination is signalled. It is not enabled on retry or disconnect without data.
 ================================================================================================*/
@@ -710,7 +721,6 @@ wire   del_read_complete  = del_read_req  && ( rerror_in || mabort_in || ( last_
 
 assign del_complete_out = ~wait_in && ( del_write_complete || del_read_complete ) ;
 
-
 // next last output generation
 assign next_last_out = del_write_req || del_read_req && ( ~del_burst_in || read_bound ) || posted_write_req && ( write_next_last ) ;
 /*==================================================================================================================
@@ -735,32 +745,35 @@ begin
         err_recovery_in = ~wlast ;
 end
 
-wire data_load_slow = (req_out && ~rdy_out) && (del_read_req || write_req_int) ; 
-wire data_load_en   = posted_write_req && ~last_out && ~wait_in ;
-wire data_be_load = data_load_slow || (data_load_en && wtransfer_in) ;
- 
+wire data_out_load = (posted_write_req || del_write_req) && ( !rdy_out || ( !wait_in && rtransfer_in ) ) ;
+
+wire be_out_load  = (req_out && !rdy_out) || ( posted_write_req && !wait_in && rtransfer_in ) ;
+
 wire last_load  = req_out && ( ~rdy_out || ~wait_in && wtransfer_in ) ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
     if (reset_in)
-    begin
-        be_out   <= #`FF_DELAY 4'hF ;
         data_out <= #`FF_DELAY 32'h0000_0000 ;
-    end
-    else 
-    if ( data_be_load )
-    begin
-        data_out <= #`FF_DELAY next_data_out ;
-        be_out   <= #`FF_DELAY next_be_out ;
-    end
+    else
+    if ( data_out_load )
+        data_out <= #`FF_DELAY intermediate_data ;
+end
+
+always@(posedge clk_in or posedge reset_in)
+begin
+    if ( reset_in )
+        be_out <= #`FF_DELAY 4'hF ;
+    else
+    if ( be_out_load )
+        be_out <= #`FF_DELAY posted_write_req ? intermediate_be : source_be ;
 end
 
 always@(posedge reset_in or posedge clk_in)
 begin
     if (reset_in)
         current_last <= #`FF_DELAY 1'b0 ;
-    else 
+    else
     if ( last_load )
         current_last <= #`FF_DELAY next_last_out ;
 end

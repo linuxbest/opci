@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:29  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -51,9 +54,11 @@
 //
 
 // module includes pci master state machine and surrounding logic
-`include "bus_commands.v"
-`include "constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+`include "pci_constants.v"
 
 module PCI_MASTER32_SM
 (
@@ -73,7 +78,7 @@ module PCI_MASTER32_SM
     pci_irdy_in,
     pci_irdy_out,
     pci_irdy_en_out,
-    
+
     // target response inputs
     pci_trdy_in,
     pci_trdy_reg_in,
@@ -101,12 +106,12 @@ module PCI_MASTER32_SM
     next_data_in,
     next_be_in,
     next_last_in,
-    load_next_out,
+    ad_load_out,
+    ad_load_on_transfer_out,
     wait_out,
     wtransfer_out,
     rtransfer_out,
     retry_out,
-    werror_out,
     rerror_out,
     first_out,
     mabort_out,
@@ -139,7 +144,7 @@ output  pci_frame_load_out ;
 input   pci_irdy_in ;
 output  pci_irdy_out,
         pci_irdy_en_out;
-    
+
 // target response inputs
 input   pci_trdy_in,
         pci_trdy_reg_in,
@@ -147,7 +152,7 @@ input   pci_trdy_in,
         pci_stop_reg_in,
         pci_devsel_in,
         pci_devsel_reg_in ;
-    
+
 // address, data, bus command, byte enable in/outs
 input   [31:0]  pci_ad_reg_in ;
 output  [31:0]  pci_ad_out ;
@@ -170,7 +175,7 @@ input   [31:0]  data_in ;    // current dataphase data input
 
 output  [31:0]  data_out ;    // for read operations - current request data output
 
-reg     [31:0]  data_out ;    
+reg     [31:0]  data_out ;
 
 input   [3:0]   be_in ;      // current dataphase byte enable inputs
 
@@ -184,7 +189,6 @@ output wait_out,            // wait indicates to the backend that dataphases are
        wtransfer_out,       // on any rising clock edge that this status is 1, data is transferred - heavy constraints here
        rtransfer_out,       // registered transfer indicator - when 1 indicates that data was transfered on previous clock cycle
        retry_out,           // retry status output - when target signals a retry
-       werror_out,          // error output - when 1 indicates that error (target abort) occured on current dataphase - heavy constraints
        rerror_out,          // registered error output - when 1 indicates that error was signalled by a target on previous clock cycle
        first_out ,          // indicates whether or not any data was transfered in current transaction
        mabort_out;          // master abort indicator
@@ -192,7 +196,7 @@ output wait_out,            // wait indicates to the backend that dataphases are
 reg wait_out ;
 
 // latency timer value input - state machine starts latency timer whenever it starts a transaction and last is not
-// asserted ( meaning burst transfer ). 
+// asserted ( meaning burst transfer ).
 input [7:0] latency_tim_val_in ;
 
 // next data, byte enable and last inputs
@@ -201,7 +205,8 @@ input [3:0]  next_be_in ;
 input        next_last_in ;
 
 // clock enable for data output flip-flops - whenever data is transfered, sm loads next data to those flip flops
-output       load_next_out ;
+output       ad_load_out,
+             ad_load_on_transfer_out ;
 
 // parameters - states - one hot
 // idle state
@@ -252,9 +257,9 @@ wire u_dont_have_pci_bus = pci_gnt_in || ~pci_frame_in || ~pci_irdy_in ;    // p
 wire u_have_pci_bus      = ~pci_gnt_in && pci_frame_in && pci_irdy_in ;
 
 // decode count enable - counter that counts cycles passed since address phase
-wire        sm_decode_count_enable = sm_data_phases ;                                                               // counter is enabled when master wants to transfer 
+wire        sm_decode_count_enable = sm_data_phases ;                                                               // counter is enabled when master wants to transfer
 wire        decode_count_enable    = sm_decode_count_enable && pci_trdy_in && pci_stop_in && pci_devsel_in ;        // and target is not responding
-wire        decode_count_load      = ~decode_count_enable ;                 
+wire        decode_count_load      = ~decode_count_enable ;
 reg [2:0]   decode_count ;
 
 wire decode_to = ~( decode_count[2] || decode_count[1]) ;
@@ -278,33 +283,23 @@ wire do_write = bc_in[0] ;
 // latency timer
 reg [7:0]   latency_timer ;
 
-
-wire latency_timer_enable = sm_data_phases ;
-wire latency_timer_load   = ~sm_address && ~sm_data_phases ;
-wire latency_timer_exp    = ~( 
-                               (latency_timer[7] || latency_timer[6] || latency_timer[5] || latency_timer[4]) || 
-                               (latency_timer[3] || latency_timer[2] || latency_timer_load)
+wire latency_time_out     = ~(
+                               (latency_timer[7] || latency_timer[6] || latency_timer[5] || latency_timer[4]) ||
+                               (latency_timer[3] || latency_timer[2] || latency_timer[1] )
                              ) ;
 
-// flip flop for registering latency timer timeout
-reg         latency_time_out ;
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-        latency_time_out <= #`FF_DELAY 1'b0 ;
-    else
-        latency_time_out <= #`FF_DELAY latency_timer_exp ;
-end
+wire latency_timer_enable = (sm_address || sm_data_phases) && ~latency_time_out ;
+wire latency_timer_load   = ~sm_address && ~sm_data_phases ;
 
 always@(posedge clk_in or posedge reset_in)
 begin
     if (reset_in)
-        latency_timer <= #`FF_DELAY 8'hFF ;
+        latency_timer <= #`FF_DELAY 8'h00 ;
     else
     if ( latency_timer_load )
         latency_timer <= #`FF_DELAY latency_tim_val_in ;
     else
-    if ( latency_timer_enable && ~latency_time_out)         // latency timer counts down until it expires - then it stops
+    if ( latency_timer_enable)         // latency timer counts down until it expires - then it stops
         latency_timer <= #`FF_DELAY latency_timer - 1'b1 ;
 end
 
@@ -337,7 +332,7 @@ always@(posedge reset_in or posedge clk_in)
 begin
     if (reset_in)
         timeout <= #`FF_DELAY 1'b0 ;
-    else 
+    else
         timeout <= #`FF_DELAY (latency_time_out && ~pci_frame_out_in && pci_gnt_in || timeout ) && ~wait_out ;
 end
 
@@ -347,7 +342,7 @@ wire timeout_termination = sm_turn_arround && timeout && pci_stop_reg_in ;
 // frame is forced to 0 (active) when state machine is in idle state, since only possible next state is address state which always drives frame active
 wire force_frame = ~sm_idle ;
 // slow signal for frame calculated from various registers in the core
-wire slow_frame  = last_in || timeout || (next_last_in && sm_data_phases) || mabort1 ;
+wire slow_frame  = last_in || (latency_time_out && pci_gnt_in) || (next_last_in && sm_data_phases) || mabort1 ;
 // critical timing frame logic in separate module - some combinations of target signals force frame to inactive state immediately after sampled asserted
 // (STOP)
 FRAME_CRIT frame_iob_feed
@@ -385,7 +380,7 @@ IRDY_OUT_CRIT irdy_iob_feed
     .pci_trdy_in        (pci_trdy_in),
     .pci_stop_in        (pci_stop_in)
 ) ;
-            
+
 // transfer FF indicator - when first transfer occurs it is set to 1 so backend can distinguish between disconnects and retries.
 wire sm_transfer = sm_data_phases ;
 reg transfer ;
@@ -408,9 +403,6 @@ assign wtransfer_out = ~pci_trdy_in ;
 // registered transfer status output - calculated from registered target response inputs
 assign rtransfer_out = ~(pci_trdy_reg_in || pci_devsel_reg_in) ;
 
-// current error status - calculated directly from target signals and therefore critical
-assign werror_out    = (~pci_stop_in && pci_devsel_in) ;
-
 // registered error status - calculated from registered target response inputs
 assign rerror_out    = (~pci_stop_reg_in && pci_devsel_reg_in) ;
 
@@ -420,19 +412,19 @@ assign retry_out = timeout_termination || (~pci_stop_reg_in && ~pci_devsel_reg_i
 // AD output flip flops' clock enable
 // new data is loaded to AD outputs whenever state machine is idle, bus was granted and bus is in idle state or
 // when address phase is about to be finished
-wire load_force = (sm_idle && u_have_pci_bus) || sm_address ;
+wire ad_load_slow = sm_address ;
+wire ad_load_on_grant = sm_idle && pci_frame_in && pci_irdy_in ;
+
+MAS_AD_LOAD_CRIT mas_ad_load_feed
+(
+    .ad_load_out         (ad_load_out),
+    .ad_load_in          (ad_load_slow),
+    .ad_load_on_grant_in (ad_load_on_grant),
+    .pci_gnt_in          (pci_gnt_in)
+);
 
 // next data loading is allowed when state machine is in transfer state and operation is a write
-wire load_allow = sm_data_phases && do_write ;
-
-// actual loading during data phases is done by monitoring critical target response signals - separate module
-MAS_LOAD_NEXT_CRIT ad_iob_ce
-(
-    .load_next_out      (load_next_out),
-    .load_force_in      (load_force),
-    .load_allow_in      (load_allow),
-    .pci_trdy_in        (pci_trdy_in)
-) ;
+assign ad_load_on_transfer_out = sm_data_phases && do_write ;
 
 // request for a bus is issued anytime when backend is requesting a transaction and state machine is in idle state
 assign pci_req_out = ~(req_in && sm_idle) ;
@@ -461,19 +453,21 @@ MAS_CH_STATE_CRIT state_machine_ce
 
 // ad enable driving
 // also divided in several categories - from less critical to most critical in separate module
-wire ad_en_slowest  = do_write && (sm_address || sm_data_phases && ~pci_frame_out_in) ;
-wire ad_en_on_grant = sm_idle && pci_frame_in && pci_irdy_in || sm_turn_arround ;
-wire ad_en_slow     = ad_en_on_grant && ~pci_gnt_in || ad_en_slowest ;
-wire ad_en_keep     = sm_data_phases && do_write && (pci_frame_out_in && ~mabort1 && ~mabort2) ;
+//wire ad_en_slowest  = do_write && (sm_address || sm_data_phases && ~pci_frame_out_in) ;
+//wire ad_en_on_grant = sm_idle && pci_frame_in && pci_irdy_in || sm_turn_arround ;
+//wire ad_en_slow     = ad_en_on_grant && ~pci_gnt_in || ad_en_slowest ;
+//wire ad_en_keep     = sm_data_phases && do_write && (pci_frame_out_in && ~mabort1 && ~mabort2) ;
 
-// critical timing ad enable - calculated from target response inputs
+wire ad_en_slow     = do_write && ( sm_address || ( sm_data_phases && !( ( pci_frame_out_in && mabort1 ) || mabort2 ) ) ) ;
+wire ad_en_on_grant = ( sm_idle && pci_frame_in && pci_irdy_in ) || sm_turn_arround ;
+
+// critical timing ad enable - calculated from grant input
 MAS_AD_EN_CRIT ad_iob_oe_feed
 (
     .pci_ad_en_out      (pci_ad_en_out),
     .ad_en_slow_in      (ad_en_slow),
-    .ad_en_keep_in      (ad_en_keep),
-    .pci_stop_in        (pci_stop_in),
-    .pci_trdy_in        (pci_trdy_in)
+    .ad_en_on_grant_in  (ad_en_on_grant),
+    .pci_gnt_in         (pci_gnt_in)
 ) ;
 
 // cbe enable driving
@@ -506,7 +500,7 @@ FRAME_EN_CRIT frame_iob_en_feed
     .frame_en_slow_in   (frame_en_slow),
     .frame_en_keep_in   (frame_en_keep),
     .pci_stop_in        (pci_stop_in),
-    .pci_trdy_in        (pci_trdy_in) 
+    .pci_trdy_in        (pci_trdy_in)
 ) ;
 
 // state machine next state definitions
@@ -531,14 +525,15 @@ begin
                     sm_idle      = 1'b1 ;
                     // assign next state - only possible is address - if state machine is supposed to stay in idle state
                     // outside signals disable the clock
-                    next_state   = S_ADDRESS ;
+                    next_state     = S_ADDRESS ;
+                    wdata_selector = SEL_DATA_BE ;
                 end
 
         S_ADDRESS:  begin
                         // indicate the state
                         sm_address  = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_DATA_BE ;
+                        wdata_selector = SEL_NEXT_DATA_BE ;
                         // only possible next state is transfer state
                         next_state = S_TRANSFER ;
                     end
@@ -559,7 +554,7 @@ begin
                             // while frame is active state cannot be anything else then transfer
                             next_state = S_TRANSFER ;
                     end
-            
+
         S_TA_END:   begin
                         // wait is still inactive because of registered statuses
                         wait_out = 1'b0 ;
@@ -573,9 +568,19 @@ begin
 end
 
 // ad and cbe lines multiplexer for write data
-always@(wdata_selector or address_in or bc_in or data_in or be_in or next_data_in or next_be_in)
+reg [1:0] rdata_selector ;
+always@(posedge clk_in or posedge reset_in)
 begin
-    case ( wdata_selector )
+    if ( reset_in )
+        rdata_selector <= #`FF_DELAY SEL_ADDR_BC ;
+    else
+    if ( change_state )
+        rdata_selector <= #`FF_DELAY wdata_selector ;
+end
+
+always@(rdata_selector or address_in or bc_in or data_in or be_in or next_data_in or next_be_in)
+begin
+    case ( rdata_selector )
         SEL_ADDR_BC:    begin
                             pci_ad_out  = address_in ;
                             pci_cbe_out = bc_in ;

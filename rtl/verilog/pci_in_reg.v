@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_in_reg.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:29  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,10 +53,11 @@
 //
 //
 
-`include "constants.v"
+// synopsys translate_off
 `include "timescale.v"
-
-// Module is used for registering PCI input signals 
+// synopsys translate_on
+`include "pci_constants.v"
+// Module is used for registering PCI input signals
 // It provides data flip flops with reset
 module PCI_IN_REG
 (
@@ -69,7 +73,7 @@ module PCI_IN_REG
     pci_idsel_in,
     pci_ad_in,
     pci_cbe_in,
-        
+
     pci_gnt_reg_out,
     pci_frame_reg_out,
     pci_irdy_reg_out,
@@ -126,6 +130,8 @@ begin
 		pci_stop_reg_out	<= #`FF_DELAY 1'b1 ;
 		pci_devsel_reg_out	<= #`FF_DELAY 1'b1 ;
 		pci_idsel_reg_out	<= #`FF_DELAY 1'b0 ; // active high!
+		pci_ad_reg_out      <= #`FF_DELAY 32'h0000_0000 ;
+		pci_cbe_reg_out     <= #`FF_DELAY 4'h0 ;
     end
     else
 	begin
@@ -136,24 +142,9 @@ begin
 		pci_stop_reg_out	<= #`FF_DELAY pci_stop_in ;
 		pci_devsel_reg_out	<= #`FF_DELAY pci_devsel_in ;
 		pci_idsel_reg_out	<= #`FF_DELAY pci_idsel_in ;
+		pci_ad_reg_out      <= #`FF_DELAY pci_ad_in ;
+		pci_cbe_reg_out     <= #`FF_DELAY pci_cbe_in ;
 	end
 end
-
-always@(posedge reset_in or posedge clk_in)
-begin
-    if ( reset_in )
-        pci_ad_reg_out <= #`FF_DELAY 32'h0000_0000 ;
-    else 
-        pci_ad_reg_out <= #`FF_DELAY pci_ad_in ;
-end
-
-always@(posedge reset_in or posedge clk_in)
-begin
-    if ( reset_in )
-        pci_cbe_reg_out <= #`FF_DELAY 4'h0 ;
-    else 
-        pci_cbe_reg_out <= #`FF_DELAY pci_cbe_in ;
-end
-
 
 endmodule

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_parity_check.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,8 +53,11 @@
 //
 //
 
-`include "constants.v"
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+`include "pci_constants.v"
+`include "bus_commands.v"
 
 module PCI_PARITY_CHECK
 (
@@ -78,6 +84,7 @@ module PCI_PARITY_CHECK
     pci_ad_out_in,
     pci_ad_reg_in,
     pci_cbe_in_in,
+    pci_cbe_reg_in,
     pci_cbe_out_in,
     pci_cbe_en_in,
     pci_ad_en_in,
@@ -87,7 +94,7 @@ module PCI_PARITY_CHECK
 
     serr_enable_in,
     sig_serr_out
-    
+
 );
 
 // system inputs
@@ -116,6 +123,7 @@ input           pci_par_en_in ;         // par enable input
 input [31:0]    pci_ad_out_in ;         // data driven by bridge to PCI
 input [31:0]    pci_ad_reg_in ;          // data driven by other agents on PCI
 input [3:0]     pci_cbe_in_in ;         // cbe driven by outside agents
+input [3:0]     pci_cbe_reg_in ;        // registered cbe driven by outside agents
 input [3:0]     pci_cbe_out_in ;        // cbe driven by pci master state machine
 input           pci_ad_en_in ;          // ad enable input
 input           par_err_response_in ;   // parity error response bit from conf.space
@@ -130,32 +138,15 @@ reg     frame_dec2 ;
 reg check_perr ;
 
 /*=======================================================================================================================
-Input and output data sampling - used by parity checking and generation logic
+CBE lines' parity is needed for overall parity calculation
 =======================================================================================================================*/
 wire par_cbe_out = pci_cbe_out_in[3] ^^ pci_cbe_out_in[2] ^^ pci_cbe_out_in[1] ^^ pci_cbe_out_in[0] ;
-wire par_cbe_include ;
-
-PAR_CBE_CRIT cbe_par_calc
-(
-    .par_cbe_include_out(par_cbe_include),
-    .par_cbe_out_in     (par_cbe_out),
-    .par_cbe_en_in      (pci_cbe_en_in),
-    .pci_cbe_in         (pci_cbe_in_in)
-) ;
-
-reg  cbe_par_reg ;
-always@( posedge reset_in or posedge clk_in )
-begin
-    if (reset_in)
-        cbe_par_reg <= #`FF_DELAY 1'b0 ;
-    else
-        cbe_par_reg <= #`FF_DELAY par_cbe_include ;
-end
+wire par_cbe_in  = pci_cbe_reg_in[3] ^^ pci_cbe_reg_in[2] ^^ pci_cbe_reg_in[1] ^^ pci_cbe_reg_in[0] ;
 
 /*=======================================================================================================================
 Parity generator - parity is generated and assigned to output on every clock edge. PAR output enable is active
 one clock cycle after data output enable. Depending on whether master is performing access or target is responding,
-apropriate cbe data is included in parity generation.
+apropriate cbe data is included in parity generation. Non - registered CBE is used during reads through target SM
 =======================================================================================================================*/
 
 // generate appropriate par signal
@@ -169,6 +160,7 @@ wire data_par = (pci_ad_out_in[31] ^^ pci_ad_out_in[30] ^^ pci_ad_out_in[29] ^^ 
                 (pci_ad_out_in[3]  ^^ pci_ad_out_in[2]  ^^ pci_ad_out_in[1]  ^^ pci_ad_out_in[0]) ;
 
 wire par_out_only = data_par ^^ par_cbe_out ;
+
 PAR_CRIT par_gen
 (
     .par_out        (pci_par_out),
@@ -183,7 +175,7 @@ assign pci_par_en_out = pci_ad_en_in ;
 
 /*=======================================================================================================================
 Parity checker - parity is checked on every clock cycle. When parity error is detected, appropriate action is taken
-to signal address parity errors on SERR if enabled and data parity errors on PERR# if enabled. Logic also drives 
+to signal address parity errors on SERR if enabled and data parity errors on PERR# if enabled. Logic also drives
 outputs to configuration space to set appropriate status bits if parity error is detected. PAR signal is checked on
 master read operations or writes through pci target. Master read is performed when master drives irdy output and
 doesn't drive ad lines. Writes through target are performed when target is driving trdy and doesn't drive ad lines.
@@ -213,7 +205,7 @@ assign pci_perr_out = perr_n ;
 // parity error output assignment
 //assign pci_perr_out = ~(perr && perr_generate) ;
 
-wire non_critical_par = cbe_par_reg ^^ data_in_par ;
+wire non_critical_par = par_cbe_in ^^ data_in_par ;
 
 PERR_CRIT perr_crit_gen
 (
@@ -244,12 +236,25 @@ begin
     if (reset_in)
         frame_dec2 <= #`FF_DELAY 1'b0 ;
     else
-        frame_dec2 <= #`FF_DELAY pci_frame_reg_in && ~pci_frame_en_in ;
+        frame_dec2 <= #`FF_DELAY pci_frame_reg_in ;
 end
 
-// address phase parity indicator
-wire check_for_serr = ~pci_frame_reg_in && frame_dec2 ; 
-wire serr_generate  = check_for_serr && serr_enable_in && par_err_response_in ;
+// address phase parity error checking - done after address phase is detected - which is - when bridge's master is not driving frame,
+// frame was asserted on previous cycle and was not asserted two cycles before.
+wire check_for_serr_on_first = ~pci_frame_reg_in && frame_dec2  && ~pci_frame_en_in ;
+
+reg  check_for_serr_on_second ;
+always@(posedge reset_in or posedge clk_in)
+begin
+    if ( reset_in )
+        check_for_serr_on_second <= #`FF_DELAY 1'b0 ;
+    else
+        check_for_serr_on_second <= #`FF_DELAY check_for_serr_on_first && ( pci_cbe_reg_in == `BC_DUAL_ADDR_CYC ) ;
+end
+
+wire check_for_serr = check_for_serr_on_first || check_for_serr_on_second ;
+
+wire serr_generate = check_for_serr && serr_enable_in && par_err_response_in ;
 
 SERR_EN_CRIT serr_en_crit_gen
 (
@@ -298,15 +303,25 @@ end
 assign par_err_detect_out = ~pci_serr_out_in || ~pci_perr_out_in || perr_sampled ;
 
 // FF indicating that that last operation was done as bus master
+reg frame_and_irdy_en_prev      ;
+reg frame_and_irdy_en_prev_prev ;
 reg master_perr_report ;
 always@(posedge reset_in or posedge clk_in)
 begin
     if ( reset_in )
-        master_perr_report <= #`FF_DELAY 1'b0 ;
+    begin
+        master_perr_report          <= #`FF_DELAY 1'b0 ;
+        frame_and_irdy_en_prev      <= #`FF_DELAY 1'b0 ;
+        frame_and_irdy_en_prev_prev <= #`FF_DELAY 1'b0 ;
+    end
     else
-        master_perr_report <= #`FF_DELAY pci_irdy_en_in ;
+    begin
+        master_perr_report          <= #`FF_DELAY frame_and_irdy_en_prev_prev ;
+        frame_and_irdy_en_prev      <= #`FF_DELAY pci_irdy_en_in && pci_frame_en_in ;
+        frame_and_irdy_en_prev_prev <= #`FF_DELAY frame_and_irdy_en_prev ;
+    end
 end
 
 assign perr_mas_detect_out = master_perr_report && ( (par_err_response_in && perr_sampled) || pci_perr_en_reg ) ;
 
-endmodule    
+endmodule

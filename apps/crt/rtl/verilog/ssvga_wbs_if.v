@@ -44,8 +44,11 @@
 // CVS Revision History
 //
 // $Log: ssvga_wbs_if.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -59,7 +62,7 @@
 module ssvga_wbs_if(
 	// Clock and reset
 	wb_clk_i, wb_rst_i,
-	
+
 	// WISHBONE Slave I/F
 	wbs_cyc_i, wbs_stb_i, wbs_sel_i, wbs_we_i,
 	wbs_adr_i, wbs_dat_i, wbs_cab_i,

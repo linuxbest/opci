@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_addr_mux.v,v $
+// Revision 1.3  2002/02/01 15:25:13  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -51,11 +54,18 @@
 //
 
 // module provides instantiation of address decoders and address multiplexer for various number of implemented wishbone images
-`include "constants.v"
+`include "pci_constants.v"
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module WB_ADDR_MUX
 (
+    `ifdef REGISTER_WBS_OUTPUTS
+    clk_in,
+    reset_in,
+    sample_address_in,
+    `endif
     address_in,
     bar0_in,
     bar1_in,
@@ -114,247 +124,151 @@ wire [31:0] addr5 ;
 wire [5:0] hit ;
 assign hit_out = hit ;
 
+`ifdef REGISTER_WBS_OUTPUTS
+    input clk_in, reset_in, sample_address_in ;
+
+    reg [31:0] address ;
+    always@(posedge clk_in or posedge reset_in)
+    begin
+       if ( reset_in )
+           address <= #`FF_DELAY 0 ;
+       else
+       if ( sample_address_in )
+           address <= #`FF_DELAY address_in ;
+    end
+`else
+    wire [31:0] address = address_in ;
+`endif
+
 `ifdef GUEST
-    // in guest bridge implementation configuration image can be taken out
-    `ifdef WB_CNF_IMAGE
-        DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec0(
-                        .hit       (hit[0]),
-                        .addr_out  (addr0),
-                        .addr_in   (address_in),
-                        .base_addr (bar0_in),
-                        .mask_addr (am0_in),
-                        .tran_addr (ta0_in),
-                        .at_en     (1'b0)
-                    ) ;
+    `ifdef NO_CNF_IMAGE
     `else
-        
-        // configuration image not implemented
-        assign hit[0] = 1'b0 ;
-        assign addr0  = 32'h0000_0000 ;
+        `define DEC0_INCLUDE
     `endif
 `else
-    `ifdef HOST
-        DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec0(
-                        .hit       (hit[0]),
-                        .addr_out  (addr0),
-                        .addr_in   (address_in),
-                        .base_addr (bar0_in),
-                        .mask_addr (am0_in),
-                        .tran_addr (ta0_in),
-                        .at_en     (1'b0)
-                    ) ;
-    `endif
+`ifdef HOST
+    `define DEC0_INCLUDE
+`endif
+`endif
+
+`ifdef DEC0_INCLUDE
+    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec0
+    (
+     .hit       (hit[0]),
+     .addr_out  (addr0),
+     .addr_in   (address),
+     .base_addr (bar0_in),
+     .mask_addr (am0_in),
+     .tran_addr (ta0_in),
+     .at_en     (1'b0)
+    ) ;
+    `undef DEC0_INCLUDE
+`else
+    // configuration image not implemented
+    assign hit[0] = 1'b0 ;
+    assign addr0  = 32'h0000_0000 ;
 `endif
 
 // one image is always implemented
-DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec1(
-                .hit       (hit[1]),
-                .addr_out  (addr1),
-                .addr_in   (address_in),
-                .base_addr (bar1_in),
-                .mask_addr (am1_in),
-                .tran_addr (ta1_in),
-                .at_en     (at_en_in[1])
-             ) ;
+DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec1
+(
+ .hit       (hit[1]),
+ .addr_out  (addr1),
+ .addr_in   (address),
+ .base_addr (bar1_in),
+ .mask_addr (am1_in),
+ .tran_addr (ta1_in),
+ .at_en     (at_en_in[1])
+) ;
 
 `ifdef WB_IMAGE2
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec2(
-                    .hit       (hit[2]),
-                    .addr_out  (addr2),
-                    .addr_in   (address_in),
-                    .base_addr (bar2_in),
-                    .mask_addr (am2_in),
-                    .tran_addr (ta2_in),
-                    .at_en     (at_en_in[2])
-                ) ;
-
-                assign hit[5:3] = 3'b000 ;
-                assign addr3    = 32'h0000_0000 ;
-                assign addr4    = 32'h0000_0000 ;
-                assign addr5    = 32'h0000_0000 ;
-
-                // address multiplexer
-                always@(hit or addr0 or addr1 or addr2)
-                begin
-                    address_out = addr0 ;
-                    if ( hit[1] )
-                        address_out = addr1 ;
-                    else if ( hit[2] )
-                        address_out = addr2 ;
-                end
+    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec2
+    (
+     .hit       (hit[2]),
+     .addr_out  (addr2),
+     .addr_in   (address),
+     .base_addr (bar2_in),
+     .mask_addr (am2_in),
+     .tran_addr (ta2_in),
+     .at_en     (at_en_in[2])
+    ) ;
 
 `else
-    `ifdef WB_IMAGE3
-
-        assign hit[5:4] = 2'b00 ;
-        assign addr4    = 32'h0000_0000 ;
-        assign addr5    = 32'h0000_0000 ;
-
-        // address multiplexer
-        always@(hit or addr0 or addr1 or addr2 or addr3)
-        begin
-            address_out = addr0 ;
-            if ( hit[1] )
-                address_out = addr1 ;
-            else if ( hit[2] )
-                address_out = addr2 ;
-            else if ( hit[3] )
-                address_out = addr3 ;
-        end
-
-
-    `else
-        `ifdef WB_IMAGE4
-            
-            assign hit[5] = 1'b0 ;
-            assign addr5    = 32'h0000_0000 ;
-
-            // address multiplexer
-            always@(hit or addr0 or addr1 or addr2 or addr3 or addr4)
-            begin
-                address_out = addr0 ;
-                if ( hit[1] )
-                    address_out = addr1 ;
-                else if ( hit[2] )
-                    address_out = addr2 ;
-                else if ( hit[3] )
-                    address_out = addr3 ;
-                else if ( hit[4] )
-                    address_out = addr4 ;
-            end
-
-        `else
-            `ifdef WB_IMAGE5
-                // address multiplexer
-                always@(hit or addr0 or addr1 or addr2 or addr3 or addr4 or addr5)
-                begin
-                    address_out = addr0 ;
-                    if ( hit[1] )
-                        address_out = addr1 ;
-                    else if ( hit[2] )
-                        address_out = addr2 ;
-                    else if ( hit[3] )
-                        address_out = addr3 ;
-                    else if ( hit[4] )
-                        address_out = addr4 ;
-                    else if ( hit[5] )
-                        address_out = addr5 ;
-                end
-
-            `else
-
-                assign hit[5:2] = 4'b0000 ;
-                assign addr2    = 32'h0000_0000 ;
-                assign addr3    = 32'h0000_0000 ;
-                assign addr4    = 32'h0000_0000 ;
-                assign addr5    = 32'h0000_0000 ;
-                
-                // address multiplexer
-                always@(hit or addr0 or addr1)
-                begin
-                    address_out = addr0 ;
-                    if ( hit[1] )
-                        address_out = addr1 ;
-                end
-
-            `endif
-        `endif
-    `endif
+    assign hit[2] = 1'b0 ;
+    assign addr2  = 0 ;
 `endif
 
 `ifdef WB_IMAGE3
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec2(
-                    .hit       (hit[2]),
-                    .addr_out  (addr2),
-                    .addr_in   (address_in),
-                    .base_addr (bar2_in),
-                    .mask_addr (am2_in),
-                    .tran_addr (ta2_in),
-                    .at_en     (at_en_in[2])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec3(
-                    .hit       (hit[3]),
-                    .addr_out  (addr3),
-                    .addr_in   (address_in),
-                    .base_addr (bar3_in),
-                    .mask_addr (am3_in),
-                    .tran_addr (ta3_in),
-                    .at_en     (at_en_in[3])
-                ) ;
+    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec3
+    (
+     .hit       (hit[3]),
+     .addr_out  (addr3),
+     .addr_in   (address),
+     .base_addr (bar3_in),
+     .mask_addr (am3_in),
+     .tran_addr (ta3_in),
+     .at_en     (at_en_in[3])
+    ) ;
+`else
+    assign hit[3] = 1'b0 ;
+    assign addr3  = 0 ;
 `endif
 
 `ifdef WB_IMAGE4
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec2(
-                    .hit       (hit[2]),
-                    .addr_out  (addr2),
-                    .addr_in   (address_in),
-                    .base_addr (bar2_in),
-                    .mask_addr (am2_in),
-                    .tran_addr (ta2_in),
-                    .at_en     (at_en_in[2])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec3(
-                    .hit       (hit[3]),
-                    .addr_out  (addr3),
-                    .addr_in   (address_in),
-                    .base_addr (bar3_in),
-                    .mask_addr (am3_in),
-                    .tran_addr (ta3_in),
-                    .at_en     (at_en_in[3])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec4(
-                    .hit       (hit[4]),
-                    .addr_out  (addr4),
-                    .addr_in   (address_in),
-                    .base_addr (bar4_in),
-                    .mask_addr (am4_in),
-                    .tran_addr (ta4_in),
-                    .at_en     (at_en_in[4])
-                ) ;
+    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec4
+    (
+     .hit       (hit[4]),
+     .addr_out  (addr4),
+     .addr_in   (address),
+     .base_addr (bar4_in),
+     .mask_addr (am4_in),
+     .tran_addr (ta4_in),
+     .at_en     (at_en_in[4])
+    ) ;
+`else
+    assign hit[4] = 1'b0 ;
+    assign addr4  = 0 ;
 `endif
 
 `ifdef WB_IMAGE5
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec2(
-                    .hit       (hit[2]),
-                    .addr_out  (addr2),
-                    .addr_in   (address_in),
-                    .base_addr (bar2_in),
-                    .mask_addr (am2_in),
-                    .tran_addr (ta2_in),
-                    .at_en     (at_en_in[2])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec3(
-                    .hit       (hit[3]),
-                    .addr_out  (addr3),
-                    .addr_in   (address_in),
-                    .base_addr (bar3_in),
-                    .mask_addr (am3_in),
-                    .tran_addr (ta3_in),
-                    .at_en     (at_en_in[3])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec4(
-                    .hit       (hit[4]),
-                    .addr_out  (addr4),
-                    .addr_in   (address_in),
-                    .base_addr (bar4_in),
-                    .mask_addr (am4_in),
-                    .tran_addr (ta4_in),
-                    .at_en     (at_en_in[4])
-                ) ;
-
-    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec5(
-                    .hit       (hit[5]),
-                    .addr_out  (addr5),
-                    .addr_in   (address_in),
-                    .base_addr (bar5_in),
-                    .mask_addr (am5_in),
-                    .tran_addr (ta5_in),
-                    .at_en     (at_en_in[5])
-                ) ;
+    DECODER #(`WB_NUM_OF_DEC_ADDR_LINES) dec5
+    (
+     .hit       (hit[5]),
+     .addr_out  (addr5),
+     .addr_in   (address),
+     .base_addr (bar5_in),
+     .mask_addr (am5_in),
+     .tran_addr (ta5_in),
+     .at_en     (at_en_in[5])
+    ) ;
+`else
+    assign hit[5] = 1'b0 ;
+    assign addr5  = 0 ;
 `endif
+
+// address multiplexer
+always@
+(
+ hit or
+ addr0 or
+ addr1 or
+ addr2 or
+ addr3 or
+ addr4 or
+ addr5
+)
+begin
+    case ( {hit[5:2], hit[0]} )
+        5'b0_0_0_0_1: address_out = addr0 ;
+        5'b0_0_0_1_0: address_out = addr2 ;
+        5'b0_0_1_0_0: address_out = addr3 ;
+        5'b0_1_0_0_0: address_out = addr4 ;
+        5'b1_0_0_0_0: address_out = addr5 ;
+
+        // default address is address from decoder 1 - it is always implemented - in case of stripped down core to only one image
+        // this multiplexer can be completely removed during synthesys
+        default:      address_out = addr1 ;
+    endcase
+end
+
 endmodule

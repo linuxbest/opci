@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_clk_en.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -53,22 +56,18 @@
 // module is used to separate logic which uses criticaly constrained inputs from slower logic.
 // It is used to synthesize critical timing logic separately with faster cells or without optimization
 
-`include "constants.v"
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module PCI_TARGET32_CLK_EN
 (
     addr_phase,
     config_access,
     addr_claim_in,
-    disconect_wo_data_in,
-    pcir_fifo_data_err_in,
-    rw_cbe0,
     pci_frame_in,
-    pci_irdy_in,
     state_wait,
     state_transfere,
-    state_backoff,
     state_default,
     clk_enable
 );
@@ -76,36 +75,27 @@ module PCI_TARGET32_CLK_EN
 input           addr_phase ;			// indicates registered address phase on PCI bus
 input           config_access ;			// indicates configuration access
 input           addr_claim_in ;			// indicates claimed input PCI address
-input           disconect_wo_data_in ;	// indicates disconnect without data termination from backend
-input           pcir_fifo_data_err_in ;	// indicates FIFO data error termination from backend
-input           rw_cbe0 ;				// registered (through all cycle) RW (CBE[0]) input signal from PCI bus
 input           pci_frame_in ;			// critical constrained input signal
-input			pci_irdy_in ;			// critical constrained input signal
 input			state_wait ;			// indicates WAIT state of FSM
 input 			state_transfere ;		// indicates TRANSFERE state of FSM
-input			state_backoff ;			// indicates BACKOFF state of FSM
 input			state_default ;			// indicates DEFAULT state of FSM
 
 output			clk_enable ;			// FSM clock enable output
 
 
 // clock enable signal when FSM is in IDLE state
-wire s_idle_clk_en	=	((addr_phase && config_access) || 
+wire s_idle_clk_en	=	((addr_phase && config_access) ||
 						(addr_phase && ~config_access && addr_claim_in)) ;
 
-// clock enable signal when FSM is in WAIT state or in DEFAULT state	
+// clock enable signal when FSM is in WAIT state or in DEFAULT state
 wire s_wait_clk_en	=	(state_wait || state_default) ;
 
 // clock enable signal when FSM is in TRANSFERE state
-wire s_tran_clk_en	=	state_transfere && 
-						((disconect_wo_data_in && ~pci_irdy_in && ~pci_frame_in) || (pci_frame_in) || 
-						(~rw_cbe0 && pcir_fifo_data_err_in && ~pci_irdy_in && ~pci_frame_in)) ;
+wire s_tran_clk_en	=	(state_transfere && pci_frame_in) ;
 
-// clock enable signal when FSM is in BACKOFF state 	
-wire s_bcko_clk_en	=	(state_backoff && pci_frame_in) ;
 
 // Clock enable signal for FSM with preserved hierarchy for minimum delay!
-assign clk_enable	=	(s_idle_clk_en || s_wait_clk_en || s_tran_clk_en || s_bcko_clk_en) ;
+assign clk_enable	=	(s_idle_clk_en || s_wait_clk_en || s_tran_clk_en) ;
 
 
 endmodule

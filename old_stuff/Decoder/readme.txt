@@ -45,8 +45,11 @@
 // CVS Revision History
 //
 // $Log: readme.txt,v $
-// Revision 1.1  2001/10/02 15:33:52  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:25:07  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:52  mihad
+// New project directory structure
 //
 // Revision 1.1.1.1  2001/06/06 15:11:35  tadej
 // Initial release

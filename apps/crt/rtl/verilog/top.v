@@ -43,8 +43,11 @@
 // CVS Revision History
 //
 // $Log: top.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -54,9 +57,9 @@
 module TOP
 (
     CLK,
-    AD, 
-    CBE, 
-    RST,      
+    AD,
+    CBE,
+    RST,
     INTA,
     REQ,
     GNT,
@@ -69,7 +72,7 @@ module TOP
     PAR,
     PERR,
     SERR,
-    
+
 /*    CLK_I,
     RST_I,
     RST_O,
@@ -223,12 +226,12 @@ wire            SERR_en ;
 PCI_BRIDGE32 bridge
 (
     // WISHBONE system signals
-    .CLK_I(CLK),
+    .CLK_I(CRT_CLK),
     .RST_I(RST_I),
     .RST_O(RST_O),
     .INT_I(INT_I),
     .INT_O(INT_O),
-    
+
     // WISHBONE slave interface
     .ADR_I(ADR_I),
     .SDAT_I(SDAT_I),
@@ -241,7 +244,7 @@ PCI_BRIDGE32 bridge
     .ACK_O(ACK_O),
     .RTY_O(RTY_O),
     .ERR_O(ERR_O),
-    
+
     // WISHBONE master interface
     .ADR_O(ADR_O),
     .MDAT_I(MDAT_I),
@@ -254,7 +257,7 @@ PCI_BRIDGE32 bridge
     .ACK_I(ACK_I),
     .RTY_I(RTY_I),
     .ERR_I(ERR_I),
-    
+
     // pci interface - system pins
     .PCI_CLK_IN (CLK),
     .PCI_RSTn_IN ( RST_in ),
@@ -263,13 +266,13 @@ PCI_BRIDGE32 bridge
     .PCI_INTAn_OUT( INTA_out),
     .PCI_RSTn_EN_OUT( RST_en),
     .PCI_INTAn_EN_OUT(INTA_en),
-    
+
     // arbitration pins
     .PCI_REQn_OUT( REQ_out ),
     .PCI_REQn_EN_OUT ( REQ_en ),
-    
+
     .PCI_GNTn_IN( GNT ),
-    
+
     // protocol pins
     .PCI_FRAMEn_IN( FRAME_in),
     .PCI_FRAMEn_OUT( FRAME_out ),
@@ -281,40 +284,40 @@ PCI_BRIDGE32 bridge
     .PCI_STOPn_EN_OUT ( STOP_en ),
     .PCI_AD_EN_OUT(AD_en),
     .PCI_CBEn_EN_OUT ( CBE_en) ,
-    
+
     .PCI_IRDYn_IN ( IRDY_in ),
     .PCI_IRDYn_OUT ( IRDY_out ),
-    
+
     .PCI_IDSEL_IN ( IDSEL ),
-    
+
     .PCI_DEVSELn_IN( DEVSEL_in ),
     .PCI_DEVSELn_OUT ( DEVSEL_out ),
-    
+
     .PCI_TRDYn_IN ( TRDY_in ),
     .PCI_TRDYn_OUT ( TRDY_out ),
-    
+
     .PCI_STOPn_IN( STOP_in ),
     .PCI_STOPn_OUT ( STOP_out ),
-    
-    // data transfer pins   
+
+    // data transfer pins
     .PCI_AD_IN(AD_in),
     .PCI_AD_OUT (AD_out),
-    
+
     .PCI_CBEn_IN( CBE_in ),
     .PCI_CBEn_OUT ( CBE_out ),
-    
+
     // parity generation and checking pins
     .PCI_PAR_IN ( PAR_in ),
     .PCI_PAR_OUT ( PAR_out ),
     .PCI_PAR_EN_OUT ( PAR_en ),
-    
+
     .PCI_PERRn_IN ( PERR_in ),
     .PCI_PERRn_OUT ( PERR_out ),
     .PCI_PERRn_EN_OUT ( PERR_en ),
-    
+
     // system error pin
     .PCI_SERRn_OUT ( SERR_out ),
-    .PCI_SERRn_EN_OUT ( SERR_en )    
+    .PCI_SERRn_EN_OUT ( SERR_en )
 );
 
 // PCI IO buffers instantiation
@@ -355,13 +358,13 @@ bufif0 CBE_buf0 ( CBE[0], CBE_out[0], CBE_en[0] ) ;
 bufif0 CBE_buf1 ( CBE[1], CBE_out[1], CBE_en[1] ) ;
 bufif0 CBE_buf2 ( CBE[2], CBE_out[2], CBE_en[2] ) ;
 bufif0 CBE_buf3 ( CBE[3], CBE_out[3], CBE_en[3] ) ;
-    
+
 bufif0 FRAME_buf    ( FRAME, FRAME_out, FRAME_en ) ;
 bufif0 IRDY_buf     ( IRDY, IRDY_out, IRDY_en ) ;
 bufif0 DEVSEL_buf   ( DEVSEL, DEVSEL_out, DEVSEL_en ) ;
 bufif0 TRDY_buf     ( TRDY, TRDY_out, TRDY_en ) ;
 bufif0 STOP_buf     ( STOP, STOP_out, STOP_en ) ;
-     
+
 bufif0 RST_buf      ( RST, RST_out, RST_en ) ;
 bufif0 INTA_buf     ( INTA, INTA_out, INTA_en) ;
 bufif0 REQ_buf      ( REQ, REQ_out, REQ_en ) ;
@@ -376,39 +379,38 @@ wire crt_vsync ;
 ssvga_top CRT
 (
 	// Clock and reset
-	.wb_clk_i(CLK), 
+	.wb_clk_i(CRT_CLK),
     .wb_rst_i(RST_O),
-    .crt_clk_i(CRT_CLK),
-	
+
 	// WISHBONE Master I/F
-	.wbm_cyc_o  (CYC_I), 
-    .wbm_stb_o  (STB_I), 
-    .wbm_sel_o  (SEL_I), 
+	.wbm_cyc_o  (CYC_I),
+    .wbm_stb_o  (STB_I),
+    .wbm_sel_o  (SEL_I),
     .wbm_we_o   (WE_I),
-	.wbm_adr_o  (ADR_I), 
-    .wbm_dat_o  (SDAT_I), 
+	.wbm_adr_o  (ADR_I),
+    .wbm_dat_o  (SDAT_I),
     .wbm_cab_o  (CAB_I),
-	.wbm_dat_i  (SDAT_O), 
-    .wbm_ack_i  (ACK_O), 
-    .wbm_err_i  (ERR_O), 
+	.wbm_dat_i  (SDAT_O),
+    .wbm_ack_i  (ACK_O),
+    .wbm_err_i  (ERR_O),
     .wbm_rty_i  (RTY_O),
 
 	// WISHBONE Slave I/F
-	.wbs_cyc_i  (CYC_O), 
-    .wbs_stb_i  (STB_O), 
-    .wbs_sel_i  (SEL_O), 
+	.wbs_cyc_i  (CYC_O),
+    .wbs_stb_i  (STB_O),
+    .wbs_sel_i  (SEL_O),
     .wbs_we_i   (WE_O),
-	.wbs_adr_i  (ADR_O), 
-    .wbs_dat_i  (MDAT_O), 
+	.wbs_adr_i  (ADR_O),
+    .wbs_dat_i  (MDAT_O),
     .wbs_cab_i  (CAB_O),
-	.wbs_dat_o  (MDAT_I), 
-    .wbs_ack_o  (ACK_I), 
-    .wbs_err_o  (ERR_I), 
+	.wbs_dat_o  (MDAT_I),
+    .wbs_ack_o  (ACK_I),
+    .wbs_err_o  (ERR_I),
     .wbs_rty_o  (RTY_I),
 
 	// Signals to VGA display
-	.pad_hsync_o    (crt_hsync), 
-    .pad_vsync_o    (crt_vsync), 
+	.pad_hsync_o    (crt_hsync),
+    .pad_vsync_o    (crt_vsync),
     .pad_rgb_o      (rgb_int),
     .led_o			(LED)
 );

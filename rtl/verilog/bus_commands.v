@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: bus_commands.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,23 +53,23 @@
 //
 //
 
-// definitions of PCI bus commands
-`define BC_IACK             4'h0  //used
-`define BC_SPECIAL          4'h1  //not used
-`define BC_IO_READ          4'h2  //used
-`define BC_IO_WRITE         4'h3  //used
-`define BC_RESERVED0        4'h4  //not used
-`define BC_RESERVED1        4'h5  //not used
-`define BC_MEM_READ         4'h6  //used
-`define BC_MEM_WRITE        4'h7  //used
-`define BC_RESERVED2        4'h8  //not used
-`define BC_RESERVED3        4'h9  //not used
-`define BC_CONF_READ        4'hA  //used
-`define BC_CONF_WRITE       4'hB  //used
-`define BC_MEM_READ_MUL     4'hC  //used
-`define BC_DUAL_ADDR_CYC    4'hD  //not used
-`define BC_MEM_READ_LN      4'hE  //used
-`define BC_MEM_WRITE_INVAL  4'hF  //not used
+// definitions of PCI bus commands | used by PCI Master | used by PCI Target
+`define BC_IACK             4'h0  //				yes					no
+`define BC_SPECIAL          4'h1  //				no					no
+`define BC_IO_READ          4'h2  //				yes					yes
+`define BC_IO_WRITE         4'h3  //				yes					yes
+`define BC_RESERVED0        4'h4  //				no					no
+`define BC_RESERVED1        4'h5  //				no					no
+`define BC_MEM_READ         4'h6  //				yes					yes
+`define BC_MEM_WRITE        4'h7  //				yes					yes
+`define BC_RESERVED2        4'h8  //				no					no
+`define BC_RESERVED3        4'h9  //				no					no
+`define BC_CONF_READ        4'hA  //				yes					yes
+`define BC_CONF_WRITE       4'hB  //				yes					yes
+`define BC_MEM_READ_MUL     4'hC  //				yes					yes
+`define BC_DUAL_ADDR_CYC    4'hD  //				no					no
+`define BC_MEM_READ_LN      4'hE  //				yes					yes
+`define BC_MEM_WRITE_INVAL  4'hF  //				no					yes
 
 // common bits for configuration cycle commands
 `define BC_CONF_RW 3'b101 

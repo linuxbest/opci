@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_target32_devs_crit.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -53,8 +56,9 @@
 // module is used to separate logic which uses criticaly constrained inputs from slower logic.
 // It is used to synthesize critical timing logic separately with faster cells or without optimization
 
-`include "constants.v"
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module PCI_TARGET32_DEVS_CRIT
 (

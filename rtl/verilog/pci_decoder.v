@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: pci_decoder.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,34 +53,41 @@
 //
 //
 
-`include "constants.v"
-`include "timescale.v"
+`include "pci_constants.v"
 
-module PCI_DECODER (hit, addr_out, addr_in, base_addr, mask_addr, tran_addr, at_en, mem_io_space, mem_en, io_en) ;
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
+
+module PCI_DECODER (hit, addr_out, 
+					addr_in, bc_in,
+					base_addr, mask_addr, tran_addr, at_en, 
+					mem_io_space, mem_en, io_en) ;
 
 // Decoding address size parameter - for FPGAs 1MegByte is recommended
 //   MAXIMUM is 20 (4KBytes), length 12 is 1 MByte !!!
 parameter		decode_len     = 12 ;
 
 //###########################################################################################################
-// ALL COMMENTS are written as there were decode_len 20. This number and 12 (32 - 20) are assigning the 
+// ALL COMMENTS are written as there were decode_len 20. This number and 12 (32 - 20) are assigning the
 // numbers of decoded and compared bits, etc.
 //###########################################################################################################
 
 /*-----------------------------------------------------------------------------------------------------------
-DECODER interface decodes input address (ADDR_IN); what means that it validates (HIT), if input address 
+DECODER interface decodes input address (ADDR_IN); what means that it validates (HIT), if input address
 falls within the defined image space boundaries. Image space boundarie is defined with image base address
 register (BASE_ADDR) and address mask register (MASK_ADDR).
 Beside that, it also translates (maps) the input address to the output address (ADDR_OUT), regarding the
 translation address register (TRAN_ADDR) and the address mask register.
 -----------------------------------------------------------------------------------------------------------*/
 
-// output control  
+// output control
 output	hit ;
-// output address 
+// output address
 output	[31:0]	addr_out ;
-// input address
+// input address and bus command
 input	[31:0]	addr_in ;
+input	[3:0]	bc_in ;
 
 // input registers - 12 LSbits are not valid since the smallest possible size is 4KB !
 input	[31:(32-decode_len)]	base_addr ;
@@ -111,7 +121,7 @@ This logic produces the loghest path in this module!
 20 MSbits of input addres are as well as base address (20 bits) masked with corrected address mask. Only
 masked bits of each vector are actually logically compared.
 Bit[31] of address mask register is used to enable the image space !
-Because of PCI bus specifications, there is also the comparison of memory/io selection (mem_io_space) and 
+Because of PCI bus specifications, there is also the comparison of memory/io selection (mem_io_space) and
 its appropriate enable bit (mem_en / io_en).
 -----------------------------------------------------------------------------------------------------------*/
 
@@ -123,9 +133,26 @@ assign	img_en = mask_addr[31] ;
 
 wire	addr_hit = (addr_in_compare == base_addr_compare) ;
 
-wire	space_hit = (~mem_io_space && mem_en && img_en) || (mem_io_space && io_en && img_en) ;
+wire	space_hit = (!mem_io_space && mem_en && img_en) || (mem_io_space && io_en && img_en) ;
 
-assign	hit = (addr_hit && space_hit) ;
+reg		bc_hit ;
+always@(bc_in or mem_io_space)
+begin // Allowed bus commands for accesses through IMAGEs to WB bus - BC_CONF_WRITE/READ are not used with address claim!!!
+	case ( {bc_in[3:1], mem_io_space} )
+	4'b001_1,	// BC_IO_READ	  or BC_IO_WRITE		and IO space
+	4'b011_0,	// BC_MEM_READ	  or BC_MEM_WRITE		and MEM space
+	4'b110_0,	// BC_MEM_READ_MUL						and MEM space - BC_DUAL_ADDR_CYC must NOT be allowed!
+	4'b111_0:	// BC_MEM_READ_LN or BC_MEM_WRITE_INVAL	and MEM space
+		bc_hit <= 1'b1 ;
+	default:
+		bc_hit <= 1'b0 ;
+	endcase
+end
+
+wire	bc_forbid = bc_in[3] && bc_in[2] && !bc_in[1] && bc_in[0] ; // BC_DUAL_ADDR_CYC must NOT be allowed!
+
+
+assign	hit = (addr_hit && space_hit && bc_hit && !bc_forbid) ;
 
 /*-----------------------------------------------------------------------------------------------------------
 Translating the input address!
@@ -134,8 +161,8 @@ Translation of input address is not implemented if ADDR_TRAN_IMPL is not defined
 
 20 MSbits of input address are masked with negated value of the corrected address mask in order to get
 address bits of the input address which won't be replaced with translation address bits.
-Translation address bits (20 bits) are masked with corrected address mask. Only masked bits of vector are 
-actually valid, all others are zero. 
+Translation address bits (20 bits) are masked with corrected address mask. Only masked bits of vector are
+actually valid, all others are zero.
 Boath vectors are bit-wise ORed in order to get the valid translation address with an offset of an input
 address.
 12 LSbits of an input address are assigned to 12 LSbits of an output addres.
@@ -151,7 +178,7 @@ address.
     assign addr_in_combine = (addr_in[31:(32-decode_len)] & ~mask_addr) ;
     always@(at_en or tran_addr or mask_addr or addr_in)
 	begin
-	    if (at_en) 
+	    if (at_en)
 			begin
 				tran_addr_combine <= (tran_addr & mask_addr) ;
     		end

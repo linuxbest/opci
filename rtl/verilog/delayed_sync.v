@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: delayed_sync.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -51,9 +54,13 @@
 //
 
 // module provides synchronization mechanism between requesting and completing side of the bridge
-`include "constants.v"
+`include "pci_constants.v"
 `include "bus_commands.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 module DELAYED_SYNC
 (
     reset_in,
@@ -68,9 +75,9 @@ module DELAYED_SYNC
     req_comp_pending_out,
     comp_comp_pending_out,
     addr_in,
-    be_in, 
+    be_in,
     addr_out,
-    be_out, 
+    be_out,
     we_in,
     we_out,
     bc_in,
@@ -101,10 +108,10 @@ output  comp_req_pending_out,   // completion side request output - resynchroniz
         comp_comp_pending_out ; // completion pending output for completing side of the bridge
 
 // additional signals and wires for clock domain passage of signals
-reg     comp_req_pending,   
-        req_req_pending,    
-        req_comp_pending,     
-        req_comp_pending_sample,     
+reg     comp_req_pending,
+        req_req_pending,
+        req_comp_pending,
+        req_comp_pending_sample,
         comp_comp_pending,
         req_done_reg,
         comp_done_reg_main,
@@ -114,11 +121,11 @@ reg     comp_req_pending,
         comp_rty_exp_reg,
         comp_rty_exp_clr ;
 
-wire    sync_comp_req_pending,   
+wire    sync_comp_req_pending,
         sync_req_comp_pending,
         sync_comp_done,
         sync_req_rty_exp,
-        sync_comp_rty_exp_clr ; 
+        sync_comp_rty_exp_clr ;
 
 // inputs from requesting side - only this side can set address, bus command, byte enables, write enable and burst - outputs are common for both sides
 // all signals that identify requests are stored in this module
@@ -138,12 +145,12 @@ output [3:0]    bc_out ;
 output          burst_out ;
 
 // completion side signals encoded termination status - 0 = normal completion / 1 = error terminated completion
-input          status_in ;  
+input          status_in ;
 output         status_out ;
 
 // input signals that delayed transaction has been retried for max number of times
 // on this signal request is ditched, otherwise it would cause a deadlock
-// requestor can issue another request and procedure will be repeated 
+// requestor can issue another request and procedure will be repeated
 input   retry_expired_in ;
 
 // completion flush output - if in 2^^16 clock cycles transaction is not repeated by requesting agent - flush completion data
@@ -193,10 +200,10 @@ always@(posedge req_clk_in or posedge reset_in)
 begin
     if ( reset_in )
         req_req_pending <= #`FF_DELAY 1'b0 ;
-    else 
+    else
     if ( req_req_clear )
         req_req_pending <= #`FF_DELAY 1'b0 ;
-    else 
+    else
     if ( req_in )
         req_req_pending <= #`FF_DELAY 1'b1 ;
 end
@@ -205,9 +212,9 @@ end
 // and should have setup and hold times disabled during simulation
 synchronizer_flop req_sync
 (
-    .data_in        (req_req_pending), 
-    .clk_out        (comp_clk_in), 
-    .sync_data_out  (sync_comp_req_pending), 
+    .data_in        (req_req_pending),
+    .clk_out        (comp_clk_in),
+    .sync_data_out  (sync_comp_req_pending),
     .async_reset    (reset_in)
 ) ;
 
@@ -259,9 +266,9 @@ assign comp_comp_pending_out = comp_comp_pending ;
 // interemediate stage completion synchronization flip - flop - this one is prone to metastability
 synchronizer_flop comp_sync
 (
-    .data_in        (comp_comp_pending), 
-    .clk_out        (req_clk_in), 
-    .sync_data_out  (sync_req_comp_pending), 
+    .data_in        (comp_comp_pending),
+    .clk_out        (req_clk_in),
+    .sync_data_out  (sync_req_comp_pending),
     .async_reset    (reset_in)
 ) ;
 
@@ -317,9 +324,9 @@ end
 
 synchronizer_flop done_sync
 (
-    .data_in        (req_done_reg), 
-    .clk_out        (comp_clk_in), 
-    .sync_data_out  (sync_comp_done), 
+    .data_in        (req_done_reg),
+    .clk_out        (comp_clk_in),
+    .sync_data_out  (sync_comp_done),
     .async_reset    (reset_in)
 ) ;
 
@@ -365,9 +372,9 @@ end
 // interemediate stage retry expired synchronization flip - flop - this one is prone to metastability
 synchronizer_flop rty_exp_sync
 (
-    .data_in        (comp_rty_exp_reg), 
-    .clk_out        (req_clk_in), 
-    .sync_data_out  (sync_req_rty_exp), 
+    .data_in        (comp_rty_exp_reg),
+    .clk_out        (req_clk_in),
+    .sync_data_out  (sync_req_rty_exp),
     .async_reset    (reset_in)
 ) ;
 
@@ -390,9 +397,9 @@ end
 
 synchronizer_flop rty_exp_back_prop_sync
 (
-    .data_in        (req_rty_exp_reg), 
-    .clk_out        (comp_clk_in), 
-    .sync_data_out  (sync_comp_rty_exp_clr), 
+    .data_in        (req_rty_exp_reg),
+    .clk_out        (comp_clk_in),
+    .sync_data_out  (sync_comp_rty_exp_clr),
     .async_reset    (reset_in)
 ) ;
 
@@ -406,7 +413,7 @@ end
 
 // completion status flip flop - if 0 when completion is signalled it's finished OK otherwise it means error
 reg status_out ;
-always@(posedge comp_clk_in or posedge reset_in) 
+always@(posedge comp_clk_in or posedge reset_in)
 begin
     if (reset_in)
         status_out <= #`FF_DELAY 1'b0 ;

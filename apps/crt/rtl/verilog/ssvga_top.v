@@ -44,8 +44,11 @@
 // CVS Revision History
 //
 // $Log: ssvga_top.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -56,8 +59,7 @@
 module ssvga_top(
 	// Clock and reset
 	wb_clk_i, wb_rst_i,
-    crt_clk_i,
-	
+
 	// WISHBONE Master I/F
 	wbm_cyc_o, wbm_stb_o, wbm_sel_o, wbm_we_o,
 	wbm_adr_o, wbm_dat_o, wbm_cab_o,
@@ -81,7 +83,6 @@ module ssvga_top(
 //
 input			wb_clk_i;	// Write Clock
 input			wb_rst_i;	// Reset
-input           crt_clk_i;  // Pixel Clock
 
 //
 // WISHBONE Master I/F
@@ -247,7 +248,6 @@ ssvga_wbs_if ssvga_wbs_if(
 //
 ssvga_fifo ssvga_fifo(
 	.clk(wb_clk_i),
-    .crt_clk(crt_clk_i),
 	.rst(wb_rst_i),
 	.wr_en(fifo_wr_en),
 	.rd_en(fifo_rd_en),
@@ -263,19 +263,19 @@ ssvga_fifo ssvga_fifo(
 //
 RAMB4_S16_S16 ssvga_pallete
 (
-    .ADDRA(wbs_adr_i[9:2]), 
-    .DIA(wbs_dat_i[15:0]), 
-    .ENA(1'b1), 
+    .ADDRA(wbs_adr_i[9:2]),
+    .DIA(wbs_dat_i[15:0]),
+    .ENA(1'b1),
     .RSTA(wb_rst_i),
-    .CLKA(wb_clk_i), 
-    .WEA(pal_wr_en), 
+    .CLKA(wb_clk_i),
+    .WEA(pal_wr_en),
     .DOA(wbs_pal_data),
-    .ADDRB(fifo_out), 
-    .DIB(16'h0000), 
-    .ENB(1'b1), 
+    .ADDRB(fifo_out),
+    .DIB(16'h0000),
+    .ENB(1'b1),
     .RSTB(wb_rst_i),
-    .CLKB(wb_clk_i), 
-    .WEB(1'b0), 
+    .CLKB(wb_clk_i),
+    .WEB(1'b0),
     .DOB(pal_pix_dat)
 ) ;
 
@@ -295,7 +295,7 @@ RAMB4_S16_S16 ssvga_pallete
 // Instantiation of CRT controller block
 //
 ssvga_crtc ssvga_crtc(
-	.crt_clk(crt_clk_i),
+	.crt_clk(wb_clk_i),
 	.rst(wb_rst_i),
 	.hsync(pad_hsync_o),
 	.vsync(pad_vsync_o),

@@ -44,6 +44,9 @@
 // CVS Revision History
 //
 // $Log: decoder.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -52,8 +55,11 @@
 //
 //
 
-`include "constants.v"
+`include "pci_constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module DECODER (hit, addr_out, addr_in, base_addr, mask_addr, tran_addr, at_en) ;
 
@@ -62,21 +68,21 @@ module DECODER (hit, addr_out, addr_in, base_addr, mask_addr, tran_addr, at_en) 
 parameter		decode_len     = 12 ;
 
 //###########################################################################################################
-// ALL COMMENTS are written as there were decode_len 20. This number and 12 (32 - 20) are assigning the 
+// ALL COMMENTS are written as there were decode_len 20. This number and 12 (32 - 20) are assigning the
 // numbers of decoded and compared bits, etc.
 //###########################################################################################################
 
 /*-----------------------------------------------------------------------------------------------------------
-DECODER interface decodes input address (ADDR_IN); what means that it validates (HIT), if input address 
+DECODER interface decodes input address (ADDR_IN); what means that it validates (HIT), if input address
 falls within the defined image space boundaries. Image space boundarie is defined with image base address
 register (BASE_ADDR) and address mask register (MASK_ADDR).
 Beside that, it also translates (maps) the input address to the output address (ADDR_OUT), regarding the
 translation address register (TRAN_ADDR) and the address mask register.
 -----------------------------------------------------------------------------------------------------------*/
 
-// output control  
+// output control
 output	hit ;
-// output address 
+// output address
 output	[31:0]	addr_out ;
 // input address
 input	[31:0]	addr_in ;
@@ -124,8 +130,8 @@ Translation of input address is not implemented if ADDR_TRAN_IMPL is not defined
 
 20 MSbits of input address are masked with negated value of the corrected address mask in order to get
 address bits of the input address which won't be replaced with translation address bits.
-Translation address bits (20 bits) are masked with corrected address mask. Only masked bits of vector are 
-actually valid, all others are zero. 
+Translation address bits (20 bits) are masked with corrected address mask. Only masked bits of vector are
+actually valid, all others are zero.
 Boath vectors are bit-wise ORed in order to get the valid translation address with an offset of an input
 address.
 12 LSbits of an input address are assigned to 12 LSbits of an output addres.
@@ -141,7 +147,7 @@ address.
     assign addr_in_combine = (addr_in[31:(32-decode_len)] & ~mask_addr) ;
     always@(at_en or tran_addr or mask_addr or addr_in)
 	begin
-	    if (at_en) 
+	    if (at_en)
 			begin
 				tran_addr_combine <= (tran_addr & mask_addr) ;
     		end

@@ -45,8 +45,11 @@
 // CVS Revision History
 //
 // $Log: ssvga_fifo.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -55,7 +58,7 @@
 // synopsys translate_on
 
 module ssvga_fifo(
-	clk, crt_clk, rst, dat_i, wr_en, rd_en,
+	clk, rst, dat_i, wr_en, rd_en,
 	dat_o, full, empty, ssvga_en
 );
 
@@ -63,7 +66,6 @@ module ssvga_fifo(
 // I/O ports
 //
 input			clk;		// Clock
-input           crt_clk;    // Clock for monitor
 input			rst;		// Reset
 input	[31:0]	dat_i;		// Input data
 input			wr_en;		// Write enable
@@ -81,16 +83,6 @@ reg	[7:0]		wr_ptr_plus1;   // Write pointer
 reg	[9:0]		rd_ptr;		    // Read pointer
 reg	[9:0]		rd_ptr_plus1;	// Read pointer plus1
 wire			rd_en_int;	    // FIFO internal read enable
-
-wire [9:0]      gray_rd_ptr;      // gray code of read pointer
-wire [9:0]      gray_wr_ptr;      // gray code of write pointer
-wire [7:0]      gray_wr_ptr_plus1;// gray code of write + 1 pointer
-
-reg  [9:0]      gray_read_ptr;    // sinchronized gray read pointer on clk clock
-wire [9:0]      sync_gray_rd_ptr; // intermediate sinc. of gray read pointer
-
-reg             rd_ssvga_en;    // sinchronized ssvga enable on crt_clk clock
-wire            sync_ssvga_en;  // intermediate sinc. of ssvga enable signal
 
 //
 // Write pointer + 1
@@ -118,18 +110,18 @@ always @(posedge clk or posedge rst)
 //
 // Read pointer
 //
-always @(posedge crt_clk or posedge rst)
+always @(posedge clk or posedge rst)
 	if (rst)
 		rd_ptr <= #1 10'b00_0000_0000;
-    else if (~rd_ssvga_en)
+    else if (~ssvga_en)
         rd_ptr <= #1 10'b00_0000_0000;
 	else if (rd_en_int)
 		rd_ptr <= #1 rd_ptr_plus1 ;
 
-always @(posedge crt_clk or posedge rst)
+always @(posedge clk or posedge rst)
 	if (rst)
 		rd_ptr_plus1 <= #1 10'b00_0000_0001;
-    else if (~rd_ssvga_en)
+    else if (~ssvga_en)
         rd_ptr_plus1 <= #1 10'b00_0000_0001;
 	else if (rd_en_int)
 		rd_ptr_plus1 <= #1 rd_ptr_plus1 + 1 ;
@@ -137,15 +129,13 @@ always @(posedge crt_clk or posedge rst)
 //
 // Empty is asserted when both pointers match
 //
-//assign empty = ( rd_ptr == {wr_ptr, 2'b00} ) ;
-assign empty = ( gray_wr_ptr == gray_read_ptr ) ;
+assign empty = ( rd_ptr == {wr_ptr, 2'b00} ) ;
 
 //
 // Full is asserted when both pointers match
 // and wr_ptr did increment in previous clock cycle
 //
-//assign full = ( wr_ptr_plus1 == rd_ptr[9:2] ) ;
-assign full = ( gray_wr_ptr_plus1 == gray_read_ptr[9:2] ) ;
+assign full = ( wr_ptr_plus1 == rd_ptr[9:2] ) ;
 
 wire valid_pix = 1'b1 ;
 
@@ -161,50 +151,8 @@ wire [7:0] dat_o_high ;
 
 assign dat_o = rd_ptr[1] ? dat_o_high : dat_o_low ;
 
-//#############################################################################
-// binary to gray converters for counter of different clock domain comparison
-assign gray_rd_ptr          = (rd_ptr >> 1)          ^ rd_ptr ;
-assign gray_wr_ptr          = ({1'b0, wr_ptr, 1'b0}) ^ ({wr_ptr, 2'b00}) ;
-assign gray_wr_ptr_plus1    = (wr_ptr_plus1 >> 1)    ^ wr_ptr_plus1 ;
-
-//#############################################################################
-// interemediate stage to clk synchronization flip - flops - this ones are prone to metastability
-synchronizer_flop   #(10) read_ptr_sync
-(
-    .data_in        (gray_rd_ptr), 
-    .clk_out        (clk), 
-    .sync_data_out  (sync_gray_rd_ptr), 
-    .async_reset    (rst)
-) ;
-always@(posedge clk or posedge rst)
-begin
-    if (rst)
-        gray_read_ptr <= #1 10'b0 ;
-    else
-        gray_read_ptr <= #1 sync_gray_rd_ptr ;
-end
-
-//##############################################################################
-// interemediate stage ssvga_en synchronization flip - flop - this one is prone to metastability
-synchronizer_flop   ssvga_enable_sync
-(
-    .data_in        (ssvga_en), 
-    .clk_out        (crt_clk), 
-    .sync_data_out  (sync_ssvga_en), 
-    .async_reset    (rst)
-) ;
-// crt side ssvga enable flip flop - gets a value from intermediate stage sync flip flop
-always@(posedge crt_clk or posedge rst)
-begin
-    if (rst)
-        rd_ssvga_en <= #1 1'b0 ;
-    else
-        rd_ssvga_en <= #1 sync_ssvga_en ;
-end
-
-
 RAMB4_S8_S16 ramb4_s8_0(
-	.CLKA(crt_clk),
+	.CLKA(clk),
 	.RSTA(rst),
 	.ADDRA(ram_pix_address),
 	.DIA(8'h00),
@@ -222,7 +170,7 @@ RAMB4_S8_S16 ramb4_s8_0(
 );
 
 RAMB4_S8_S16 ramb4_s8_1(
-	.CLKA(crt_clk),
+	.CLKA(clk),
 	.RSTA(rst),
 	.ADDRA(ram_pix_address),
 	.DIA(8'h00),

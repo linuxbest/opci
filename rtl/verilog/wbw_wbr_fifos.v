@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_wbr_fifos.v,v $
+// Revision 1.3  2002/02/01 15:25:14  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:20:12  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,35 +53,38 @@
 //
 //
 
-`include "constants.v"
-`include "timescale.v"
+`include "pci_constants.v"
 
-module WBW_WBR_FIFOS( 
-                        wb_clock_in, 
-                        pci_clock_in, 
-                        reset_in, 
-                        wbw_wenable_in, 
-                        wbw_addr_data_in, 
-                        wbw_cbe_in, 
-                        wbw_control_in,                     
-                        wbw_renable_in, 
-                        wbw_addr_data_out, 
-                        wbw_cbe_out, 
-                        wbw_control_out,                     
-                        wbw_flush_in, 
-                        wbw_almost_full_out, 
+// synopsys translate_off
+`include "timescale.v"
+// synopsys translate_on
+
+module WBW_WBR_FIFOS(
+                        wb_clock_in,
+                        pci_clock_in,
+                        reset_in,
+                        wbw_wenable_in,
+                        wbw_addr_data_in,
+                        wbw_cbe_in,
+                        wbw_control_in,
+                        wbw_renable_in,
+                        wbw_addr_data_out,
+                        wbw_cbe_out,
+                        wbw_control_out,
+                        wbw_flush_in,
+                        wbw_almost_full_out,
                         wbw_full_out,
-                        wbw_empty_out, 
-                        wbw_transaction_ready_out, 
-                        wbr_wenable_in, 
-                        wbr_data_in, 
-                        wbr_be_in, 
-                        wbr_control_in,                     
-                        wbr_renable_in, 
-                        wbr_data_out, 
-                        wbr_be_out, 
-                        wbr_control_out,                     
-                        wbr_flush_in, 
+                        wbw_empty_out,
+                        wbw_transaction_ready_out,
+                        wbr_wenable_in,
+                        wbr_data_in,
+                        wbr_be_in,
+                        wbr_control_in,
+                        wbr_renable_in,
+                        wbr_data_out,
+                        wbr_be_out,
+                        wbr_control_out,
+                        wbr_flush_in,
                         wbr_empty_out
 ) ;
 
@@ -92,7 +98,7 @@ input wb_clock_in, pci_clock_in, reset_in ;
 
 /*-----------------------------------------------------------------------------------------------------------
 WISHBONE WRITE FIFO interface signals prefixed with wbw_ - FIFO is used for posted writes initiated by
-WISHBONE master, traveling through FIFO and are completed on PCI by PCI master interface 
+WISHBONE master, traveling through FIFO and are completed on PCI by PCI master interface
 
 write enable signal:
 wbw_wenable_in = write enable input for WBW_FIFO - driven by WISHBONE slave interface
@@ -127,10 +133,10 @@ input [3:0]  wbw_control_in ;
 input         wbw_renable_in ;
 output [31:0] wbw_addr_data_out ;
 output [3:0]  wbw_cbe_out ;
-output [3:0]  wbw_control_out ;                    
+output [3:0]  wbw_control_out ;
 
 // flush input
-input wbw_flush_in ; 
+input wbw_flush_in ;
 
 // status outputs
 output wbw_almost_full_out ;
@@ -139,8 +145,8 @@ output wbw_empty_out ;
 output wbw_transaction_ready_out ;
 
 /*-----------------------------------------------------------------------------------------------------------
-WISHBONE READ FIFO interface signals prefixed with wbr_ - FIFO is used for holding delayed read completions 
-initiated by master on WISHBONE bus and completed on PCI bus, 
+WISHBONE READ FIFO interface signals prefixed with wbr_ - FIFO is used for holding delayed read completions
+initiated by master on WISHBONE bus and completed on PCI bus,
 
 write enable signal:
 wbr_wenable_in = write enable input for WBR_FIFO - driven by PCI master interface
@@ -167,16 +173,16 @@ wbr_empty_out = empty output from WBR_FIFO
 input        wbr_wenable_in ;
 input [31:0] wbr_data_in ;
 input [3:0]  wbr_be_in ;
-input [3:0]  wbr_control_in ;                     
+input [3:0]  wbr_control_in ;
 
 // output control and data
 input         wbr_renable_in ;
 output [31:0] wbr_data_out ;
 output [3:0]  wbr_be_out ;
-output [3:0]  wbr_control_out ;                    
+output [3:0]  wbr_control_out ;
 
 // flush input
-input wbr_flush_in ; 
+input wbr_flush_in ;
 
 output wbr_empty_out ;
 
@@ -231,20 +237,12 @@ reg [(WBW_ADDR_LENGTH - 2):0] wbw_inTransactionCount ;
 reg [(WBW_ADDR_LENGTH - 2):0] wbw_outTransactionCount ;
 
 /*-----------------------------------------------------------------------------------------------------------
-FlipFlops for indicating if complete delayed read completion is present in the FIFO
------------------------------------------------------------------------------------------------------------*/
-/*reg wbr_inTransactionCount ;
-reg wbr_outTransactionCount ;*/
-/*-----------------------------------------------------------------------------------------------------------
 wires monitoring control bus. When control bus on a write transaction has a value of `LAST, it means that
 complete transaction is in the FIFO. When control bus on a read transaction has a value of `LAST,
 it means that there was one complete transaction taken out of FIFO.
 -----------------------------------------------------------------------------------------------------------*/
 wire wbw_last_in  = wbw_control_in[`LAST_CTRL_BIT]  ;
 wire wbw_last_out = wbw_control_out[`LAST_CTRL_BIT] ;
-
-/*wire wbr_last_in  = wbr_wallow && wbr_control_in[`LAST_CTRL_BIT] ;
-wire wbr_last_out = wbr_rallow && wbr_control_out[`LAST_CTRL_BIT] ;*/
 
 wire wbw_empty ;
 wire wbr_empty ;
@@ -256,234 +254,188 @@ assign wbr_empty_out = wbr_empty ;
 wire wbw_clear = reset_in || wbw_flush_in ; // WBW_FIFO clear
 wire wbr_clear = reset_in || wbr_flush_in ; // WBR_FIFO clear
 
-`ifdef FPGA
 /*-----------------------------------------------------------------------------------------------------------
-this code is included only for FPGA core usage - somewhat different logic because of sharing
-one block selectRAM+ between two FIFOs
+Definitions of wires for connecting RAM instances
 -----------------------------------------------------------------------------------------------------------*/
-    `ifdef BIG
-        /*-----------------------------------------------------------------------------------------------------------
-        Big FPGAs
-        WBW_FIFO and WBR_FIFO address prefixes - used for extending read and write addresses because of varible
-        FIFO depth and fixed SelectRAM+ size. Addresses are zero paded on the left to form long enough address
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [(7 - WBW_ADDR_LENGTH):0] wbw_addr_prefix = {( 8 - WBW_ADDR_LENGTH){1'b0}} ;
-        wire [(7 - WBR_ADDR_LENGTH):0] wbr_addr_prefix = {( 8 - WBR_ADDR_LENGTH){1'b0}} ;
+wire [39:0] dpram_portA_output ;
+wire [39:0] dpram_portB_output ;
 
-        // compose addresses
-        wire [7:0] wbw_whole_waddr = {wbw_addr_prefix, wbw_waddr} ;
-        wire [7:0] wbw_whole_raddr = {wbw_addr_prefix, wbw_raddr} ;
-        
-        wire [7:0] wbr_whole_waddr = {wbr_addr_prefix, wbr_waddr} ;
-        wire [7:0] wbr_whole_raddr = {wbr_addr_prefix, wbr_raddr} ;
+wire [39:0] dpram_portA_input = {wbw_control_in, wbw_cbe_in, wbw_addr_data_in} ;
+wire [39:0] dpram_portB_input = {wbr_control_in, wbr_be_in, wbr_data_in} ;
 
-        /*-----------------------------------------------------------------------------------------------------------
-        Only 8 bits out of 16 are used in ram3 and ram6 - wires for referencing them
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [15:0] dpram3_portB_output ;
-        wire [15:0] dpram6_portA_output ;
+/*-----------------------------------------------------------------------------------------------------------
+Fifo output assignments - each ram port provides data for different fifo
+-----------------------------------------------------------------------------------------------------------*/
+assign wbw_control_out = dpram_portB_output[39:36] ;
+assign wbr_control_out = dpram_portA_output[39:36] ;
 
-        /*-----------------------------------------------------------------------------------------------------------
-        Control out assignements from ram3 output
-        -----------------------------------------------------------------------------------------------------------*/
-        assign wbw_control_out = dpram3_portB_output[15:12] ;
-        assign wbr_control_out = dpram6_portA_output[15:12] ;
+assign wbw_cbe_out     = dpram_portB_output[35:32] ;
+assign wbr_be_out      = dpram_portA_output[35:32] ;
 
-        assign wbw_cbe_out = dpram3_portB_output[3:0] ;
-        assign wbr_be_out  = dpram6_portA_output[3:0] ;
+assign wbw_addr_data_out = dpram_portB_output[31:0] ;
+assign wbr_data_out      = dpram_portA_output[31:0] ;
 
-        wire wbw_read_enable = 1'b1 ;
-        wire wbr_read_enable = 1'b1 ;
-        
-        // Block SelectRAM+ cells instantiation
-        RAMB4_S16_S16 dpram16_1 (.ADDRA(wbw_whole_waddr), .DIA(wbw_addr_data_in[15:0]), 
-                                 .ENA(vcc), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(),
-                                 .ADDRB(wbw_whole_raddr), .DIB(16'h0000), 
-                                 .ENB(wbw_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(gnd), 
-                                 .DOB(wbw_addr_data_out[15:0])) ;
+`ifdef WB_RAM_DONT_SHARE
 
-        RAMB4_S16_S16 dpram16_2 (.ADDRA(wbw_whole_waddr), .DIA(wbw_addr_data_in[31:16]), 
-                                 .ENA(vcc), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(),
-                                 .ADDRB(wbw_whole_raddr), .DIB(16'h0000), 
-                                 .ENB(wbw_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(gnd), 
-                                 .DOB(wbw_addr_data_out[31:16])) ;
-    
-        RAMB4_S16_S16 dpram16_3 (.ADDRA(wbw_whole_waddr), .DIA({wbw_control_in, 8'h00, wbw_cbe_in}), 
-                                 .ENA(vcc), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(),
-                                 .ADDRB(wbw_whole_raddr), .DIB(16'h0000), 
-                                 .ENB(wbw_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(gnd), 
-                                 .DOB(dpram3_portB_output)) ;
-
-        RAMB4_S16_S16 dpram16_4 (.ADDRA(wbr_whole_raddr), .DIA(16'h0000), 
-                                 .ENA(1'b1), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(gnd), 
-                                 .DOA(wbr_data_out[15:0]),
-                                 .ADDRB(wbr_whole_waddr), .DIB(wbr_data_in[15:0]), 
-                                 .ENB(wbr_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB()) ;
-
-        RAMB4_S16_S16 dpram16_5 (.ADDRA(wbr_whole_raddr), .DIA(16'h0000), 
-                                 .ENA(1'b1), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(gnd), 
-                                 .DOA(wbr_data_out[31:16]),
-                                 .ADDRB(wbr_whole_waddr), .DIB(wbr_data_in[31:16]), 
-                                 .ENB(wbr_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB()) ;
-    
-        RAMB4_S16_S16 dpram16_6 (.ADDRA(wbr_whole_raddr), .DIA(16'h0000), 
-                                 .ENA(1'b1), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(gnd), 
-                                 .DOA(dpram6_portA_output),
-                                 .ADDRB(wbr_whole_waddr), .DIB({wbr_control_in, 8'h00, wbr_be_in}), 
-                                 .ENB(wbr_read_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB()) ;
-
-    `else // SMALL FPGAs
-
-        /*-----------------------------------------------------------------------------------------------------------
-        Small FPGAs
-        WBW_FIFO and WBR_FIFO address prefixes - used for extending read and write addresses because of varible
-        FIFO depth and fixed SelectRAM+ size. Addresses are always paded, because of RAM sharing between FIFOs
-        WBW addresses are zero padded on the left, WBR addresses are padded
-        with ones on the left
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [(7 - WBW_ADDR_LENGTH):0] wbw_addr_prefix = {( 8 - WBW_ADDR_LENGTH){1'b0}} ;
-        wire [(7 - WBR_ADDR_LENGTH):0] wbr_addr_prefix = {( 8 - WBR_ADDR_LENGTH){1'b1}} ;
-
-        /*-----------------------------------------------------------------------------------------------------------
-        Only 8 bits out of 16 are used in ram3 - wires for referencing them
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [15:0] dpram3_portA_output ;
-        wire [15:0] dpram3_portB_output ;
-
-        /*-----------------------------------------------------------------------------------------------------------
-        Control out assignements from ram3 output
-        -----------------------------------------------------------------------------------------------------------*/
-        assign wbw_control_out = dpram3_portB_output[15:12] ;
-        assign wbr_control_out = dpram3_portA_output[15:12] ;
-
-        assign wbw_cbe_out = dpram3_portB_output[3:0] ;
-        assign wbr_be_out  = dpram3_portA_output[3:0] ;
-        
-        /*-----------------------------------------------------------------------------------------------------------
-        Port A address generation for block SelectRam+ in SpartanII or Virtex
-        Port A is clocked by WISHBONE clock, DIA is input for wbw_fifo, DOA is output for wbr_fifo. Address is multiplexed
-        between two values.
-        Address multiplexing:
-        wbw_wenable == 1 => ADDRA = wbw_waddr (write pointer of WBW_FIFO)
-        else                ADDRA = wbr_raddr (read pointer of WBR_FIFO)
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [7:0] portA_addr = wbw_wallow ? {wbw_addr_prefix, wbw_waddr} : {wbr_addr_prefix, wbr_raddr} ;
-    
-        /*-----------------------------------------------------------------------------------------------------------
-        Port B address generation for block SelectRam+ in SpartanII or Virtex
-        Port B is clocked by PCI clock, DIB is input for wbr_fifo, DOB is output for wbw_fifo. Address is multiplexed
-        between two values.
-        Address multiplexing:
-        wbr_wenable == 1 => ADDRB = wbr_waddr (write pointer of WBR_FIFO)
-        else                ADDRB = wbw_raddr (read pointer of WBW_FIFO)
-        -----------------------------------------------------------------------------------------------------------*/
-        wire [7:0] portB_addr  = wbr_wallow ? {wbr_addr_prefix, wbr_waddr} : {wbw_addr_prefix, wbw_raddr} ;
-    
-        wire portA_enable      = 1'b1 ;
-
-        wire portB_enable      = 1'b1 ;
-
-        // Block SelectRAM+ cells instantiation
-        RAMB4_S16_S16 dpram16_1 (.ADDRA(portA_addr), .DIA(wbw_addr_data_in[15:0]), 
-                                 .ENA(portA_enable), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(wbr_data_out[15:0]),
-                                 .ADDRB(portB_addr), .DIB(wbr_data_in[15:0]), 
-                                 .ENB(portB_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB(wbw_addr_data_out[15:0])) ;
-
-        RAMB4_S16_S16 dpram16_2 (.ADDRA(portA_addr), .DIA(wbw_addr_data_in[31:16]), 
-                                 .ENA(portA_enable), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(wbr_data_out[31:16]),
-                                 .ADDRB(portB_addr), .DIB(wbr_data_in[31:16]), 
-                                 .ENB(portB_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB(wbw_addr_data_out[31:16])) ;
-    
-        RAMB4_S16_S16 dpram16_3 (.ADDRA(portA_addr), .DIA({wbw_control_in, 8'h00, wbw_cbe_in}), 
-                                 .ENA(portA_enable), .RSTA(reset_in),
-                                 .CLKA(wb_clock_in), .WEA(wbw_wallow), 
-                                 .DOA(dpram3_portA_output),
-                                 .ADDRB(portB_addr), .DIB({wbr_control_in, 8'h00, wbr_be_in}), 
-                                 .ENB(portB_enable), .RSTB(reset_in),
-                                 .CLKB(pci_clock_in), .WEB(wbr_wallow), 
-                                 .DOB(dpram3_portB_output)) ;
-    `endif
-    
-    
-    
-    
-
-`else
-    wire [39:0] wbw_ram_data_out ;
-    wire [39:0] wbw_ram_data_in = {wbw_control_in, wbw_cbe_in, wbw_addr_data_in} ;
-    wire [39:0] wbr_ram_data_in = {wbr_control_in, wbr_be_in, wbr_data_in} ;
-    wire [39:0] wbr_ram_data_out ;
-    assign wbw_control_out   = wbw_ram_data_out[39:36] ;
-    assign wbw_cbe_out       = wbw_ram_data_out[35:32] ;
-    assign wbw_addr_data_out = wbw_ram_data_out [31:0] ;
-    
-    assign wbr_control_out   = wbr_ram_data_out[39:36] ;
-    assign wbr_be_out        = wbr_ram_data_out[35:32] ;
-    assign wbr_data_out      = wbr_ram_data_out [31:0] ;
-    
-    `ifdef SYNCHRONOUS
     /*-----------------------------------------------------------------------------------------------------------
-    ASIC memory primitives will be added here in the near future - currently there is only some generic, 
-    behavioral dual port ram here 
+    Piece of code in this ifdef section is used in applications which can provide enough RAM instances to
+    accomodate four fifos - each occupying its own instance of ram. Ports are connected in such a way,
+    that instances of RAMs can be changed from two port to dual port ( async read/write port ). In that case,
+    write port is always port a and read port is port b.
     -----------------------------------------------------------------------------------------------------------*/
-    DP_SRAM #(WBW_ADDR_LENGTH, WBW_DEPTH) wbw_ram (.reset_in(reset_in), .wclock_in(wb_clock_in), .rclock_in(pci_clock_in), .data_in(wbw_ram_data_in), 
-                    .raddr_in(wbw_raddr), .waddr_in(wbw_waddr), .data_out(wbw_ram_data_out), .renable_in(1'b1), .wenable_in(wbw_wallow));
-    
-    DP_SRAM #(WBR_ADDR_LENGTH, WBR_DEPTH) wbr_ram (.reset_in(reset_in), .wclock_in(pci_clock_in), .rclock_in(wb_clock_in), .data_in(wbr_ram_data_in),
-                    .raddr_in(wbr_raddr), .waddr_in(wbr_waddr), .data_out(wbr_ram_data_out), .renable_in(1'b1), .wenable_in(wbr_wallow));
-    
-    `else //ASYNCHRONOUS RAM
-        DP_ASYNC_RAM #(WBW_ADDR_LENGTH, WBW_DEPTH) wbw_ram (.reset_in(reset_in), .wclock_in(wb_clock_in), .data_in(wbw_ram_data_in), 
-                    .raddr_in(wbw_raddr), .waddr_in(wbw_waddr), .data_out(wbw_ram_data_out), .wenable_in(wbw_wallow));
-    
-        DP_ASYNC_RAM #(WBR_ADDR_LENGTH, WBR_DEPTH) wbr_ram (.reset_in(reset_in), .wclock_in(pci_clock_in), .data_in(wbr_ram_data_in),
-                    .raddr_in(wbr_raddr), .waddr_in(wbr_waddr), .data_out(wbr_ram_data_out), .wenable_in(wbr_wallow));
-    `endif
+
+    /*-----------------------------------------------------------------------------------------------------------
+    Pad redundant address lines with zeros. This may seem stupid, but it comes in perfect for FPGA impl.
+    -----------------------------------------------------------------------------------------------------------*/
+    /*
+    wire [(`WBW_FIFO_RAM_ADDR_LENGTH - WBW_ADDR_LENGTH - 1):0] wbw_addr_prefix = {( `WBW_FIFO_RAM_ADDR_LENGTH - WBW_ADDR_LENGTH){1'b0}} ;
+    wire [(`WBR_FIFO_RAM_ADDR_LENGTH - WBR_ADDR_LENGTH - 1):0] wbr_addr_prefix = {( `WBR_FIFO_RAM_ADDR_LENGTH - WBR_ADDR_LENGTH){1'b0}} ;
+    */
+
+    // compose complete port addresses
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] wbw_whole_waddr = wbw_waddr ;
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] wbw_whole_raddr = wbw_raddr ;
+
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] wbr_whole_waddr = wbr_waddr ;
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] wbr_whole_raddr = wbr_raddr ;
+
+    wire wbw_read_enable = 1'b1 ;
+    wire wbr_read_enable = 1'b1 ;
+
+    // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
+    WB_TPRAM #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbw_fifo_storage
+    (
+        // Generic synchronous two-port RAM interface
+        .clk_a(wb_clock_in),
+        .rst_a(reset_in),
+        .ce_a(1'b1),
+        .we_a(wbw_wallow),
+        .oe_a(1'b1),
+        .addr_a(wbw_whole_waddr),
+        .di_a(dpram_portA_input),
+        .do_a(),
+
+        .clk_b(pci_clock_in),
+        .rst_b(reset_in),
+        .ce_b(wbw_read_enable),
+        .we_b(1'b0),
+        .oe_b(1'b1),
+        .addr_b(wbw_whole_raddr),
+        .di_b(40'h00_0000_0000),
+        .do_b(dpram_portB_output)
+    );
+
+    WB_TPRAM #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbr_fifo_storage
+    (
+        // Generic synchronous two-port RAM interface
+        .clk_a(pci_clock_in),
+        .rst_a(reset_in),
+        .ce_a(1'b1),
+        .we_a(wbr_wallow),
+        .oe_a(1'b1),
+        .addr_a(wbr_whole_waddr),
+        .di_a(dpram_portB_input),
+        .do_a(),
+
+        .clk_b(wb_clock_in),
+        .rst_b(reset_in),
+        .ce_b(wbr_read_enable),
+        .we_b(1'b0),
+        .oe_b(1'b1),
+        .addr_b(wbr_whole_raddr),
+        .di_b(40'h00_0000_0000),
+        .do_b(dpram_portA_output)
+    );
+
+`else // RAM blocks sharing between two fifos
+
+    /*-----------------------------------------------------------------------------------------------------------
+    Code section under this ifdef is used for implementation where RAM instances are too expensive. In this
+    case one RAM instance is used for both - WISHBONE read and WISHBONE write fifo.
+    -----------------------------------------------------------------------------------------------------------*/
+    /*-----------------------------------------------------------------------------------------------------------
+    Address prefix definition - since both FIFOs reside in same RAM instance, storage is separated by MSB
+    addresses. WISHBONE write fifo addresses are padded with zeros on the MSB side ( at least one address line
+    must be used for this ), WISHBONE read fifo addresses are padded with ones on the right ( at least one ).
+    -----------------------------------------------------------------------------------------------------------*/
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH - WBW_ADDR_LENGTH - 1):0] wbw_addr_prefix = {( `WB_FIFO_RAM_ADDR_LENGTH - WBW_ADDR_LENGTH){1'b0}} ;
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH - WBR_ADDR_LENGTH - 1):0] wbr_addr_prefix = {( `WB_FIFO_RAM_ADDR_LENGTH - WBR_ADDR_LENGTH){1'b1}} ;
+
+    /*-----------------------------------------------------------------------------------------------------------
+    Port A address generation for RAM instance. RAM instance must be full two port RAM - read and write capability
+    on both sides.
+    Port A is clocked by WISHBONE clock, DIA is input for wbw_fifo, DOA is output for wbr_fifo.
+    Address is multiplexed so operation can be switched between fifos. Default is a read on port.
+    -----------------------------------------------------------------------------------------------------------*/
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] portA_addr = wbw_wallow ? {wbw_addr_prefix, wbw_waddr} : {wbr_addr_prefix, wbr_raddr} ;
+
+    /*-----------------------------------------------------------------------------------------------------------
+    Port B is clocked by PCI clock, DIB is input for wbr_fifo, DOB is output for wbw_fifo.
+    Address is multiplexed so operation can be switched between fifos. Default is a read on port.
+    -----------------------------------------------------------------------------------------------------------*/
+    wire [(`WB_FIFO_RAM_ADDR_LENGTH-1):0] portB_addr  = wbr_wallow ? {wbr_addr_prefix, wbr_waddr} : {wbw_addr_prefix, wbw_raddr} ;
+
+    wire portA_enable      = 1'b1 ;
+
+    wire portB_enable      = 1'b1 ;
+
+    // instantiate RAM for these two fifos
+    WB_TPRAM #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbu_fifo_storage
+    (
+        // Generic synchronous two-port RAM interface
+        .clk_a(wb_clock_in),
+        .rst_a(reset_in),
+        .ce_a(portA_enable),
+        .we_a(wbw_wallow),
+        .oe_a(1'b1),
+        .addr_a(portA_addr),
+        .di_a(dpram_portA_input),
+        .do_a(dpram_portA_output),
+        .clk_b(pci_clock_in),
+        .rst_b(reset_in),
+        .ce_b(portB_enable),
+        .we_b(wbr_wallow),
+        .oe_b(1'b1),
+        .addr_b(portB_addr),
+        .di_b(dpram_portB_input),
+        .do_b(dpram_portB_output)
+    );
+
 `endif
 
 /*-----------------------------------------------------------------------------------------------------------
 Instantiation of two control logic modules - one for WBW_FIFO and one for WBR_FIFO
 -----------------------------------------------------------------------------------------------------------*/
 WBW_FIFO_CONTROL #(WBW_ADDR_LENGTH) wbw_fifo_ctrl
-              (.rclock_in(pci_clock_in), .wclock_in(wb_clock_in), .renable_in(wbw_renable_in), 
-               .wenable_in(wbw_wenable_in), .reset_in(reset_in), .flush_in(wbw_flush_in), 
-               .almost_full_out(wbw_almost_full_out), .full_out(wbw_full_out), 
-               .empty_out(wbw_empty), 
-               .waddr_out(wbw_waddr), .raddr_out(wbw_raddr), 
-               .rallow_out(wbw_rallow), .wallow_out(wbw_wallow)); 
+(
+    .rclock_in(pci_clock_in),
+    .wclock_in(wb_clock_in),
+    .renable_in(wbw_renable_in),
+    .wenable_in(wbw_wenable_in),
+    .reset_in(reset_in),
+    .flush_in(wbw_flush_in),
+    .almost_full_out(wbw_almost_full_out),
+    .full_out(wbw_full_out),
+    .empty_out(wbw_empty),
+    .waddr_out(wbw_waddr),
+    .raddr_out(wbw_raddr),
+    .rallow_out(wbw_rallow),
+    .wallow_out(wbw_wallow)
+);
 
 WBR_FIFO_CONTROL #(WBR_ADDR_LENGTH) wbr_fifo_ctrl
-                  (.rclock_in(wb_clock_in), .wclock_in(pci_clock_in), .renable_in(wbr_renable_in), 
-                   .wenable_in(wbr_wenable_in), .reset_in(reset_in), .flush_in(wbr_flush_in), 
-                   .empty_out(wbr_empty), 
-                   .waddr_out(wbr_waddr), .raddr_out(wbr_raddr), 
-                   .rallow_out(wbr_rallow), .wallow_out(wbr_wallow)); 
+(   .rclock_in(wb_clock_in),
+    .wclock_in(pci_clock_in),
+    .renable_in(wbr_renable_in),
+    .wenable_in(wbr_wenable_in),
+    .reset_in(reset_in),
+    .flush_in(wbr_flush_in),
+    .empty_out(wbr_empty),
+    .waddr_out(wbr_waddr),
+    .raddr_out(wbr_raddr),
+    .rallow_out(wbr_rallow),
+    .wallow_out(wbr_wallow)
+);
 
 
 // in and out transaction counters and grey codes
@@ -492,9 +444,13 @@ reg  [(WBW_ADDR_LENGTH-2):0] outGreyCount ;
 wire [(WBW_ADDR_LENGTH-2):0] inNextGreyCount = {wbw_inTransactionCount[(WBW_ADDR_LENGTH-2)], wbw_inTransactionCount[(WBW_ADDR_LENGTH-2):1] ^ wbw_inTransactionCount[(WBW_ADDR_LENGTH-3):0]} ;
 wire [(WBW_ADDR_LENGTH-2):0] outNextGreyCount = {wbw_outTransactionCount[(WBW_ADDR_LENGTH-2)], wbw_outTransactionCount[(WBW_ADDR_LENGTH-2):1] ^ wbw_outTransactionCount[(WBW_ADDR_LENGTH-3):0]} ;
 
+// input transaction counter increment - when last data of transaction is written to fifo
 wire in_count_en  = wbw_wallow && wbw_last_in ;
+
+// output transaction counter increment - when last data is on top of fifo and read from it
 wire out_count_en = wbw_renable_in && wbw_last_out ;
 
+// register holding grey coded count of incoming transactions
 always@(posedge wb_clock_in or posedge wbw_clear)
 begin
     if (wbw_clear)
@@ -507,6 +463,7 @@ begin
         inGreyCount <= #`FF_DELAY inNextGreyCount ;
 end
 
+// register holding grey coded count of outgoing transactions
 always@(posedge pci_clock_in or posedge wbw_clear)
 begin
     if (wbw_clear)
@@ -519,6 +476,7 @@ begin
         outGreyCount <= #`FF_DELAY outNextGreyCount ;
 end
 
+// incoming transactions counter
 always@(posedge wb_clock_in or posedge wbw_clear)
 begin
     if (wbw_clear)
@@ -528,6 +486,7 @@ begin
         wbw_inTransactionCount <= #`FF_DELAY wbw_inTransactionCount + 1'b1 ;
 end
 
+// outgoing transactions counter
 always@(posedge pci_clock_in or posedge wbw_clear)
 begin
     if (wbw_clear)
@@ -537,26 +496,9 @@ begin
         wbw_outTransactionCount <= #`FF_DELAY wbw_outTransactionCount + 1'b1 ;
 end
 
-/*always@(posedge pci_clock_in or posedge wbr_clear)
-begin
-    if (wbr_clear)
-        wbr_inTransactionCount <= #`FF_DELAY 1'b0 ;
-    else
-        if (wbr_last_in && wbr_wallow)
-            wbr_inTransactionCount <= #`FF_DELAY ~wbr_inTransactionCount ;
-end
-        
-always@(posedge wb_clock_in or posedge wbr_clear)
-begin
-    if (wbr_clear)
-        wbr_outTransactionCount <= #`FF_DELAY 1'b0 ;
-    else
-        if (wbr_last_out)
-            wbr_outTransactionCount <= #`FF_DELAY ~wbr_outTransactionCount ;
-end
-*/
-
 // synchronize transaction ready output to reading clock
+// transaction ready is set when incoming transaction count is not equal to outgoing transaction count (what goes in must come out logic)
+// transaction ready is cleared when whole transaction is pulled out of fifo (otherwise it could stay set for additional cycle and result in wrong op.)
 reg wbw_transaction_ready_out ;
 always@(posedge pci_clock_in or posedge wbw_clear)
 begin

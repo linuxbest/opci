@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: cbe_en_crit.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -54,7 +57,11 @@
 // It is used to synthesize critical timing logic separately with faster cells or without optimization
 
 // this one is included in master state machine for CBE output enable driving
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 module CBE_EN_CRIT
 (
     pci_cbe_en_out,

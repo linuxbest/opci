@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
+// Revision 1.3  2002/02/01 15:25:13  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -53,8 +56,12 @@
 // Module instantiates and connects other modules lower in hierarcy
 // Wishbone slave unit consists of modules that together form datapath
 // between external WISHBONE masters and external PCI targets
-`include "constants.v"
+`include "pci_constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+
 module WB_SLAVE_UNIT
 (
     reset_in,
@@ -75,14 +82,14 @@ module WB_SLAVE_UNIT
     wbu_pref_en_in,
     wbu_mrl_en_in,
     wbu_pci_drcomp_pending_in,
-    wbu_conf_data_in,    
+    wbu_conf_data_in,
     wbu_pciw_empty_in,
     wbu_bar0_in,
-    wbu_bar1_in, 
-    wbu_bar2_in, 
-    wbu_bar3_in, 
-    wbu_bar4_in, 
-    wbu_bar5_in, 
+    wbu_bar1_in,
+    wbu_bar2_in,
+    wbu_bar3_in,
+    wbu_bar4_in,
+    wbu_bar5_in,
     wbu_am0_in,
     wbu_am1_in,
     wbu_am2_in,
@@ -98,46 +105,47 @@ module WB_SLAVE_UNIT
     wbu_at_en_in,
     wbu_ccyc_addr_in ,
     wbu_master_enable_in,
+    wbu_cache_line_size_not_zero,
     wbu_cache_line_size_in,
     wbu_pciif_gnt_in,
-    wbu_pciif_frame_in, 
-    wbu_pciif_irdy_in,  
-    wbu_pciif_trdy_in,   
-    wbu_pciif_trdy_reg_in,   
-    wbu_pciif_stop_in,  
-    wbu_pciif_stop_reg_in,  
+    wbu_pciif_frame_in,
+    wbu_pciif_irdy_in,
+    wbu_pciif_trdy_in,
+    wbu_pciif_trdy_reg_in,
+    wbu_pciif_stop_in,
+    wbu_pciif_stop_reg_in,
     wbu_pciif_devsel_in,
     wbu_pciif_devsel_reg_in,
     wbu_pciif_ad_reg_in,
     wbu_pciif_req_out,
-    wbu_pciif_frame_out, 
+    wbu_pciif_frame_out,
     wbu_pciif_frame_en_out,
     wbu_pciif_frame_en_in,
     wbu_pciif_frame_out_in,
     wbu_pciif_frame_load_out,
-    wbu_pciif_irdy_out,  
+    wbu_pciif_irdy_out,
     wbu_pciif_irdy_en_out,
-    wbu_pciif_ad_out,    
-    wbu_pciif_ad_en_out, 
-    wbu_pciif_cbe_out,   
+    wbu_pciif_ad_out,
+    wbu_pciif_ad_en_out,
+    wbu_pciif_cbe_out,
     wbu_pciif_cbe_en_out,
-    wbu_err_addr_out,   
-    wbu_err_bc_out,     
-    wbu_err_signal_out, 
-    wbu_err_source_out, 
+    wbu_err_addr_out,
+    wbu_err_bc_out,
+    wbu_err_signal_out,
+    wbu_err_source_out,
     wbu_err_rty_exp_out,
-    wbu_err_pending_in,
-    wbu_tabort_rec_out, 
+    wbu_tabort_rec_out,
     wbu_mabort_rec_out,
     wbu_conf_offset_out,
     wbu_conf_renable_out,
     wbu_conf_wenable_out,
-    wbu_conf_be_out,     
-    wbu_conf_data_out,   
+    wbu_conf_be_out,
+    wbu_conf_data_out,
     wbu_del_read_comp_pending_out,
     wbu_wbw_fifo_empty_out,
     wbu_latency_tim_val_in,
-    wbu_pciif_load_next_out
+    wbu_ad_load_out,
+    wbu_ad_load_on_transfer_out
 );
 
 input reset_in,
@@ -166,40 +174,41 @@ input   [31:0]  wbu_conf_data_in ;
 
 input           wbu_pciw_empty_in ;
 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar0_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar1_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar2_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar3_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar4_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar5_in ; 
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am0_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am1_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am2_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am3_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am4_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am5_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta0_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta1_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta2_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta3_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta4_in ;  
-input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta5_in ;  
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar0_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar1_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar2_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar3_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar4_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_bar5_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am0_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am1_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am2_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am3_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am4_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_am5_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta0_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta1_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta2_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta3_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta4_in ;
+input   [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] wbu_ta5_in ;
 input   [5:0]                               wbu_at_en_in ;
 
 input   [23:0]  wbu_ccyc_addr_in ;
 
 input           wbu_master_enable_in ;
 
+input			wbu_cache_line_size_not_zero ;
 input   [7:0]   wbu_cache_line_size_in ;
 
-input           wbu_pciif_gnt_in ;   
-input           wbu_pciif_frame_in ; 
+input           wbu_pciif_gnt_in ;
+input           wbu_pciif_frame_in ;
 input           wbu_pciif_frame_en_in ;
-input           wbu_pciif_irdy_in ;  
-input           wbu_pciif_trdy_in;   
-input           wbu_pciif_trdy_reg_in;   
-input           wbu_pciif_stop_in ;  
-input           wbu_pciif_stop_reg_in ;  
+input           wbu_pciif_irdy_in ;
+input           wbu_pciif_trdy_in;
+input           wbu_pciif_trdy_reg_in;
+input           wbu_pciif_stop_in ;
+input           wbu_pciif_stop_reg_in ;
 input           wbu_pciif_devsel_in ;
 input           wbu_pciif_devsel_reg_in ;
 input [31:0]    wbu_pciif_ad_reg_in ;
@@ -221,7 +230,6 @@ output  [3:0]   wbu_err_bc_out ;
 output          wbu_err_signal_out ;
 output          wbu_err_source_out ;
 output          wbu_err_rty_exp_out ;
-input           wbu_err_pending_in ;
 output          wbu_tabort_rec_out ;
 output          wbu_mabort_rec_out ;
 
@@ -236,12 +244,14 @@ output          wbu_wbw_fifo_empty_out ;
 
 input   [7:0]   wbu_latency_tim_val_in ;
 
-output          wbu_pciif_load_next_out ;
+output          wbu_ad_load_out ;
+output          wbu_ad_load_on_transfer_out ;
+
 
 // pci master interface outputs
-wire [31:0] pcim_if_address_out ;      
+wire [31:0] pcim_if_address_out ;
 wire [3:0]  pcim_if_bc_out ;
-wire [31:0] pcim_if_data_out ;  
+wire [31:0] pcim_if_data_out ;
 wire [3:0]  pcim_if_be_out ;
 wire        pcim_if_req_out ;
 wire        pcim_if_rdy_out ;
@@ -264,6 +274,7 @@ wire        pcim_if_mabort_out ;
 wire [31:0] pcim_if_next_data_out ;
 wire [3:0]  pcim_if_next_be_out ;
 wire        pcim_if_next_last_out ;
+wire        pcim_if_posted_write_not_present_out ;
 
 
 
@@ -276,13 +287,13 @@ wire [31:0] pcim_sm_ad_out ;
 wire        pcim_sm_ad_en_out ;
 wire [3:0]  pcim_sm_cbe_out ;
 wire        pcim_sm_cbe_en_out ;
-wire        pcim_sm_load_next_out ;
+wire        pcim_sm_ad_load_out ;
+wire        pcim_sm_ad_load_on_transfer_out ;
 
 wire        pcim_sm_wait_out ;
 wire        pcim_sm_wtransfer_out ;
 wire        pcim_sm_rtransfer_out ;
 wire        pcim_sm_retry_out ;
-wire        pcim_sm_werror_out ;
 wire        pcim_sm_rerror_out ;
 wire        pcim_sm_first_out ;
 wire        pcim_sm_mabort_out ;
@@ -292,24 +303,27 @@ assign wbu_pciif_frame_load_out = pcim_sm_frame_load_out ;
 
 assign wbu_err_addr_out     =   pcim_if_err_addr_out ;
 assign wbu_err_bc_out       =   pcim_if_err_bc_out ;
-assign wbu_err_signal_out   =   pcim_if_err_signal_out ; 
-assign wbu_err_source_out   =   pcim_if_err_source_out ; 
+assign wbu_err_signal_out   =   pcim_if_err_signal_out ;
+assign wbu_err_source_out   =   pcim_if_err_source_out ;
 assign wbu_err_rty_exp_out  =   pcim_if_err_rty_exp_out ;
-assign wbu_tabort_rec_out   =   pcim_if_tabort_out ;     
-assign wbu_mabort_rec_out   =   pcim_if_mabort_out ;     
+assign wbu_tabort_rec_out   =   pcim_if_tabort_out ;
+assign wbu_mabort_rec_out   =   pcim_if_mabort_out ;
+
+assign wbu_wbw_fifo_empty_out = pcim_if_posted_write_not_present_out ;
 
 // pci master state machine outputs
 // pci interface signals
-assign  wbu_pciif_req_out          =           pcim_sm_req_out ;     
-assign  wbu_pciif_frame_out        =           pcim_sm_frame_out ;   
-assign  wbu_pciif_frame_en_out     =           pcim_sm_frame_en_out ;
-assign  wbu_pciif_irdy_out         =           pcim_sm_irdy_out ;    
-assign  wbu_pciif_irdy_en_out      =           pcim_sm_irdy_en_out ; 
-assign  wbu_pciif_ad_out           =           pcim_sm_ad_out ;      
-assign  wbu_pciif_ad_en_out        =           pcim_sm_ad_en_out ;   
-assign  wbu_pciif_cbe_out          =           pcim_sm_cbe_out ;     
-assign  wbu_pciif_cbe_en_out       =           pcim_sm_cbe_en_out ;  
-assign  wbu_pciif_load_next_out    =           pcim_sm_load_next_out ;
+assign  wbu_pciif_req_out           =           pcim_sm_req_out ;
+assign  wbu_pciif_frame_out         =           pcim_sm_frame_out ;
+assign  wbu_pciif_frame_en_out      =           pcim_sm_frame_en_out ;
+assign  wbu_pciif_irdy_out          =           pcim_sm_irdy_out ;
+assign  wbu_pciif_irdy_en_out       =           pcim_sm_irdy_en_out ;
+assign  wbu_pciif_ad_out            =           pcim_sm_ad_out ;
+assign  wbu_pciif_ad_en_out         =           pcim_sm_ad_en_out ;
+assign  wbu_pciif_cbe_out           =           pcim_sm_cbe_out ;
+assign  wbu_pciif_cbe_en_out        =           pcim_sm_cbe_en_out ;
+assign  wbu_ad_load_out             =           pcim_sm_ad_load_out ;
+assign  wbu_ad_load_on_transfer_out =           pcim_sm_ad_load_on_transfer_out ;
 
 // signals to internal of the core
 wire [31:0] pcim_sm_data_out ;
@@ -336,6 +350,7 @@ wire [31:0] wbs_sm_sdata_out ;
 wire        wbs_sm_ack_out ;
 wire        wbs_sm_rty_out ;
 wire        wbs_sm_err_out ;
+wire        wbs_sm_sample_address_out ;
 
 assign wbu_conf_offset_out  = wbs_sm_conf_offset_out ;
 assign wbu_conf_renable_out = wbs_sm_conf_renable_out ;
@@ -359,8 +374,6 @@ wire        fifos_wbw_almost_full_out ;
 wire        fifos_wbw_full_out ;
 wire        fifos_wbw_empty_out ;
 wire        fifos_wbw_transaction_ready_out ;
-
-assign wbu_wbw_fifo_empty_out = fifos_wbw_empty_out ;
 
 // wbr_fifo_outputs
 wire [31:0] fifos_wbr_data_out ;
@@ -387,14 +400,14 @@ wire        del_sync_burst_out ;
 
 assign wbu_del_read_comp_pending_out = del_sync_comp_comp_pending_out ;
 
-// delayed write storage output 
+// delayed write storage output
 wire [31:0] del_write_data_out ;
 
 // config. cycle address decoder output
 wire [31:0] ccyc_addr_out ;
 
 
-// WISHBONE slave interface inputs            
+// WISHBONE slave interface inputs
 wire [4:0]  wbs_sm_hit_in                   =       amux_hit_out[5:1] ;
 wire        wbs_sm_conf_hit_in              =       amux_hit_out[0]   ;
 wire [4:0]  wbs_sm_map_in                   =       wbu_map_in[5:1]        ;
@@ -417,7 +430,8 @@ wire [31:0] wbs_sm_wbr_data_in              =       fifos_wbr_data_out ;
 wire [3:0]  wbs_sm_wbr_control_in           =       fifos_wbr_control_out ;
 wire        wbs_sm_wbr_empty_in             =       fifos_wbr_empty_out ;
 wire        wbs_sm_pciw_empty_in            =       wbu_pciw_empty_in ;
-wire        wbs_sm_lock_in                  =       ~wbu_master_enable_in || wbu_err_pending_in ;
+wire        wbs_sm_lock_in                  =       ~wbu_master_enable_in ;
+wire		wbs_sm_cache_line_size_not_zero	=		wbu_cache_line_size_not_zero ;
 wire        wbs_sm_cyc_in                   =       CYC_I ;
 wire        wbs_sm_stb_in                   =       STB_I ;
 wire        wbs_sm_we_in                    =       WE_I  ;
@@ -469,8 +483,10 @@ WB_SLAVE wishbone_slave(
                         .wbr_fifo_empty_in        (wbs_sm_wbr_empty_in),
                         .pciw_fifo_empty_in       (wbs_sm_pciw_empty_in),
                         .wbs_lock_in              (wbs_sm_lock_in),
+                        .cache_line_size_not_zero (wbs_sm_cache_line_size_not_zero),
                         .del_in_progress_out      (wbs_sm_del_in_progress_out),
                         .ccyc_addr_in             (wbs_sm_ccyc_addr_in),
+                        .sample_address_out       (wbs_sm_sample_address_out),
                         .CYC_I                    (wbs_sm_cyc_in),
                         .STB_I                    (wbs_sm_stb_in),
                         .WE_I                     (wbs_sm_we_in),
@@ -512,17 +528,17 @@ WBW_WBR_FIFOS fifos(
                     .wbw_renable_in            (fifos_wbw_renable_in),
                     .wbw_addr_data_out         (fifos_wbw_addr_data_out),
                     .wbw_cbe_out               (fifos_wbw_cbe_out),
-                    .wbw_control_out           (fifos_wbw_control_out), 
+                    .wbw_control_out           (fifos_wbw_control_out),
                     .wbw_flush_in              (fifos_wbw_flush_in),
                     .wbw_almost_full_out       (fifos_wbw_almost_full_out),
                     .wbw_full_out              (fifos_wbw_full_out),
                     .wbw_empty_out             (fifos_wbw_empty_out),
                     .wbw_transaction_ready_out (fifos_wbw_transaction_ready_out),
                     .wbr_wenable_in            (fifos_wbr_wenable_in),
-                    .wbr_data_in               (fifos_wbr_data_in), 
-                    .wbr_be_in                 (fifos_wbr_be_in), 
-                    .wbr_control_in            (fifos_wbr_control_in), 
-                    .wbr_renable_in            (fifos_wbr_renable_in), 
+                    .wbr_data_in               (fifos_wbr_data_in),
+                    .wbr_be_in                 (fifos_wbr_be_in),
+                    .wbr_control_in            (fifos_wbr_control_in),
+                    .wbr_renable_in            (fifos_wbr_renable_in),
                     .wbr_data_out              (fifos_wbr_data_out),
                     .wbr_be_out                (fifos_wbr_be_out),
                     .wbr_control_out           (fifos_wbr_control_out),
@@ -531,28 +547,35 @@ WBW_WBR_FIFOS fifos(
                    ) ;
 
 wire [31:0] amux_addr_in  = ADDR_I ;
+wire        amux_sample_address_in = wbs_sm_sample_address_out ;
+
 wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar0_in   =   wbu_bar0_in ;
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar1_in   =   wbu_bar1_in ;   
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar2_in   =   wbu_bar2_in ;   
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar3_in   =   wbu_bar3_in ;   
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar4_in   =   wbu_bar4_in ;   
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar5_in   =   wbu_bar5_in ;   
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am0_in    =   wbu_am0_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am1_in    =   wbu_am1_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am2_in    =   wbu_am2_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am3_in    =   wbu_am3_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am4_in    =   wbu_am4_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am5_in    =   wbu_am5_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta0_in    =   wbu_ta0_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta1_in    =   wbu_ta1_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta2_in    =   wbu_ta2_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta3_in    =   wbu_ta3_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta4_in    =   wbu_ta4_in ;    
-wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta5_in    =   wbu_ta5_in ;    
-wire [5:0]  amux_at_en_in = wbu_at_en_in ; 
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar1_in   =   wbu_bar1_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar2_in   =   wbu_bar2_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar3_in   =   wbu_bar3_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar4_in   =   wbu_bar4_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_bar5_in   =   wbu_bar5_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am0_in    =   wbu_am0_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am1_in    =   wbu_am1_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am2_in    =   wbu_am2_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am3_in    =   wbu_am3_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am4_in    =   wbu_am4_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_am5_in    =   wbu_am5_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta0_in    =   wbu_ta0_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta1_in    =   wbu_ta1_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta2_in    =   wbu_ta2_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta3_in    =   wbu_ta3_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta4_in    =   wbu_ta4_in ;
+wire [(`WB_NUM_OF_DEC_ADDR_LINES - 1):0] amux_ta5_in    =   wbu_ta5_in ;
+wire [5:0]  amux_at_en_in = wbu_at_en_in ;
 
 WB_ADDR_MUX wb_addr_dec
 (
+    `ifdef REGISTER_WBS_OUTPUTS
+    .clk_in      (wb_clock_in),
+    .reset_in    (reset_in),
+    .sample_address_in (amux_sample_address_in),
+    `endif
     .address_in  (amux_addr_in),
     .bar0_in     (amux_bar0_in),
     .bar1_in     (amux_bar1_in),
@@ -578,7 +601,7 @@ WB_ADDR_MUX wb_addr_dec
 );
 
 // delayed transaction logic inputs
-wire        del_sync_req_in             =       wbs_sm_del_req_out ;              
+wire        del_sync_req_in             =       wbs_sm_del_req_out ;
 wire        del_sync_comp_in            =       pcim_if_del_complete_out ;
 wire        del_sync_done_in            =       wbs_sm_del_done_out ;
 wire        del_sync_in_progress_in     =       wbs_sm_del_in_progress_out ;
@@ -653,7 +676,7 @@ wire [3:0]  pcim_if_wbw_cbe_in                  =           fifos_wbw_cbe_out ;
 wire [3:0]  pcim_if_wbw_control_in              =           fifos_wbw_control_out ;
 wire        pcim_if_wbw_empty_in                =           fifos_wbw_empty_out ;
 wire        pcim_if_wbw_transaction_ready_in    =           fifos_wbw_transaction_ready_out ;
-wire [31:0] pcim_if_data_in                     =           pcim_sm_data_out ;   
+wire [31:0] pcim_if_data_in                     =           pcim_sm_data_out ;
 wire [31:0] pcim_if_del_wdata_in                =           del_write_data_out ;
 wire        pcim_if_del_req_in                  =           del_sync_comp_req_pending_out ;
 wire [31:0] pcim_if_del_addr_in                 =           del_sync_addr_out ;
@@ -661,13 +684,11 @@ wire [3:0]  pcim_if_del_bc_in                   =           del_sync_bc_out ;
 wire [3:0]  pcim_if_del_be_in                   =           del_sync_be_out ;
 wire        pcim_if_del_burst_in                =           del_sync_burst_out ;
 wire        pcim_if_del_we_in                   =           del_sync_we_out ;
-wire        pcim_if_err_pending_in              =           wbu_err_pending_in ;
 wire [7:0]  pcim_if_cache_line_size_in          =           wbu_cache_line_size_in ;
 wire        pcim_if_wait_in                     =           pcim_sm_wait_out ;
 wire        pcim_if_wtransfer_in                =           pcim_sm_wtransfer_out ;
 wire        pcim_if_rtransfer_in                =           pcim_sm_rtransfer_out ;
 wire        pcim_if_retry_in                    =           pcim_sm_retry_out ;
-wire        pcim_if_werror_in                   =           pcim_sm_werror_out ;
 wire        pcim_if_rerror_in                   =           pcim_sm_rerror_out ;
 wire        pcim_if_first_in                    =           pcim_sm_first_out ;
 wire        pcim_if_mabort_in                   =           pcim_sm_mabort_out ;
@@ -708,11 +729,10 @@ PCI_MASTER32_SM_IF pci_initiator_if
     .err_bc_out                    (pcim_if_err_bc_out),
     .err_signal_out                (pcim_if_err_signal_out),
     .err_source_out                (pcim_if_err_source_out),
-    .err_pending_in                (pcim_if_err_pending_in),
     .err_rty_exp_out               (pcim_if_err_rty_exp_out),
     .cache_line_size_in            (pcim_if_cache_line_size_in),
-    .mabort_received_out           (pcim_if_tabort_out),
-    .tabort_received_out           (pcim_if_mabort_out),
+    .mabort_received_out           (pcim_if_mabort_out),
+    .tabort_received_out           (pcim_if_tabort_out),
     .next_data_out                 (pcim_if_next_data_out),
     .next_be_out                   (pcim_if_next_be_out),
     .next_last_out                 (pcim_if_next_last_out),
@@ -720,10 +740,10 @@ PCI_MASTER32_SM_IF pci_initiator_if
     .wtransfer_in                  (pcim_if_wtransfer_in),
     .rtransfer_in                  (pcim_if_rtransfer_in),
     .retry_in                      (pcim_if_retry_in),
-    .werror_in                     (pcim_if_werror_in),
     .rerror_in                     (pcim_if_rerror_in),
     .first_in                      (pcim_if_first_in),
-    .mabort_in                     (pcim_if_mabort_in)
+    .mabort_in                     (pcim_if_mabort_in),
+    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out)
 );
 
 // pci master state machine inputs
@@ -745,59 +765,59 @@ wire [7:0]  pcim_sm_latency_tim_val_in      =       wbu_latency_tim_val_in ;
 wire [31:0] pcim_sm_next_data_in            =       pcim_if_next_data_out ;
 wire [3:0]  pcim_sm_next_be_in              =       pcim_if_next_be_out ;
 wire        pcim_sm_next_last_in            =       pcim_if_next_last_out ;
-wire        pcim_sm_trdy_reg_in             =       wbu_pciif_trdy_reg_in ;   
-wire        pcim_sm_stop_reg_in             =       wbu_pciif_stop_reg_in ;  
+wire        pcim_sm_trdy_reg_in             =       wbu_pciif_trdy_reg_in ;
+wire        pcim_sm_stop_reg_in             =       wbu_pciif_stop_reg_in ;
 wire        pcim_sm_devsel_reg_in           =       wbu_pciif_devsel_reg_in ;
 wire        pcim_sm_frame_en_in             =       wbu_pciif_frame_en_in ;
 wire        pcim_sm_frame_out_in            =       wbu_pciif_frame_out_in ;
 
 PCI_MASTER32_SM pci_initiator_sm
 (
-    .clk_in             (pci_clock_in),             
-    .reset_in           (reset_in),                 
-    .pci_req_out        (pcim_sm_req_out),          
-    .pci_gnt_in         (pcim_sm_gnt_in),           
-    .pci_frame_in       (pcim_sm_frame_in),         
-    .pci_frame_out      (pcim_sm_frame_out),        
-    .pci_frame_en_out   (pcim_sm_frame_en_out),     
-    .pci_frame_out_in   (pcim_sm_frame_out_in),
-    .pci_frame_load_out (pcim_sm_frame_load_out),
-    .pci_frame_en_in    (pcim_sm_frame_en_in),     
-    .pci_irdy_in        (pcim_sm_irdy_in),     
-    .pci_irdy_out       (pcim_sm_irdy_out),         
-    .pci_irdy_en_out    (pcim_sm_irdy_en_out),      
-    .pci_trdy_in        (pcim_sm_trdy_in),          
-    .pci_trdy_reg_in    (pcim_sm_trdy_reg_in),          
-    .pci_stop_in        (pcim_sm_stop_in),          
-    .pci_stop_reg_in    (pcim_sm_stop_reg_in),          
-    .pci_devsel_in      (pcim_sm_devsel_in),        
-    .pci_devsel_reg_in  (pcim_sm_devsel_reg_in),        
-    .pci_ad_reg_in      (pcim_sm_ad_reg_in),            
-    .pci_ad_out         (pcim_sm_ad_out),           
-    .pci_ad_en_out      (pcim_sm_ad_en_out),        
-    .pci_cbe_out        (pcim_sm_cbe_out),          
-    .pci_cbe_en_out     (pcim_sm_cbe_en_out),       
-    .address_in         (pcim_sm_address_in),       
-    .bc_in              (pcim_sm_bc_in),            
-    .data_in            (pcim_sm_data_in),          
-    .data_out           (pcim_sm_data_out),         
-    .be_in              (pcim_sm_be_in),            
-    .req_in             (pcim_sm_req_in),           
-    .rdy_in             (pcim_sm_rdy_in),           
-    .last_in            (pcim_sm_last_in),          
-    .latency_tim_val_in (pcim_sm_latency_tim_val_in),
-    .next_data_in       (pcim_sm_next_data_in),
-    .next_be_in         (pcim_sm_next_be_in),
-    .next_last_in       (pcim_sm_next_last_in),
-    .load_next_out      (pcim_sm_load_next_out),
-    .wait_out           (pcim_sm_wait_out),
-    .wtransfer_out      (pcim_sm_wtransfer_out),
-    .rtransfer_out      (pcim_sm_rtransfer_out),
-    .retry_out          (pcim_sm_retry_out),
-    .werror_out         (pcim_sm_werror_out),
-    .rerror_out         (pcim_sm_rerror_out),
-    .first_out          (pcim_sm_first_out),
-    .mabort_out         (pcim_sm_mabort_out)
+    .clk_in                     (pci_clock_in),
+    .reset_in                   (reset_in),
+    .pci_req_out                (pcim_sm_req_out),
+    .pci_gnt_in                 (pcim_sm_gnt_in),
+    .pci_frame_in               (pcim_sm_frame_in),
+    .pci_frame_out              (pcim_sm_frame_out),
+    .pci_frame_en_out           (pcim_sm_frame_en_out),
+    .pci_frame_out_in           (pcim_sm_frame_out_in),
+    .pci_frame_load_out         (pcim_sm_frame_load_out),
+    .pci_frame_en_in            (pcim_sm_frame_en_in),
+    .pci_irdy_in                (pcim_sm_irdy_in),
+    .pci_irdy_out               (pcim_sm_irdy_out),
+    .pci_irdy_en_out            (pcim_sm_irdy_en_out),
+    .pci_trdy_in                (pcim_sm_trdy_in),
+    .pci_trdy_reg_in            (pcim_sm_trdy_reg_in),
+    .pci_stop_in                (pcim_sm_stop_in),
+    .pci_stop_reg_in            (pcim_sm_stop_reg_in),
+    .pci_devsel_in              (pcim_sm_devsel_in),
+    .pci_devsel_reg_in          (pcim_sm_devsel_reg_in),
+    .pci_ad_reg_in              (pcim_sm_ad_reg_in),
+    .pci_ad_out                 (pcim_sm_ad_out),
+    .pci_ad_en_out              (pcim_sm_ad_en_out),
+    .pci_cbe_out                (pcim_sm_cbe_out),
+    .pci_cbe_en_out             (pcim_sm_cbe_en_out),
+    .address_in                 (pcim_sm_address_in),
+    .bc_in                      (pcim_sm_bc_in),
+    .data_in                    (pcim_sm_data_in),
+    .data_out                   (pcim_sm_data_out),
+    .be_in                      (pcim_sm_be_in),
+    .req_in                     (pcim_sm_req_in),
+    .rdy_in                     (pcim_sm_rdy_in),
+    .last_in                    (pcim_sm_last_in),
+    .latency_tim_val_in         (pcim_sm_latency_tim_val_in),
+    .next_data_in               (pcim_sm_next_data_in),
+    .next_be_in                 (pcim_sm_next_be_in),
+    .next_last_in               (pcim_sm_next_last_in),
+    .ad_load_out                (pcim_sm_ad_load_out),
+    .ad_load_on_transfer_out    (pcim_sm_ad_load_on_transfer_out),
+    .wait_out                   (pcim_sm_wait_out),
+    .wtransfer_out              (pcim_sm_wtransfer_out),
+    .rtransfer_out              (pcim_sm_rtransfer_out),
+    .retry_out                  (pcim_sm_retry_out),
+    .rerror_out                 (pcim_sm_rerror_out),
+    .first_out                  (pcim_sm_first_out),
+    .mabort_out                 (pcim_sm_mabort_out)
 ) ;
 
 endmodule

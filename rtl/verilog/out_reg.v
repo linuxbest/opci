@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: out_reg.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,8 +53,11 @@
 //
 //
 
-`include "constants.v"
+`include "pci_constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 // module inferes a single IOB output block as known in FPGA architectures
 // It provides data flip flop with clock enable and output enable flip flop with clock enable
@@ -82,7 +88,13 @@ output en_out ;
 reg dat_out,
     en_out ;
 
-wire en_n = ~en_in ;
+`ifdef ACTIVE_LOW_OE
+wire en = ~en_in ;
+`else
+`ifdef ACTIVE_HIGH_OE
+wire en = en_in ;
+`endif
+`endif
 
 always@(posedge reset_in or posedge clk_in)
 begin
@@ -95,9 +107,15 @@ end
 always@(posedge reset_in or posedge clk_in)
 begin
     if ( reset_in )
+        `ifdef ACTIVE_LOW_OE
         en_out <= #`FF_DELAY 1'b1 ;
+        `else
+        `ifdef ACTIVE_HIGH_OE
+        en_out <= #`FF_DELAY 1'b0 ;
+        `endif
+        `endif
     else if ( en_en_in )
-        en_out <= #`FF_DELAY en_n ;
+        en_out <= #`FF_DELAY en ;
 end
 
 endmodule

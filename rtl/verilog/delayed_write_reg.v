@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: delayed_write_reg.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,8 +53,11 @@
 //
 //
 
-`include "constants.v"
+`include "pci_constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module DELAYED_WRITE_REG
 (

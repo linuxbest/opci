@@ -44,8 +44,11 @@
 // CVS Revision History
 //
 // $Log: ssvga_defines.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -53,7 +56,7 @@
 `define SSVGA_640x480
 
 `ifdef SSVGA_640x480
-`define PIXEL_NUM 'd307200 // 383330 
+`define PIXEL_NUM 'd307200 // 383330
 `define SSVGA_HCW	10
 `define SSVGA_VCW	10
 //`define SSVGA_HTOT	`SSVGA_HCW'd3178

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: cur_out_reg.v,v $
+// Revision 1.3  2002/02/01 15:25:12  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:28  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -50,11 +53,13 @@
 //
 //
 
-`include "constants.v"
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
+`include "pci_constants.v"
 
 // module is only a backup copy of relevant output registers
-// used in some arhitectures that support IOB registers, which have to have a 
+// used in some arhitectures that support IOB registers, which have to have a
 // fanout of 1
 // Otherwise nothing special in this module
 module CUR_OUT_REG
@@ -68,23 +73,23 @@ module CUR_OUT_REG
     trdy_in,
     trdy_en_in,
     stop_in,
-    master_load_in,
-    target_load_in,
+    ad_load_in,
     cbe_in,
     cbe_en_in,
     mas_ad_in,
     tar_ad_in,
     frame_en_in,
     irdy_en_in,
-    
+
     mas_ad_en_in,
     tar_ad_en_in,
-    
+    ad_en_unregistered_in,
+
     par_in,
-    par_en_in, 
-    perr_in,   
+    par_en_in,
+    perr_in,
     perr_en_in,
-    serr_in,   
+    serr_in,
     serr_en_in,
 
     frame_out,
@@ -103,10 +108,10 @@ module CUR_OUT_REG
     trdy_en_out,
 
     par_out,
-    par_en_out, 
-    perr_out,   
+    par_en_out,
+    perr_out,
     perr_en_out,
-    serr_out,   
+    serr_out,
     serr_en_out
 ) ;
 
@@ -118,8 +123,7 @@ input           irdy_in ;
 input           devsel_in ;
 input           trdy_in ;
 input           stop_in ;
-input           master_load_in ;
-input           target_load_in ;
+input           ad_load_in ;
 
 input [3:0]     cbe_in ;
 input           cbe_en_in ;
@@ -128,6 +132,7 @@ input [31:0]    tar_ad_in ;
 
 input           mas_ad_en_in ;
 input           tar_ad_en_in ;
+input           ad_en_unregistered_in ;
 
 input           frame_en_in,
                 irdy_en_in ;
@@ -136,9 +141,9 @@ input           trdy_en_in ;
 
 input par_in ;
 input par_en_in ;
-input perr_in ;  
+input perr_in ;
 input perr_en_in ;
-input serr_in ;  
+input serr_in ;
 input serr_en_in ;
 
 output          frame_out ;
@@ -161,28 +166,28 @@ output          frame_en_out,
                 ad_en_out,
                 cbe_en_out,
                 mas_ad_en_out,
-                tar_ad_en_out, 
+                tar_ad_en_out,
                 trdy_en_out ;
 
 reg             frame_en_out,
                 irdy_en_out,
                 cbe_en_out,
                 mas_ad_en_out,
-                tar_ad_en_out, 
+                tar_ad_en_out,
                 trdy_en_out;
 
 output          par_out ;
 output          par_en_out ;
-output          perr_out ;  
+output          perr_out ;
 output          perr_en_out ;
-output          serr_out ;  
+output          serr_out ;
 output          serr_en_out ;
 
 reg             par_out ;
 reg             par_en_out ;
-reg             perr_out ;  
+reg             perr_out ;
 reg             perr_en_out ;
-reg             serr_out ;  
+reg             serr_out ;
 reg             serr_en_out ;
 
 assign ad_en_out = mas_ad_en_out || tar_ad_en_out ;
@@ -194,7 +199,7 @@ begin
         irdy_out     <= #`FF_DELAY 1'b1 ;
         devsel_out   <= #`FF_DELAY 1'b1 ;
         trdy_out     <= #`FF_DELAY 1'b1 ;
-        stop_out     <= #`FF_DELAY 1'b1 ; 
+        stop_out     <= #`FF_DELAY 1'b1 ;
         frame_en_out <= #`FF_DELAY 1'b0 ;
         irdy_en_out  <= #`FF_DELAY 1'b0 ;
         mas_ad_en_out<= #`FF_DELAY 1'b0 ;
@@ -217,8 +222,8 @@ begin
         stop_out     <= #`FF_DELAY stop_in ;
         frame_en_out <= #`FF_DELAY frame_en_in ;
         irdy_en_out  <= #`FF_DELAY irdy_en_in ;
-        mas_ad_en_out<= #`FF_DELAY mas_ad_en_in ;
-        tar_ad_en_out<= #`FF_DELAY tar_ad_en_in ;
+        mas_ad_en_out<= #`FF_DELAY mas_ad_en_in && ad_en_unregistered_in ;
+        tar_ad_en_out<= #`FF_DELAY tar_ad_en_in && ad_en_unregistered_in ;
         trdy_en_out  <= #`FF_DELAY trdy_en_in ;
 
         par_out      <= #`FF_DELAY par_in ;
@@ -235,21 +240,20 @@ always@(posedge reset_in or posedge clk_in)
 begin
     if ( reset_in )
         cbe_out <= #`FF_DELAY 4'hF ;
-    else if ( master_load_in )
+    else if ( ad_load_in )
         cbe_out <= #`FF_DELAY cbe_in ;
-        
+
 end
 
-wire data_load = master_load_in || target_load_in ;
 wire [31:0] ad_source = tar_ad_en_out ? tar_ad_in : mas_ad_in ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
     if ( reset_in )
         ad_out <= #`FF_DELAY 32'h0000_0000 ;
-    else if ( data_load )
+    else if ( ad_load_in )
         ad_out <= #`FF_DELAY ad_source ;
-        
+
 end
 
 always@(posedge reset_in or posedge clk_in)
@@ -258,7 +262,7 @@ begin
         frame_out <= #`FF_DELAY 1'b1 ;
     else if ( frame_load_in )
         frame_out <= #`FF_DELAY frame_in ;
-        
+
 end
 
 endmodule

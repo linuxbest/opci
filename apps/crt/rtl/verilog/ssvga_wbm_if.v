@@ -44,8 +44,11 @@
 // CVS Revision History
 //
 // $Log: ssvga_wbm_if.v,v $
-// Revision 1.1  2001/10/02 15:33:33  mihad
-// Initial revision
+// Revision 1.2  2002/02/01 15:24:46  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
+// Revision 1.1.1.1  2001/10/02 15:33:33  mihad
+// New project directory structure
 //
 //
 
@@ -57,7 +60,7 @@
 module ssvga_wbm_if(
 	// Clock and reset
 	wb_clk_i, wb_rst_i,
-	
+
 	// WISHBONE Master I/F
 	wbm_cyc_o, wbm_stb_o, wbm_sel_o, wbm_we_o,
 	wbm_adr_o, wbm_dat_o, wbm_cab_o,

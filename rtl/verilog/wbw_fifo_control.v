@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wbw_fifo_control.v,v $
+// Revision 1.3  2002/02/01 15:25:14  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -52,29 +55,25 @@
 
 /* FIFO_CONTROL module provides read/write address and status generation for
    FIFOs implemented with standard dual port SRAM cells in ASIC or FPGA designs */
-`include "constants.v"
+`include "pci_constants.v"
+// synopsys translate_off
 `include "timescale.v"
-`ifdef FPGA
-    // fifo design in FPGA will be synchronous
-    `ifdef SYNCHRONOUS
-    `else
-        `define SYNCHRONOUS
-    `endif
-`endif
+// synopsys translate_on
+
 module WBW_FIFO_CONTROL
 (
-    rclock_in, 
-    wclock_in,  
-    renable_in, 
-    wenable_in, 
-    reset_in, 
-    flush_in, 
-    almost_full_out, 
-    full_out, 
-    empty_out, 
-    waddr_out, 
-    raddr_out, 
-    rallow_out, 
+    rclock_in,
+    wclock_in,
+    renable_in,
+    wenable_in,
+    reset_in,
+    flush_in,
+    almost_full_out,
+    full_out,
+    empty_out,
+    waddr_out,
+    raddr_out,
+    rallow_out,
     wallow_out
 );
 
@@ -154,92 +153,66 @@ assign almost_full_out  = almost_full && ~full ;
 // clear generation for FFs and registers
 wire clear = reset_in || flush_in ;
 
-`ifdef SYNCHRONOUS
-    
-    reg wclock_nempty_detect ;
-    always@(posedge reset_in or posedge wclock_in)
+reg wclock_nempty_detect ;
+always@(posedge reset_in or posedge wclock_in)
+begin
+    if (reset_in)
+        wclock_nempty_detect <= #`FF_DELAY 1'b0 ;
+    else
+        wclock_nempty_detect <= #`FF_DELAY (rgrey_addr != wgrey_addr) ;
+end
+
+// special synchronizing mechanism for different implementations - in synchronous imp., empty is prolonged for 1 clock edge if no write clock comes after initial write
+reg stretched_empty ;
+always@(posedge rclock_in or posedge clear)
+begin
+    if(clear)
+        stretched_empty <= #`FF_DELAY 1'b1 ;
+    else
+        stretched_empty <= #`FF_DELAY empty && ~wclock_nempty_detect ;
+end
+
+// empty output is actual empty + 1 read clock cycle ( stretched empty )
+assign empty_out = empty || stretched_empty ;
+
+//rallow generation
+assign rallow = renable_in && ~empty && ~stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
+
+// rallow output assignment
+assign rallow_out = rallow ;
+
+// at any clock edge that rallow is high, this register provides next read address, so wait cycles are not necessary
+// when FIFO is empty, this register provides actual read address, so first location can be read
+reg [(ADDR_LENGTH - 1):0] raddr_plus_one ;
+
+// address output mux - when FIFO is empty, current actual address is driven out, when it is non - empty next address is driven out
+// done for zero wait state burst
+assign raddr_out = rallow ? raddr_plus_one : raddr ;
+
+always@(posedge rclock_in or posedge clear)
+begin
+    if (clear)
     begin
-        if (reset_in)
-            wclock_nempty_detect <= #`FF_DELAY 1'b0 ;
-        else
-            wclock_nempty_detect <= #`FF_DELAY (rgrey_addr != wgrey_addr) ;
+        // initial value is important - raddr initial value is 4, so this one is 5
+        raddr_plus_one <= #`FF_DELAY 5 ;
     end
+    else if (rallow)
+        raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
+end
 
-    // special synchronizing mechanism for different implementations - in synchronous imp., empty is prolonged for 1 clock edge if no write clock comes after initial write
-    reg stretched_empty ;
-    always@(posedge rclock_in or posedge clear)
-    begin
-        if(clear)
-            stretched_empty <= #`FF_DELAY 1'b1 ;
-        else
-            stretched_empty <= #`FF_DELAY empty && ~wclock_nempty_detect ;
-    end
-    
-    // empty output is actual empty + 1 read clock cycle ( stretched empty )
-    assign empty_out = empty || stretched_empty ;
-
-    //rallow generation    
-    assign rallow = renable_in && ~empty && ~stretched_empty ; // reads allowed if read enable is high and FIFO is not empty
-
-    // rallow output assignment
-    assign rallow_out = rallow ; 
-
-    // at any clock edge that rallow is high, this register provides next read address, so wait cycles are not necessary
-    // when FIFO is empty, this register provides actual read address, so first location can be read
-    reg [(ADDR_LENGTH - 1):0] raddr_plus_one ;
-
-    // address output mux - when FIFO is empty, current actual address is driven out, when it is non - empty next address is driven out
-    // done for zero wait state burst
-    assign raddr_out = rallow ? raddr_plus_one : raddr ;
-
-    always@(posedge rclock_in or posedge clear)
-    begin
-        if (clear)
-        begin
-            raddr_plus_one[(ADDR_LENGTH - 1):1] <= #`FF_DELAY { (ADDR_LENGTH - 1){1'b0}} ;
-            raddr_plus_one[0] <= #`FF_DELAY 1'b1 ;
-        end
-        else if (rallow)
-            raddr_plus_one <= #`FF_DELAY raddr_plus_one + 1'b1 ;
-    end
-    
-    // raddr is filled with raddr_plus_one on rising read clock edge when rallow is high
-    always@(posedge rclock_in or posedge clear)
-    begin
-	    if (clear)
-            // initial value is 000......00
-		    raddr <= #`FF_DELAY { ADDR_LENGTH{1'b0}} ;
-	    else if (rallow)
-	    	raddr <= #`FF_DELAY raddr_plus_one ;
-    end
-
-`else            
-    // asynchronous RAM storage for FIFOs - somewhat simpler control logic
-    //rallow generation    
-    assign rallow = renable_in && ~empty ;
-
-    assign rallow_out = rallow ;
-    
-    // read address counter - normal counter, nothing to it
-    // for asynchronous implementation, there is no need for pointing to next address.
-    // On clock edge that read is performed, read address will change and on the next clock edge
-    // asynchronous memory will provide next data
-    always@(posedge rclock_in or posedge clear)
-    begin
-	    if (clear)
-            // initial value is 000......00
-		    raddr <= #`FF_DELAY { ADDR_LENGTH{1'b0}} ;
-	    else if (rallow)
-		    raddr <= #`FF_DELAY raddr + 1'b1 ;
-    end
-
-    assign empty_out = empty ;
-    assign raddr_out = raddr ;
-`endif
+// raddr is filled with raddr_plus_one on rising read clock edge when rallow is high
+always@(posedge rclock_in or posedge clear)
+begin
+    if (clear)
+        // initial value is 4
+    raddr <= #`FF_DELAY 4 ;
+    else if (rallow)
+        raddr <= #`FF_DELAY raddr_plus_one ;
+end
 
 /*-----------------------------------------------------------------------------------------------
 Read address control consists of Read address counter and Grey Address pipeline
-There are 4 Grey addresses: 
+There are 4 Grey addresses:
     - rgrey_minus2 is Grey Code of address two before current address
     - rgrey_minus1 is Grey Code of address one before current address
     - rgrey_addr is Grey Code of current read address
@@ -251,58 +224,51 @@ always@(posedge rclock_in or posedge clear)
 begin
 	if (clear)
     begin
-        // initial value is 100......010
-		rgrey_minus2[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ; 
-        rgrey_minus2[(ADDR_LENGTH  - 2):2] <= #`FF_DELAY { (ADDR_LENGTH  - 3){1'b0} } ;
-        rgrey_minus2[1:0] <= #`FF_DELAY 2'b10 ;
+        // initial value is 0
+        rgrey_minus2 <= #`FF_DELAY 0 ;
     end
-	else
-		if (rallow)
-			rgrey_minus2 <= #`FF_DELAY rgrey_minus1 ;
+    else
+    if (rallow)
+        rgrey_minus2 <= #`FF_DELAY rgrey_minus1 ;
 end
 
 // grey code register for one before read address
 always@(posedge rclock_in or posedge clear)
 begin
-	if (clear)
+    if (clear)
     begin
-        // initial value is 100......011
-		rgrey_minus1[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ; 
-        rgrey_minus1[(ADDR_LENGTH  - 2):2] <= #`FF_DELAY { (ADDR_LENGTH  - 3){1'b0} } ;
-        rgrey_minus1[1:0] <= #`FF_DELAY 2'b11 ;
+        // initial value is 1
+        rgrey_minus1 <= #`FF_DELAY 1 ;
     end
-	else
-		if (rallow)
-			rgrey_minus1 <= #`FF_DELAY rgrey_addr ;
+    else
+    if (rallow)
+        rgrey_minus1 <= #`FF_DELAY rgrey_addr ;
 end
 
 // grey code register for read address - represents current Read Address
 always@(posedge rclock_in or posedge clear)
 begin
-	if (clear)
+    if (clear)
     begin
-        // initial value is 100.......01
-		rgrey_addr[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ;
-        rgrey_addr[(ADDR_LENGTH - 2):1] <= #`FF_DELAY { (ADDR_LENGTH - 2){1'b0} } ;
-        rgrey_addr[0] <= #`FF_DELAY 1'b1 ;
+        // initial value is 3 = ...00011
+        rgrey_addr <= #`FF_DELAY 3 ;
     end
-	else
-		if (rallow)
-			rgrey_addr <= #`FF_DELAY rgrey_next ;
+    else
+    if (rallow)
+        rgrey_addr <= #`FF_DELAY rgrey_next ;
 end
 
-// grey code register for next read address - represents Grey Code of next read address    
+// grey code register for next read address - represents Grey Code of next read address
 always@(posedge rclock_in or posedge clear)
 begin
-	if (clear)
+    if (clear)
     begin
-        // initial value is 100......00
-		rgrey_next[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ;
-        rgrey_next[(ADDR_LENGTH - 2):0] <= #`FF_DELAY { (ADDR_LENGTH - 1){1'b0} } ;
+        // initial value is 2 = ...00010
+        rgrey_next <= #`FF_DELAY 2 ;
     end
-	else
-		if (rallow)
-            rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
+    else
+    if (rallow)
+        rgrey_next <= #`FF_DELAY {raddr[ADDR_LENGTH - 1], calc_rgrey_next} ;
 end
 
 /*--------------------------------------------------------------------------------------------
@@ -313,41 +279,38 @@ Write address control consists of write address counter and two Grey Code Regist
 // grey code register for write address
 always@(posedge wclock_in or posedge clear)
 begin
-	if (clear)
+    if (clear)
     begin
-        // initial value is 100.....001
-        wgrey_addr[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ;
-        wgrey_addr[(ADDR_LENGTH - 2):1] <= #`FF_DELAY { (ADDR_LENGTH - 2){1'b0} } ;
-        wgrey_addr[0] <= #`FF_DELAY 1'b1 ;
+        // initial value is 3 = ....011
+        wgrey_addr <= #`FF_DELAY 3 ;
     end
-	else
-		if (wallow)
-			wgrey_addr <= #`FF_DELAY wgrey_next ;
+    else
+    if (wallow)
+        wgrey_addr <= #`FF_DELAY wgrey_next ;
 end
 
 // grey code register for next write address
 always@(posedge wclock_in or posedge clear)
 begin
-	if (clear)
+    if (clear)
     begin
-        // initial value is 100......00
-		wgrey_next[(ADDR_LENGTH - 1)] <= #`FF_DELAY 1'b1 ;
-        wgrey_next[(ADDR_LENGTH - 2):0] <= #`FF_DELAY { (ADDR_LENGTH - 1){1'b0} } ;
+        // initial value is 2 = ...010
+        wgrey_next <= #`FF_DELAY 2 ;
     end
-	else
-        if (wallow)
-            wgrey_next <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
+    else
+    if (wallow)
+        wgrey_next <= #`FF_DELAY {waddr[(ADDR_LENGTH - 1)], calc_wgrey_next} ;
 end
 
-// write address counter - nothing special
+// write address counter - nothing special - initial value is important though
 always@(posedge wclock_in or posedge clear)
 begin
-	if (clear)
-        // initial value 00.........00
-		waddr <= #`FF_DELAY { (ADDR_LENGTH){1'b0} } ;
-	else
-		if (wallow)
-			waddr <= #`FF_DELAY waddr + 1'b1 ;
+    if (clear)
+        // initial value 4
+	waddr <= #`FF_DELAY 4 ;
+    else
+    if (wallow)
+        waddr <= #`FF_DELAY waddr + 1'b1 ;
 end
 
 /*------------------------------------------------------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: synchronizer_flop.v,v 1.2 2001/10/05 08:14:30 mihad Exp $
+// $Id: synchronizer_flop.v,v 1.3 2002/02/01 15:25:13 mihad Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -62,6 +62,9 @@
 // CVS Revision History
 //
 // $Log: synchronizer_flop.v,v $
+// Revision 1.3  2002/02/01 15:25:13  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -85,7 +88,9 @@
 //
 //
 
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 // If the vendor has a flop which is particularly good at settling out of
 //   metastability, it should be used here.

@@ -42,6 +42,9 @@
 // CVS Revision History
 //
 // $Log: wb_slave.v,v $
+// Revision 1.3  2002/02/01 15:25:13  mihad
+// Repaired a few bugs, updated specification, added test bench files and design document
+//
 // Revision 1.2  2001/10/05 08:14:30  mihad
 // Updated all files with inclusion of timescale file for simulation purposes.
 //
@@ -51,25 +54,28 @@
 //
 
 `include "bus_commands.v"
-`include "constants.v"
+`include "pci_constants.v"
+
+// synopsys translate_off
 `include "timescale.v"
+// synopsys translate_on
 
 module WB_SLAVE(    wb_clock_in,
                     reset_in,
-                    wb_hit_in, 
+                    wb_hit_in,
                     wb_conf_hit_in,
                     wb_map_in,
                     wb_pref_en_in,
                     wb_mrl_en_in,
                     wb_addr_in,
-                    del_bc_in,  
+                    del_bc_in,
                     wb_del_req_pending_in,
                     wb_del_comp_pending_in,
                     pci_drcomp_pending_in,
                     del_bc_out,
                     del_req_out,
                     del_done_out,
-                   	del_burst_out,
+                    del_burst_out,
                     del_write_out,
                     del_write_in,
                     del_error_in,
@@ -84,19 +90,21 @@ module WB_SLAVE(    wb_clock_in,
                     wb_conf_data_in,
                     wb_conf_data_out,
                     wb_data_out,
-                    wb_cbe_out,    
+                    wb_cbe_out,
                     wbw_fifo_wenable_out,
                     wbw_fifo_control_out,
                     wbw_fifo_almost_full_in,
                     wbw_fifo_full_in,
-                    wbr_fifo_renable_out, 
-                    wbr_fifo_be_in, 
+                    wbr_fifo_renable_out,
+                    wbr_fifo_be_in,
                     wbr_fifo_data_in,
                     wbr_fifo_control_in,
-                    wbr_fifo_flush_out, 
+                    wbr_fifo_flush_out,
                     wbr_fifo_empty_in,
                     pciw_fifo_empty_in,
-                    wbs_lock_in, 
+                    wbs_lock_in,
+                    cache_line_size_not_zero,
+                    sample_address_out,
                     CYC_I,
                     STB_I,
                     WE_I,
@@ -116,10 +124,10 @@ parameter WBR_SEL  = 1'b0 ;
 parameter CONF_SEL = 1'b1 ;
 
 `define FSM_BITS 3
-parameter S_IDLE         = `FSM_BITS'h0 ; 
-parameter S_DEC1         = `FSM_BITS'h1 ; 
-parameter S_DEC2         = `FSM_BITS'h2 ; 
-parameter S_START        = `FSM_BITS'h3 ; 
+parameter S_IDLE         = `FSM_BITS'h0 ;
+parameter S_DEC1         = `FSM_BITS'h1 ;
+parameter S_DEC2         = `FSM_BITS'h2 ;
+parameter S_START        = `FSM_BITS'h3 ;
 parameter S_W_ADDR_DATA  = `FSM_BITS'h4 ;
 parameter S_READ         = `FSM_BITS'h5 ;
 parameter S_CONF_WRITE   = `FSM_BITS'h6 ;
@@ -137,7 +145,7 @@ Inputs from address decoding logic
 wb_hit_in - Decoder logic indicates if address is in a range of one of images
 wb_conf_hit_in - Decoder logic indicates that address is in configuration space range
 wb_map_in   - Decoder logic provides information about image mapping - memory mapped image   - wb_map_in = 0
-                                                                       IO space mapped image - wb_map_in = 1 
+                                                                       IO space mapped image - wb_map_in = 1
 wb_pref_en_in - Prefetch enable signal from currently selected image - used for PCI bus command usage
 wb_addr_in - Address already transalted from WB bus to PCI bus input
 wb_mrl_en_in - Memory read line enable input for each image
@@ -145,7 +153,7 @@ wb_mrl_en_in - Memory read line enable input for each image
 input [4:0]     wb_hit_in ;         // hit indicators
 input           wb_conf_hit_in ;    // configuration hit indicator
 input [4:0]     wb_pref_en_in ;     // prefetch enable from all images
-input [4:0]     wb_mrl_en_in ;      // Memory Read line command enable from images 
+input [4:0]     wb_mrl_en_in ;      // Memory Read line command enable from images
 input [4:0]     wb_map_in ;         // address space mapping indicators - 1 memory space mapping, 0-IO space mapping
 input [31:0]    wb_addr_in ;        // Translated address input
 
@@ -161,7 +169,7 @@ input  [3:0]  wb_del_be_in ;
 input [3:0] del_bc_in ;           // delayed request bus command used
 input       wb_del_req_pending_in ;   // delayed request pending indicator
 input       wb_del_comp_pending_in ;  // delayed completion pending indicator
-input       pci_drcomp_pending_in ; // PCI initiated delayed read completion pending 
+input       pci_drcomp_pending_in ; // PCI initiated delayed read completion pending
 
 output [3:0] del_bc_out ; // delayed transaction bus command output
 
@@ -191,7 +199,7 @@ wb_conf_data_in     - data provided for configuration space
 ----------------------------------------------------------------------------------------------------------------------*/
 output [11:0]   wb_conf_offset_out ;  // register offset output
 output          wb_conf_renable_out,  // configuration read and write enable outputs
-                wb_conf_wenable_out ; 
+                wb_conf_wenable_out ;
 output [3:0]    wb_conf_be_out ;      // byte enable outputs for configuration space
 input  [31:0]   wb_conf_data_in ;     // configuration data input from configuration space
 output [31:0]   wb_conf_data_out ;    // configuration data output for configuration space
@@ -231,11 +239,17 @@ input           wbr_fifo_empty_in ;         // empty status indicator from WBR_F
 input           pciw_fifo_empty_in ;        // empty status indicator from PCIW_FIFO
 
 /*----------------------------------------------------------------------------------------------------------------------
-wbs_lock_in - internal signal - when error reporting is enabled and PCI master detects an error while completing
-posted write on PCI, then WISHBONE slave unit doesn't accept any new requests or posted writes. Delayed completions
-are allowed to complete on WISHBONE if all other requirements are satisfied also. 
+wbs_lock_in: internal signal that locks out all accesses, except delayed completions or configuration accesses.
+( when master operation is disabled via master enable bit in configuration spacei )
 ---------------------------------------------------------------------------------------------------------------------*/
 input           wbs_lock_in ;
+
+// cache line size register must hold appropriate value to enable read bursts and special commands on PCI bus!
+input           cache_line_size_not_zero ;
+
+// state machine signals to wb_addr_mux when to sample wb address input
+output          sample_address_out ;
+reg             sample_address_out ;
 
 /*----------------------------------------------------------------------------------------------------------------------
 WISHBONE bus interface signals - can be connected directly to WISHBONE bus
@@ -251,20 +265,38 @@ output          RTY_O ;     // retry output - signals to WISHBONE master that cy
 output          ERR_O ;     // Signals to WISHBONE master that access resulted in an error
 input           CAB_I ;     // consecutive address burst input - indicates that master will do a serial address transfer in current cycle
 
+`ifdef REGISTER_WBS_OUTPUTS
+reg [31:0]  SDATA_O ;
+reg         ACK_O   ;
+reg         RTY_O   ;
+reg         ERR_O   ;
+
+reg [3:0] del_bc_out ; // delayed transaction bus command output
+reg       del_req_out ; // output for issuing delayed transaction requests
+reg       del_done_out ; // output indicating current delayed completion finished on WISHBONE bus
+reg       del_burst_out ; // delayed burst transaction indicator
+reg       del_in_progress_out ; // delayed in progress indicator - since delayed transaction can be a burst transaction, progress indicator must be used for proper operation
+reg       del_write_out ;   // write enable for delayed transaction - used for indicating that transaction is a write
+
+`ifdef HOST
+reg          wb_conf_wenable_out ;
+reg [31:0]   wb_conf_data_out ;    // configuration data output for configuration space
+`endif
+
+reg [3:0]  wb_conf_be_out ;      // byte enable outputs for configuration space
+reg [31:0] wb_data_out ;
+
+reg [3:0] wb_cbe_out ;
+
+reg       wbw_fifo_wenable_out ;    // write enable for WBW_FIFO output
+reg [3:0] wbw_fifo_control_out ;    // control bus output for WBW_FIFO
+
+reg       wbr_fifo_renable_out ;      // WBR_FIFO read enable output
+`endif
+
 reg [(`FSM_BITS - 1):0]  c_state ; //current state register
-// synopsys state_vector c_state
 
 reg [(`FSM_BITS - 1):0]  n_state ; //next state input to current state register
-
-// lock register - lock signal can cross clock domains, so here is register for it
-reg lock ;
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-        lock <= #`FF_DELAY 1'b0 ;
-    else
-        lock <= #`FF_DELAY wbs_lock_in ;
-end
 
 // state machine register control
 always@(posedge wb_clock_in or posedge reset_in)
@@ -275,9 +307,6 @@ begin
         c_state <= #`FF_DELAY n_state ;
 end
 
-
-// write operation indicator for delayed transaction requests
-assign del_write_out = WE_I ;
 
 // variable for bus command multiplexer logic output for delayed requests
 reg [3:0] del_bc ;
@@ -291,10 +320,10 @@ reg d_incoming_ena ;
 // incoming data register control logic
 always@(posedge wb_clock_in or posedge reset_in)
 begin
-	if (reset_in)
-		d_incoming <= #`FF_DELAY {35{1'b0}} ;
-	else if (d_incoming_ena)
-		d_incoming <= #`FF_DELAY {SEL_I, SDATA_I} ;
+    if (reset_in)
+        d_incoming <= #`FF_DELAY {35{1'b0}} ;
+    else if (d_incoming_ena)
+        d_incoming <= #`FF_DELAY {SEL_I, SDATA_I} ;
 end
 
 /*===================================================================================================================================================================================
@@ -304,69 +333,82 @@ Write allow for image accesses. Writes through images are allowed when all of fo
 - delayed read from PCI to WISHBONE completion musn't be present
 - lock input musn't be set - it can be set because of error reporting or because PCI master state machine is disabled
 ===================================================================================================================================================================================*/
-wire wimg_wallow           = ~|{ wbw_fifo_almost_full_in , wbw_fifo_full_in, wb_del_req_pending_in, pci_drcomp_pending_in, lock } ;
-reg decode_en ;
+wire wimg_wallow           = ~|{ wbw_fifo_almost_full_in , wbw_fifo_full_in, wb_del_req_pending_in, pci_drcomp_pending_in, wbs_lock_in } ;
 reg img_wallow ;
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-        img_wallow <= #`FF_DELAY 1'b0 ;
-    else
-    if (decode_en)
-        img_wallow <= #`FF_DELAY wimg_wallow ;
-end
-
-
 /*===================================================================================================================================================================================
 WISHBONE slave can request an image read accesses when all of following are true:
 - delayed completion is not present
 - delayed request is not present
 - operation is not locked because of error reporting mechanism or because PCI master is disabled
 ===================================================================================================================================================================================*/
-wire wdo_del_request     = ~|{ wb_del_req_pending_in, wb_del_comp_pending_in, lock } ;
+wire wdo_del_request     = ~|{ wb_del_req_pending_in, wb_del_comp_pending_in, wbs_lock_in } ;
 reg do_del_request ;
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-        do_del_request <= #`FF_DELAY 1'b0 ;
-    else
-    if (decode_en)
-        do_del_request <= #`FF_DELAY wdo_del_request ;
-end
-
 /*===================================================================================================================================================================================
 WISHBONE slave can complete an image read accesses when all of following are true:
 - delayed read completion is present
 - delayed read completion is the same as current read access ( dread_completion_hit is 1 )
 - PCI Write FIFO is empty - no posted write is waiting to be finished in PCIW_FIFO
-- WBR_FIFO empty status is active
+- WBR_FIFO empty status is not active
 ===================================================================================================================================================================================*/
-wire del_bc_hit = ( del_bc == del_bc_in ) ;
-
 wire wdel_addr_hit = ( wb_del_addr_in == wb_addr_in ) && ( SEL_I == wb_del_be_in ) ;
 reg  del_addr_hit ;
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-        del_addr_hit <= #`FF_DELAY 1'b0 ;
-    else
-    if ( decode_en )
-        del_addr_hit <= #`FF_DELAY wdel_addr_hit ;
-end
-
 wire wdel_completion_allow = wb_del_comp_pending_in && ((~del_write_in && ~WE_I && pciw_fifo_empty_in && ~wbr_fifo_empty_in) || (del_write_in && WE_I)) ;
-
 reg del_completion_allow ;
+
+/*----------------------------------------------------------------------------------------------------------------------
+img_hit - state of wb_hit_in bus when when state machine signals decode is over
+---------------------------------------------------------------------------------------------------------------------*/
+reg [4:0] img_hit ;
+wire wb_hit = |( img_hit ) ;
+
+/*----------------------------------------------------------------------------------------------------------------------
+Control logic for image control signals
+pref_en - prefetch enable of currently selected image
+mrl_en  - Memory read line enable of currently selected image
+map     - Address space mapping for currently selected image
+---------------------------------------------------------------------------------------------------------------------*/
+reg pref_en, mrl_en, map ;
+wire wpref_en   = |(wb_pref_en_in & wb_hit_in) ;
+wire wmrl_en    = |(wb_mrl_en_in & wb_hit_in) ;
+wire wmap       = |(wb_map_in & wb_hit_in) ;
+
+// state machine controls when results from decoders, comparison etc. are sampled into registers to decode an access
+reg decode_en ;
+
+reg wb_conf_hit ;
 always@(posedge reset_in or posedge wb_clock_in)
 begin
     if (reset_in)
+    begin
+        img_wallow           <= #`FF_DELAY 1'b0 ;
+        wb_conf_hit          <= #`FF_DELAY 1'b0 ;
+        do_del_request       <= #`FF_DELAY 1'b0 ;
+        del_addr_hit         <= #`FF_DELAY 1'b0 ;
         del_completion_allow <= #`FF_DELAY 1'b0 ;
+        img_hit              <= #`FF_DELAY 5'h00 ;
+        pref_en              <= #`FF_DELAY 1'b0 ;
+        mrl_en               <= #`FF_DELAY 1'b0 ;
+        map                  <= #`FF_DELAY 1'b0 ;
+    end
     else
-    if ( decode_en )
+    if (decode_en)
+    begin
+        img_wallow           <= #`FF_DELAY wimg_wallow ;
+        wb_conf_hit          <= #`FF_DELAY wb_conf_hit_in ;
+        do_del_request       <= #`FF_DELAY wdo_del_request ;
+        del_addr_hit         <= #`FF_DELAY wdel_addr_hit ;
         del_completion_allow <= #`FF_DELAY wdel_completion_allow ;
+        img_hit              <= #`FF_DELAY wb_hit_in ;
+        pref_en              <= #`FF_DELAY wpref_en && cache_line_size_not_zero ;
+        mrl_en               <= #`FF_DELAY wmrl_en  && cache_line_size_not_zero ;
+        map                  <= #`FF_DELAY wmap ;
+    end
 end
 
-wire do_dread_completion = del_completion_allow && del_bc_hit && del_addr_hit ;
+wire   del_burst = CAB_I && (pref_en || mrl_en) && ~WE_I && cache_line_size_not_zero ; // delayed burst indicator - only when WB master attempts CAB transfer and cache line size register is set appropriately and
+                                                                                       // either prefetch enable or memory read line enable of corresponding image are set -
+                                                                                       // applies for reads only - delayed write cannot be a burst
+wire do_dread_completion = del_completion_allow && del_addr_hit ;
 
 // address allignement indicator
 wire alligned_address = ~|(wb_addr_in[1:0]) ;
@@ -376,7 +418,7 @@ wire alligned_address = ~|(wb_addr_in[1:0]) ;
     // wires indicating allowance for configuration cycle generation requests
     wire do_ccyc_req  = 1'b0 ;
     wire do_ccyc_comp = 1'b0 ;
-    
+
     // wires indicating allowance for interrupt acknowledge cycle generation requests
     wire do_iack_req  = 1'b0 ;
     wire do_iack_comp = 1'b0 ;
@@ -389,44 +431,67 @@ wire alligned_address = ~|(wb_addr_in[1:0]) ;
     wire ccyc_hit = 1'b0 ;
     wire iack_hit = 1'b0 ;
 
+    wire wccyc_hit = 1'b0 ;
+    wire wiack_hit = 1'b0 ;
+
 `else
 `ifdef HOST
     // only host implementation has access for generating interrupt acknowledge and configuration cycles
     // configuration cycle data register hit
+    reg current_delayed_is_ccyc ;
+    reg current_delayed_is_iack ;
+
     wire wccyc_hit = (wb_addr_in[8:2] == {1'b1, `CNF_DATA_ADDR}) && alligned_address ;
+    wire wiack_hit = (wb_addr_in[8:2] == {1'b1, `INT_ACK_ADDR}) && alligned_address ;
+    reg iack_hit ;
     reg ccyc_hit ;
     always@(posedge reset_in or posedge wb_clock_in)
     begin
         if (reset_in)
+        begin
             ccyc_hit <= #`FF_DELAY 1'b0 ;
-        else
-        if (decode_en)
-            ccyc_hit <= #`FF_DELAY wccyc_hit ;
-    end
-
-    wire wiack_hit = (wb_addr_in[8:2] == {1'b1, `INT_ACK_ADDR}) && alligned_address ;
-    reg iack_hit ;
-    
-    always@(posedge reset_in or posedge wb_clock_in)
-    begin
-        if (reset_in)
             iack_hit <= #`FF_DELAY 1'b0 ;
+        end
         else
         if (decode_en)
+        begin
+            ccyc_hit <= #`FF_DELAY wccyc_hit ;
             iack_hit <= #`FF_DELAY wiack_hit ;
+        end
     end
 
     // wires indicating allowance for configuration cycle generation requests
     wire do_ccyc_req  = do_del_request && ccyc_hit;
-    wire do_ccyc_comp = del_completion_allow && del_bc_hit && ccyc_hit;
-    
+    wire do_ccyc_comp = del_completion_allow && ccyc_hit && current_delayed_is_ccyc ; // && del_bc_hit
+
     // wires indicating allowance for interrupt acknowledge cycle generation requests
     wire do_iack_req  = do_del_request && iack_hit ;
-    wire do_iack_comp = del_completion_allow && del_bc_hit && ccyc_hit;
+    wire do_iack_comp = del_completion_allow && iack_hit && current_delayed_is_iack ; // && del_bc_hit
 
     // variables for configuration access control signals
     reg conf_wenable ;
-    assign wb_conf_wenable_out = conf_wenable ;
+
+    // following flip-flops remember whether current delayed transaction is interrupt acknowledge or configuration cycle transaction
+    always@(posedge wb_clock_in or posedge reset_in)
+    begin
+        if ( reset_in )
+        begin
+            current_delayed_is_ccyc <= #`FF_DELAY 1'b0 ;
+            current_delayed_is_iack <= #`FF_DELAY 1'b0 ;
+        end
+        else
+        if ( del_done_out )
+        begin
+            current_delayed_is_ccyc <= #`FF_DELAY 1'b0 ;
+            current_delayed_is_iack <= #`FF_DELAY 1'b0 ;
+        end
+        else
+        if ( del_req_out && wb_conf_hit )
+        begin
+            current_delayed_is_ccyc <= #`FF_DELAY do_ccyc_req ;
+            current_delayed_is_iack <= #`FF_DELAY do_iack_req ;
+        end
+    end
 
 `endif
 `endif
@@ -435,22 +500,16 @@ wire alligned_address = ~|(wb_addr_in[1:0]) ;
 reg conf_renable ;
 assign wb_conf_renable_out = conf_renable ;
 
-// wire for write attempt - 1 when external WB master is attempting a write
-wire wattempt = ( CYC_I && STB_I && WE_I ) ; // write is qualified when cycle, strobe and write enable inputs are all high
-
-// wire for read attempt - 1 when external WB master is attempting a read
-wire rattempt = ( CYC_I && STB_I && ~WE_I ) ; // read is qualified when cycle and strobe are high and write enable is low
-
 // burst access indicator
 wire burst_transfer = CYC_I && CAB_I ;
 
-// SEL_I error indicator for IO and configuration accesses - select lines must be alligned with address
+// SEL_I error indicator for IO accesses - select lines must be alligned with address
 reg sel_error ;
 always@(wb_addr_in or SEL_I)
 begin
-    case (wb_addr_in[1:0]) 
+    case (wb_addr_in[1:0])
         2'b00: sel_error = ~SEL_I[0] ; // select 0 must be 1, all others are don't cares.
-        2'b01: sel_error = ~SEL_I[1] || SEL_I[0]  ; // byte 0 can't be selected, byte 1 must be selected
+        2'b01: sel_error = ~SEL_I[1] || SEL_I[0] ; // byte 0 can't be selected, byte 1 must be selected
         2'b10: sel_error = ~SEL_I[2] || SEL_I[1] || SEL_I[0] ; // bytes 0 and 1 can't be selected, byte 2 must be selected
         2'b11: sel_error = ~SEL_I[3] || SEL_I[2] || SEL_I[1] || SEL_I[0] ; // bytes 0, 1 and 2 can't be selected, byte 3 must be selected
     endcase
@@ -458,128 +517,87 @@ end
 
 // WBW_FIFO control output
 reg [3:0] wbw_fifo_control ;
-assign wbw_fifo_control_out = wbw_fifo_control ; //control bus output for WBW_FIFO
 
 // WBW_FIFO wenable output assignment
 reg wbw_fifo_wenable ;
-assign wbw_fifo_wenable_out = wbw_fifo_wenable ; //write enable for WBW_FIFO
 
 // WBR_FIFO control outputs
 reg wbr_fifo_flush, wbr_fifo_renable ; // flush and read enable outputs
-assign wbr_fifo_renable_out = wbr_fifo_renable ; //read enable for wbr_fifo
 
-reg wbr_fifo_flush_out ;
-
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if ( reset_in )
-        wbr_fifo_flush_out <= #`FF_DELAY 1'b0 ;
-    else
-        wbr_fifo_flush_out <= #`FF_DELAY wbr_fifo_flush ;
-end
+// flush signal for WBR_FIFO must be registered, since it asinchronously resets some status registers
+wire		wbr_fifo_flush_reg ;
+async_reset_flop		  async_reset_as_wbr_flush
+(
+    .data_in        	  (wbr_fifo_flush),
+    .clk_in         	  (wb_clock_in),
+    .async_reset_data_out (wbr_fifo_flush_reg),
+    .reset_in    		  (reset_in)
+) ;
+assign  wbr_fifo_flush_out = wbr_fifo_flush_reg ;
 
 // delayed transaction request control signals
 reg del_req, del_done ;
-assign del_req_out  = del_req ; // read request
-assign del_done_out = del_done ; // read done
-                    
+
 // WISHBONE handshaking control outputs
 reg ack, rty, err ;
-assign ACK_O = ack ;
-assign RTY_O = rty ;
-assign ERR_O = err ;
 
-/*----------------------------------------------------------------------------------------------------------------------
-Control logic for image hits
-img_hit - state of wb_hit_in bus when first data is acknowledged
----------------------------------------------------------------------------------------------------------------------*/
-reg [4:0] img_hit ;
-always@(posedge wb_clock_in or posedge reset_in)
-begin
-    if (reset_in)
-        img_hit <= #`FF_DELAY 5'h00 ;
-    else
-    if (decode_en)
-        img_hit <= #`FF_DELAY wb_hit_in ;
-end
+`ifdef REGISTER_WBS_OUTPUTS
+// wire for write attempt - 1 when external WB master is attempting a write
+// wire for read attempt  - 1 when external master is attempting a read
+wire wattempt = ( CYC_I && STB_I && WE_I ) && (!ACK_O && !ERR_O && !RTY_O) ;
+wire rattempt = ( CYC_I && STB_I && ~WE_I ) && (!ACK_O && !ERR_O && !RTY_O) ;
 
-wire wb_hit = |( img_hit ) ;
+`ifdef WB_DECODE_FAST
+    `undef WB_DECODE_FAST
+    `define WB_DECODE_MEDIUM
+`endif
 
-/*----------------------------------------------------------------------------------------------------------------------
-Control logic for image control signals
-pref_en - prefetch enable of currently selected image
-mrl_en  - Memory read line enable of currently selected image
-map     - Address space mapping for currently selected image
----------------------------------------------------------------------------------------------------------------------*/
-reg pref_en, mrl_en, map ;
+`else
+// wire for write attempt - 1 when external WB master is attempting a write
+// wire for read attempt  - 1 when external master is attempting a read
+wire wattempt = ( CYC_I && STB_I && WE_I ) ; // write is qualified when cycle, strobe and write enable inputs are all high
+wire rattempt = ( CYC_I && STB_I && ~WE_I ) ; // read is qualified when cycle and strobe are high and write enable is low
 
-wire wpref_en   = |(wb_pref_en_in & wb_hit_in) ;
-wire wmrl_en    = |(wb_pref_en_in & wb_hit_in) ;
-wire wmap       = |(wb_map_in & wb_hit_in) ;
-
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-    begin
-        pref_en     <= #`FF_DELAY 1'b0 ;
-        mrl_en      <= #`FF_DELAY 1'b0 ;
-        map         <= #`FF_DELAY 1'b0 ;
-    end
-    else
-    if ( decode_en )
-    begin
-        pref_en     <= #`FF_DELAY wpref_en ;
-        mrl_en      <= #`FF_DELAY wmrl_en ;
-        map         <= #`FF_DELAY wmap ;
-    end
-end
-
-assign del_burst_out = CAB_I && pref_en && ~WE_I; // delayed burst indicator - only when WB master attempts CAB transfer and prefetch enable of corresponding image is set - 
-                                                  // applies for reads only - delayed write cannot be a burst
-
-reg wb_conf_hit ;
-always@(posedge reset_in or posedge wb_clock_in)
-begin
-    if (reset_in)
-        wb_conf_hit <= #`FF_DELAY 1'b0 ;
-    else
-    if (decode_en)
-        wb_conf_hit <= #`FF_DELAY wb_conf_hit_in ;
-end
-
+`endif
 /*----------------------------------------------------------------------------------------------------------------------
 Delayed transaction bus command generation
 Bus command for delayed reads depends on image's address space mapping and control bits and
 whether or not these are interrupt acknowledge requests or configuration cycle requests
 ---------------------------------------------------------------------------------------------------------------------*/
-assign del_bc_out = del_bc ;
 
 always@(map or mrl_en or ccyc_hit or WE_I or wb_conf_hit or CAB_I or pref_en)
 begin
+`ifdef HOST
+// only host implementation supports configuration and interrupt acknowledge commands
     if (wb_conf_hit)
     begin
         case( {ccyc_hit, WE_I} )
             2'b11:  del_bc = `BC_CONF_WRITE ;
             2'b10:  del_bc = `BC_CONF_READ ;
-            2'b01:  del_bc = `BC_IACK ;
+            2'b01:  del_bc = `BC_RESERVED0 ; // invalid combination - interrupt acknowledge cycle must be a read
             2'b00:  del_bc = `BC_IACK ;
         endcase
     end
     else
+`endif
     begin
-        case ( {map, CAB_I && mrl_en && pref_en} )
-            2'b11:  del_bc = `BC_IO_READ ;
-            2'b10:  del_bc = `BC_IO_READ ;
-            2'b01:  del_bc = `BC_MEM_READ_LN ;
-            2'b00:  del_bc = `BC_MEM_READ ;
-        endcase
+        if ( map )
+        begin
+            del_bc = `BC_IO_READ ;
+        end
+        else
+        begin
+            case ({(CAB_I && mrl_en), pref_en})
+                2'b00: del_bc = `BC_MEM_READ ;     // if this is not burst transfer or memory read line command is disabled - use memory read
+                2'b01: del_bc = `BC_MEM_READ ;     // same as previous case
+                2'b10: del_bc = `BC_MEM_READ_LN ;  // burst transfer, memory read line command enabled, prefetch disabled - use memory read line command
+                2'b11: del_bc = `BC_MEM_READ_MUL ; // same as previous case, except prefetch is enabled - use memory read multiple command
+            endcase
+        end
     end
 end
 
-// WISHBONE data output select lines for output multiplexor
-reg sdata_o_sel ;
-
-reg del_in_progress_out ; // state machine indicates whether current read completion is in progress on WISHBONE bus
+reg del_in_progress ; // state machine indicates whether current read completion is in progress on WISHBONE bus
 
 wire image_access_error = (map && (burst_transfer || sel_error)) ||   // IO write is a burst or has wrong select lines active= Error
                           (~map && ~alligned_address) ;               // Mem write to nonaligned address = error;
@@ -599,18 +617,18 @@ wire image_access_error = (map && (burst_transfer || sel_error)) ||   // IO writ
 
 // state machine logic
 always@(
-        c_state                     or 
+        c_state                     or
         wattempt                    or
         img_wallow                  or
-        burst_transfer              or 
-        wb_hit                      or 
-        map                         or 
+        burst_transfer              or
+        wb_hit                      or
+        map                         or
         alligned_address            or
         rattempt                    or
         do_dread_completion         or
         wbr_fifo_control_in         or
         wb_conf_hit                 or
-        do_ccyc_req                 or 
+        do_ccyc_req                 or
         do_ccyc_comp                or
         ccyc_hit                    or
         del_error_in                or
@@ -619,10 +637,11 @@ always@(
         iack_hit                    or
         image_access_error          or
         wbw_fifo_almost_full_in     or
+        wbw_fifo_full_in            or
         do_del_request              or
         wbr_fifo_empty_in
        )
-begin    
+begin
     // default signal values
     // response signals inactive
     ack         = 1'b0 ;
@@ -635,9 +654,9 @@ begin
     wbw_fifo_control[`LAST_CTRL_BIT] = 1'b0 ;
     wbw_fifo_control[`UNUSED_CTRL_BIT] = 1'b0 ;
 
-    wbw_fifo_wenable = 1'b0 ;            
+    wbw_fifo_wenable = 1'b0 ;
     d_incoming_ena   = 1'b0 ;
-            
+
     // read signals inactive
     wbr_fifo_flush   = 1'b0 ;
     wbr_fifo_renable = 1'b0 ;
@@ -647,14 +666,15 @@ begin
     // configuration space control signals inactive
     conf_wenable = 1'b0 ;
     conf_renable = 1'b0 ;
-    
-	// WISHBONE data output selection - drive wbr output
-    sdata_o_sel = WBR_SEL ;
 
     // read is not in progress
-    del_in_progress_out = 1'b0 ;
+    del_in_progress = 1'b0 ;
+
     decode_en = 1'b0 ;
-    wbw_data_out_sel = SEL_ADDR_IN ;
+
+    wbw_data_out_sel         = SEL_ADDR_IN ;
+
+    sample_address_out = 1'b0 ;
 
     case (c_state)
     S_IDLE: begin
@@ -666,11 +686,12 @@ begin
                     `else
                     n_state = S_DEC1 ;
                     `endif
+                    sample_address_out = 1'b1 ;
                 end
                 else
                     n_state = S_IDLE ;
             end
-    
+
     S_DEC1: begin
                 if ( wattempt || rattempt )
                 begin
@@ -686,7 +707,7 @@ begin
             end
 
     S_DEC2: begin
-                
+
                 if ( wattempt || rattempt )
                 begin
                     decode_en = 1'b1 ;
@@ -699,22 +720,25 @@ begin
     S_START:begin
                 if (wb_conf_hit) // configuration space hit
                 begin
+                    `ifdef HOST
+                        wbw_data_out_sel = SEL_CCYC_ADDR ;
+                    `endif
+
                     if ( wattempt )
                         n_state = S_CONF_WRITE ; // go to conf. write state
                     else
                     if ( rattempt )
                     begin
                         n_state     = S_CONF_READ ; // go to conf. read state
-                        if(~(ccyc_hit || iack_hit))
-                            sdata_o_sel = CONF_SEL ;
                     end
                     else
                         n_state = S_IDLE ; // master terminated - go back to idle state
-                        
-                end // wb_conf_hit*/
-                else    
-                if(wb_hit && (wattempt || rattempt))
+
+                end // wb_conf_hit
+                else
+                if( wb_hit && (wattempt || rattempt) )
                 begin
+                    wbw_data_out_sel = SEL_DATA_IN ;
 
                     // check error conditions for image writes or reads
                     if ( image_access_error )
@@ -726,34 +750,34 @@ begin
                     // check for retry conditions for image writes or reads
                     if ( (wattempt && ~img_wallow) ||
                          (rattempt && ~do_dread_completion) // write to image not allowed, no read ready yet - retry
-                       ) 
+                       )
                     begin
                         n_state = S_IDLE ; // go back to IDLE
-                        
+
                         rty     = 1'b1 ;
 
                         del_req = do_del_request && rattempt ;
-                        
+
                     end //retry
                     else // everything OK - proceed
                     if ( wattempt )
                     begin
                         n_state = S_W_ADDR_DATA ; // goto write transfer state
-        
+
                         // respond with acknowledge
                         ack              = 1'b1 ;
 
-                        wbw_fifo_wenable = 1'b1 ;            
+                        wbw_fifo_wenable = 1'b1 ;
 
                         // data is latched to data incoming intermidiate stage - it will be put in FIFO later
                         d_incoming_ena   = 1'b1 ;
                     end
                     else
-                    begin                        
+                    begin
                         err = wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] ;
                         ack = ~wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] ;
                         wbr_fifo_renable    = 1'b1 ;
-                        del_in_progress_out = 1'b1 ;
+                        del_in_progress = 1'b1 ;
 
                         if ( wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] || wbr_fifo_control_in[`LAST_CTRL_BIT] )
                         begin
@@ -766,24 +790,25 @@ begin
                         else
                             n_state = S_READ ; // go to read state
                     end
-                end 
+                end
                 else
                     n_state = S_IDLE ;
+
             end
 
     S_W_ADDR_DATA: begin
                         wbw_data_out_sel = SEL_DATA_IN ;
                         err = burst_transfer && wattempt && ~alligned_address ;
-                        rty = burst_transfer && wattempt && wbw_fifo_almost_full_in ;
+                        rty = burst_transfer && wattempt && (wbw_fifo_almost_full_in || wbw_fifo_full_in) ;
 
-                        if ( ~burst_transfer || wattempt && ( ~alligned_address || wbw_fifo_almost_full_in) )
+                        if ( ~burst_transfer || wattempt && ( ~alligned_address || wbw_fifo_almost_full_in || wbw_fifo_full_in ) )
                         begin
                             n_state = S_IDLE ;
 
                             // write last data to FIFO and don't latch new data
                             wbw_fifo_control[`ADDR_CTRL_BIT] = 1'b0 ;
                             wbw_fifo_control[`LAST_CTRL_BIT] = 1'b1 ;
-                            wbw_fifo_wenable = 1'b1 ;            
+                            wbw_fifo_wenable = 1'b1 ;
                         end
                         else
                         begin
@@ -798,11 +823,11 @@ begin
 
     S_READ:begin
                 // this state is for reads only - in this state read is in progress all the time
-                del_in_progress_out = 1'b1 ;
-                
+                del_in_progress = 1'b1 ;
+
                 ack = burst_transfer && rattempt && ~wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] && alligned_address    && ~wbr_fifo_empty_in ;
                 err = burst_transfer && rattempt && ((wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] || ~alligned_address) && ~wbr_fifo_empty_in) ;
-                rty = burst_transfer && rattempt && wbr_fifo_empty_in && alligned_address ;
+                //rty = burst_transfer && rattempt && wbr_fifo_empty_in && alligned_address ;
 
                 // if acknowledge is beeing signalled then enable read from wbr fifo
                 wbr_fifo_renable = burst_transfer && rattempt && alligned_address && ~wbr_fifo_empty_in ;
@@ -811,7 +836,7 @@ begin
                 begin
                     n_state = S_IDLE ;
                     del_done = 1'b1 ;
-                    wbr_fifo_flush = ~wbr_fifo_empty_in && ~(wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] || wbr_fifo_control_in[`LAST_CTRL_BIT]) ;
+                    wbr_fifo_flush = ~wbr_fifo_empty_in ;
                 end
                 else
                 begin
@@ -821,19 +846,21 @@ begin
 
     S_CONF_WRITE:  begin
                         `ifdef HOST
-                            wbw_data_out_sel    = SEL_CCYC_ADDR ;
+                            wbw_data_out_sel = SEL_CCYC_ADDR ;
+                            del_req          = do_ccyc_req && ~burst_transfer && alligned_address ;
+                            del_done         = do_ccyc_comp && ~burst_transfer && alligned_address ;
+                            del_in_progress  = do_ccyc_comp && ~burst_transfer && alligned_address ;
                         `endif
-                        n_state             = S_IDLE ; // next state after configuration access is always idle
-                        del_req             = do_ccyc_req && ~burst_transfer ;
-                        del_done            = do_ccyc_comp && ~burst_transfer ;
-                        del_in_progress_out = do_ccyc_comp && ~burst_transfer ;
+
+                        n_state         = S_IDLE ; // next state after configuration access is always idle
 
                         if ( burst_transfer || ~alligned_address )
                         begin
                             err = 1'b1 ;
                         end
-                        else 
+                        else
                         begin
+                            `ifdef HOST
                             if ( do_ccyc_req || (ccyc_hit && ~do_ccyc_comp))
                             begin
                                 rty = 1'b1 ;
@@ -849,21 +876,23 @@ begin
                                 ack = ~ccyc_hit ;
                                 conf_wenable = ~ccyc_hit ;
                             end
+                            `else
+                            ack = 1'b1 ;
+                            conf_wenable = 1'b1 ;
+                            `endif
                         end
                     end // S_CONF_WRITE
 
     S_CONF_READ:   begin
                         `ifdef HOST
                             wbw_data_out_sel = SEL_CCYC_ADDR ;
+                            del_req     = ~burst_transfer && alligned_address && ( do_ccyc_req || do_iack_req );
+                            del_done    = ~burst_transfer && alligned_address && ( do_ccyc_comp || do_iack_comp ) ;
+                            del_in_progress = ~burst_transfer && alligned_address && ( do_ccyc_comp || do_iack_comp ) ;
+                            wbr_fifo_renable    = ~burst_transfer && alligned_address && ( do_ccyc_comp || do_iack_comp ) ;
                         `endif
-                        n_state = S_IDLE ; // next state after configuration access is always idle
-                        del_req     = ~burst_transfer && ( do_ccyc_req || do_iack_req );
-                        del_done    = ~burst_transfer && ( do_ccyc_comp || do_iack_comp ) ;
-                        del_in_progress_out = ~burst_transfer && ( do_ccyc_comp || do_iack_comp ) ;
-                        wbr_fifo_renable    = ~burst_transfer && ( do_ccyc_comp || do_iack_comp ) ;
 
-                        if ( ~(ccyc_hit || iack_hit) )
-                            sdata_o_sel = CONF_SEL ;
+                        n_state = S_IDLE ; // next state after configuration access is always idle
 
                         if ( burst_transfer || ~alligned_address )
                         begin
@@ -871,7 +900,7 @@ begin
                         end
                         else
                         begin
-
+                            `ifdef HOST
                             if ( do_ccyc_req || ( ccyc_hit && ~do_ccyc_comp ))
                             begin
                                 rty = 1'b1 ;
@@ -892,8 +921,11 @@ begin
                                 ack = ~( ccyc_hit || iack_hit ) ;
                                 conf_renable = ~( ccyc_hit || iack_hit ) ;
                             end
+                            `else
+                            ack = 1'b1 ;
+                            conf_renable = 1'b1 ;
+                            `endif
                         end
-
                     end //S_CONF_READ
     default:begin
                 n_state = S_IDLE ; // return to idle state
@@ -904,66 +936,187 @@ end
 // configuration space offset output assignment
 assign wb_conf_offset_out = {wb_addr_in[11:2], 2'b00} ; // upper 10 bits of address input and two zeros
 
-// Configuration space byte enables output
-assign wb_conf_be_out = SEL_I ; // just route select lines from WISHBONE to conf space
-
 // data output assignment - for image writes, first data is address, subsequent data comes from intermediate register
-reg [31:0] wb_data_out ;
+reg [31:0] wb_data ;
 `ifdef HOST
-always@(wbw_data_out_sel or wb_addr_in or ccyc_addr_in or d_incoming)
+reg [1:0] wbw_data_out_sel_reg ;
+always@(posedge wb_clock_in or posedge reset_in)
 begin
-    case ( wbw_data_out_sel )
-        SEL_CCYC_ADDR:  wb_data_out = ccyc_addr_in ;
-        SEL_DATA_IN:    wb_data_out = d_incoming ;
-        default: wb_data_out = wb_addr_in ;
+    if ( reset_in )
+        wbw_data_out_sel_reg <= #`FF_DELAY SEL_ADDR_IN ;
+    else
+        wbw_data_out_sel_reg <= #`FF_DELAY wbw_data_out_sel ;
+end
+
+always@(wbw_data_out_sel_reg or wb_addr_in or ccyc_addr_in or d_incoming)
+begin
+    case ( wbw_data_out_sel_reg )
+        SEL_CCYC_ADDR:  wb_data = ccyc_addr_in ;
+        SEL_DATA_IN:    wb_data = d_incoming ;
+        default: wb_data        = wb_addr_in ;
     endcase
 end
 `else
 `ifdef GUEST
-always@(wbw_data_out_sel or wb_addr_in or d_incoming)
+reg wbw_data_out_sel_reg ;
+always@(posedge wb_clock_in or posedge reset_in)
 begin
-    if ( wbw_data_out_sel )
-        wb_data_out = wb_addr_in ;
+    if ( reset_in )
+        wbw_data_out_sel_reg <= #`FF_DELAY SEL_ADDR_IN ;
     else
-        wb_data_out = d_incoming ;
-end    
+        wbw_data_out_sel_reg <= #`FF_DELAY wbw_data_out_sel ;
+end
+
+always@(wbw_data_out_sel_reg or wb_addr_in or d_incoming)
+begin
+    if ( wbw_data_out_sel_reg )
+        wb_data = wb_addr_in ;
+    else
+        wb_data = d_incoming ;
+end
 `endif
 `endif
 
 // command / byte enable assignment - with address, bus command is provided, with data - byte enables are provided
 reg [3:0] wb_cbe ;
-assign wb_cbe_out = wb_cbe ;
 
-always@(wbw_data_out_sel or d_incoming or map)
+always@(wbw_data_out_sel_reg or d_incoming or map)
 begin
-    if (wbw_data_out_sel && map)
-	    wb_cbe = `BC_IO_WRITE ;
+    if (wbw_data_out_sel_reg && map)
+        wb_cbe = `BC_IO_WRITE ;
     else
-    if (wbw_data_out_sel)
+    if (wbw_data_out_sel_reg)
         wb_cbe = `BC_MEM_WRITE ;
-	else
-		wb_cbe = ~(d_incoming[35:32]) ;
+    else
+        wb_cbe = ~(d_incoming[35:32]) ;
 end
 
 // for configuration writes, data output is always data from WISHBONE - in guest implementation data is all 0.
 `ifdef GUEST
-	assign wb_conf_data_out = 32'h00000000 ;	
+    assign wb_conf_data_out = 32'h00000000 ;
+`endif
+
+`ifdef GUEST
+    `ifdef NO_CNF_IMAGE
+    `else
+        `define DO_OUT_MUX
+    `endif
 `else
 `ifdef HOST
-	assign wb_conf_data_out = SDATA_I ;
+    `define DO_OUT_MUX ;
 `endif
 `endif
 
-// WISHBONE data output multiplexor
-reg [31:0] sdata ;
-assign SDATA_O = sdata ;
+`ifdef DO_OUT_MUX
+    reg [31:0] sdata_source ;
 
-always@(sdata_o_sel or wbr_fifo_data_in or wb_conf_data_in)
+    // WISHBONE data output select lines for output multiplexor
+    wire sdata_o_sel_new = ( wb_conf_hit_in && ~wiack_hit && ~wccyc_hit ) ? CONF_SEL : WBR_SEL ;
+    reg sdata_o_sel ;
+
+    always@(posedge wb_clock_in or posedge reset_in)
+    begin
+        if ( reset_in )
+            sdata_o_sel <= #`FF_DELAY WBR_SEL ;
+        else
+        if ( decode_en )
+            sdata_o_sel <= #`FF_DELAY sdata_o_sel_new ;
+    end
+
+    always@(sdata_o_sel or wbr_fifo_data_in or wb_conf_data_in)
+    begin
+        case (sdata_o_sel)
+            WBR_SEL :sdata_source = wbr_fifo_data_in ;
+            CONF_SEL:sdata_source = wb_conf_data_in ;
+        endcase
+    end
+    `undef DO_OUT_MUX
+`else
+    wire [31:0] sdata_source = wbr_fifo_data_in ;
+`endif
+
+`ifdef REGISTER_WBS_OUTPUTS
+
+always@(posedge wb_clock_in or posedge reset_in)
 begin
-	case (sdata_o_sel)
-		WBR_SEL :sdata = wbr_fifo_data_in ;
-		CONF_SEL:sdata = wb_conf_data_in ;
-	endcase
+    if ( reset_in )
+    begin
+        ACK_O         <= #`FF_DELAY 1'b0 ;
+        RTY_O         <= #`FF_DELAY 1'b0 ;
+        ERR_O         <= #`FF_DELAY 1'b0 ;
+        SDATA_O       <= #`FF_DELAY 0 ;
+        del_write_out <= #`FF_DELAY 1'b0 ;
+
+        `ifdef HOST
+        wb_conf_wenable_out <= #`FF_DELAY 1'b0 ;
+        wb_conf_data_out    <= #`FF_DELAY 0 ;
+        `endif
+
+        del_bc_out    <= #`FF_DELAY `BC_RESERVED0 ;
+        del_req_out <= #`FF_DELAY 1'b0 ;
+        del_done_out <= #`FF_DELAY 1'b0 ;
+        del_burst_out <= #`FF_DELAY 1'b0 ;
+        del_in_progress_out <= #`FF_DELAY 1'b0 ;
+        wb_conf_be_out <= #`FF_DELAY 0 ;
+        wb_data_out    <= #`FF_DELAY 0 ;
+        wb_cbe_out <= #`FF_DELAY 0 ;
+        wbw_fifo_wenable_out <= #`FF_DELAY 0 ;
+        wbw_fifo_control_out <= #`FF_DELAY 0 ;
+        wbr_fifo_renable_out <= #`FF_DELAY 0 ;
+    end
+    else
+    begin
+        ACK_O   <= #`FF_DELAY ack && !ACK_O ;
+        RTY_O   <= #`FF_DELAY rty && !RTY_O ;
+        ERR_O    <= #`FF_DELAY err && !ERR_O ;
+        SDATA_O       <= #`FF_DELAY sdata_source ;
+        del_write_out <= #`FF_DELAY WE_I ;
+
+        `ifdef HOST
+        wb_conf_wenable_out <= #`FF_DELAY conf_wenable ;
+        wb_conf_data_out    <= #`FF_DELAY SDATA_I ;
+        `endif
+
+        del_bc_out <= #`FF_DELAY del_bc ;
+        del_req_out <= #`FF_DELAY del_req ;
+        del_done_out <= #`FF_DELAY del_done ;
+        del_burst_out <= #`FF_DELAY del_burst ;
+        del_in_progress_out <= #`FF_DELAY del_in_progress ;
+        wb_conf_be_out <= #`FF_DELAY SEL_I ;
+        wb_data_out <= #`FF_DELAY wb_data ;
+        wb_cbe_out <= #`FF_DELAY wb_cbe ;
+        wbw_fifo_wenable_out <= #`FF_DELAY wbw_fifo_wenable ;
+        wbw_fifo_control_out <= #`FF_DELAY wbw_fifo_control ;
+        wbr_fifo_renable_out <= #`FF_DELAY wbr_fifo_renable ;
+    end
 end
+
+`else
+
+assign SDATA_O = sdata_source ;
+
+assign ACK_O = ack ;
+assign RTY_O = rty ;
+assign ERR_O = err ;
+
+// write operation indicator for delayed transaction requests
+assign del_write_out = WE_I ;
+assign del_bc_out = del_bc ;
+assign del_req_out  = del_req ; // read request
+assign del_done_out = del_done ; // read done
+assign del_burst_out = del_burst ;
+assign del_in_progress_out = del_in_progress ;
+`ifdef HOST
+assign wb_conf_data_out = SDATA_I ;
+assign wb_conf_wenable_out = conf_wenable ;
+`endif
+// Configuration space byte enables output
+assign wb_conf_be_out = SEL_I ; // just route select lines from WISHBONE to conf space
+assign wb_data_out    = wb_data ;
+assign wb_cbe_out = wb_cbe ;
+assign wbw_fifo_wenable_out = wbw_fifo_wenable ; //write enable for WBW_FIFO
+assign wbw_fifo_control_out = wbw_fifo_control ; //control bus output for WBW_FIFO
+assign wbr_fifo_renable_out = wbr_fifo_renable ; //read enable for wbr_fifo
+`endif
 
 endmodule //WB_SLAVE
