@@ -43,12 +43,16 @@
 // CVS Revision History
 //
 // $Log: conf_space.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 `include "constants.v"
+`include "timescale.v"
 
 /*-----------------------------------------------------------------------------------------------------------
 	w_ prefix is a sign for Write (and read) side of Dual-Port registers
@@ -390,14 +394,14 @@ PCI Target configuration registers
 			parameter			pci_image0_conf = 0 ;
 			wire	[2 : 1]		pci_img_ctrl0_bit2_1 = 2'b00 ; // NO pre-fetch and read line support
 			wire				pci_ba0_bit0 = 0 ; // config. space is MEMORY space
-			wire	[31 : 12]	pci_am0 = 20'hffff_f ; // 4KBytes of configuration space
+			wire	[31 : 12]	pci_am0 = `PCI_AM0 ; // 4KBytes of configuration space is minimum
 			wire	[31 : 12]	pci_ta0 = 20'h0000_0 ; // NO address translation needed
 	`endif
 `else // if PCI bridge is GUEST, then IMAGE0 is assigned to PCI configuration space
 			parameter			pci_image0_conf = 0 ;
 			wire	[2 : 1]		pci_img_ctrl0_bit2_1 = 2'b00 ; // NO addr.transl. and pre-fetch
 			wire				pci_ba0_bit0 = 0 ; // config. space is MEMORY space
-			wire	[31 : 12]	pci_am0 = 20'hffff_f ; // 4KBytes of configuration space
+			wire	[31 : 12]	pci_am0 = `PCI_AM0 ; // 4KBytes of configuration space is minimum
 			wire	[31 : 12]	pci_ta0 = 20'h0000_0 ; // NO address translation needed
 `endif
 			parameter			pci_image1 = 1 ;
@@ -619,7 +623,7 @@ WISHBONE Slave configuration registers
 			wire	[2 : 0]		wb_img_ctrl0_bit2_0 = 3'b000 ; // NO addr.transl., pre-fetch and read-line 
 			wire	[31 : 12]	wb_ba0_bit31_12 = `WB_CONFIGURATION_BASE ;
 			wire				wb_ba0_bit0 = 0 ; // config. space is MEMORY space                 
-			wire	[31 : 12]	wb_am0 = 20'hffff_f ; // 4KBytes of configuration space            
+			wire	[31 : 12]	wb_am0 = `WB_AM0 ; // 4KBytes of configuration space is minimum        
 			wire	[31 : 12]	wb_ta0 = 20'h0000_0 ; // NO address translation needed             
 // WB_IMAGE0 and WB_IMAGE1 are included by default meanwhile others are optional !
 			parameter			wb_image1 = 1 ;
@@ -739,7 +743,7 @@ WISHBONE Slave configuration registers
 
 			parameter			wb_image5 = 0 ;
             wire	[2 : 0]		wb_img_ctrl5_bit2_0 = 3'b000 ;
-			wire	[31 : 12]	wb_ba5_bit31_12 = 20'haa00_0 ;    //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			wire	[31 : 12]	wb_ba5_bit31_12 = 20'h0000_0 ;
             wire				wb_ba5_bit0 = 1'b0 ;        
             wire	[31 : 12]	wb_am5 = 20'h0000_0 ;             
             wire	[31 : 12]	wb_ta5 = 20'h0000_0 ;             

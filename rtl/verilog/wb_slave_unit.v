@@ -42,8 +42,11 @@
 // CVS Revision History
 //
 // $Log: wb_slave_unit.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
@@ -51,6 +54,7 @@
 // Wishbone slave unit consists of modules that together form datapath
 // between external WISHBONE masters and external PCI targets
 `include "constants.v"
+`include "timescale.v"
 module WB_SLAVE_UNIT
 (
     reset_in,

@@ -42,13 +42,18 @@
 // CVS Revision History
 //
 // $Log: io_mux_en_mult.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 // this module is provided for downsizing fanout of critical logic cells, which use heavily constrained
 // pci inputs - it is used for AD lines output enable flip flops driven by both master and target
+
+`include "timescale.v"
 
 module IO_MUX_EN_MULT
 (

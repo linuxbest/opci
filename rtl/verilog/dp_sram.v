@@ -43,8 +43,11 @@
 // CVS Revision History
 //
 // $Log: dp_sram.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 // Revision 1.1  2001/08/06 18:12:43  mihad
 // Pocasi delamo kompletno zadevo
@@ -52,6 +55,8 @@
 //
 
 `include "constants.v"
+`include "timescale.v"
+
 // behavioral syncronous read / syncronous write RAM
 module DP_SRAM(reset_in, wclock_in, rclock_in, data_in, raddr_in, waddr_in, data_out, renable_in, wenable_in);
 

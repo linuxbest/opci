@@ -42,14 +42,19 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:29  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 // module includes pci master state machine and surrounding logic
 `include "bus_commands.v"
 `include "constants.v"
+`include "timescale.v"
+
 module PCI_MASTER32_SM
 (
     // system inputs
@@ -415,7 +420,7 @@ assign retry_out = timeout_termination || (~pci_stop_reg_in && ~pci_devsel_reg_i
 // AD output flip flops' clock enable
 // new data is loaded to AD outputs whenever state machine is idle, bus was granted and bus is in idle state or
 // when address phase is about to be finished
-wire load_force = (sm_idle && u_have_pci_bus) || (sm_address && do_write) ;
+wire load_force = (sm_idle && u_have_pci_bus) || sm_address ;
 
 // next data loading is allowed when state machine is in transfer state and operation is a write
 wire load_allow = sm_data_phases && do_write ;

@@ -42,14 +42,19 @@
 // CVS Revision History
 //
 // $Log: pci_io_mux.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:29  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 // this module instantiates output flip flops for PCI interface and
 // some fanout downsizing logic because of heavily constrained PCI signals
 `include "constants.v"
+`include "timescale.v"
+
 module PCI_IO_MUX
 (
     reset_in,

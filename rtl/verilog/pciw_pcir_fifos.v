@@ -42,12 +42,16 @@
 // CVS Revision History
 //
 // $Log: pciw_pcir_fifos.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
 `include "constants.v"
+`include "timescale.v"
 
 module PCIW_PCIR_FIFOS
 ( 

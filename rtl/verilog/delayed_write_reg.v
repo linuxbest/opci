@@ -42,12 +42,17 @@
 // CVS Revision History
 //
 // $Log: delayed_write_reg.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 `include "constants.v"
+`include "timescale.v"
+
 module DELAYED_WRITE_REG
 (
 	reset_in,

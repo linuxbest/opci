@@ -42,13 +42,17 @@
 // CVS Revision History
 //
 // $Log: pci_master32_sm_if.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:29  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 `include "constants.v"
 `include "bus_commands.v"
+`include "timescale.v"
 
 /*====================================================================
 Module provides interface between PCI bridge internals and PCI master

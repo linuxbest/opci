@@ -42,13 +42,18 @@
 // CVS Revision History
 //
 // $Log: frame_crit.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 // module is used to separate logic which uses criticaly constrained inputs from slower logic.
 // It is used to synthesize critical timing logic separately with faster cells or without optimization
+
+`include "timescale.v"
 
 // this one is used in master state machine for driving correct value of frame output
 

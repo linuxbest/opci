@@ -42,14 +42,18 @@
 // CVS Revision History
 //
 // $Log: wbw_fifo_control.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
 /* FIFO_CONTROL module provides read/write address and status generation for
    FIFOs implemented with standard dual port SRAM cells in ASIC or FPGA designs */
 `include "constants.v"
+`include "timescale.v"
 `ifdef FPGA
     // fifo design in FPGA will be synchronous
     `ifdef SYNCHRONOUS

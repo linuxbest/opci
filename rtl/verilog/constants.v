@@ -43,15 +43,11 @@
 // CVS Revision History
 //
 // $Log: constants.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
 //
-// Revision 1.2  2001/08/09 14:42:34  mihad
-// Changed files during testing
-//
-// Revision 1.1  2001/08/06 18:12:43  mihad
-// Pocasi delamo kompletno zadevo
-//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 
 ////////////////////////////////////////////////////////////////////////
@@ -74,14 +70,14 @@
 //  Minimum FIFO depth of any FIFO is 8 - control logic is such that address
 // lengths less than 3 are not supported
 `define FPGA
-`define WBW_DEPTH 32
-`define WBW_ADDR_LENGTH 4 
+`define WBW_DEPTH 16
+`define WBW_ADDR_LENGTH 4
 `define WBR_DEPTH 32
 `define WBR_ADDR_LENGTH 5 
 `define PCIW_DEPTH 32
-`define PCIW_ADDR_LENGTH 6
+`define PCIW_ADDR_LENGTH 5
 `define PCIR_DEPTH 32
-`define PCIR_ADDR_LENGTH 7
+`define PCIR_ADDR_LENGTH 5
 //`define BIG
 
 // if FPGA is not defined (commented out), there can still be control logic
@@ -113,7 +109,7 @@
 // PCI bridge HOST/GUEST implentation
 // - for HOST implementation 'HOST' MUST be written othervise there is GUEST 
 //   implementation and 'GUEST MUST be written !!!
-`define GUEST
+`define HOST
 
 // MAX Retry counter value for WISHBONE Master state-machine
 // 	This value is 8-bit because of 8-bit retry counter !!!
@@ -135,14 +131,14 @@
 //   PCI specification allowes the Configuration space NOT to be visible on the
 //   PCI bus. With `define PCI_IMAGE6 (and `define HOST), we assign PCI_IMAGE0
 //   to normal WB to PCI image and not to configuration space!
-`define PCI_IMAGE3
+`define PCI_IMAGE6
 
-`define PCI_AM0 20'hfff0_0
-`define PCI_AM1 20'hfff0_0
-`define PCI_AM2 20'h0000_0
-`define PCI_AM3 20'h0000_0
-`define PCI_AM4 20'h0000_0
-`define PCI_AM5 20'h0000_0
+`define PCI_AM0 20'hffff_f
+`define PCI_AM1 20'hffff_f
+`define PCI_AM2 20'hffff_f
+`define PCI_AM3 20'hffff_f
+`define PCI_AM4 20'hffff_f
+`define PCI_AM5 20'hffff_f
 // no. of WISHBONE Slave IMAGES
 // - The maximum number of images is "6". By default there are first two images
 //   used and the first (WB_IMAGE0) is assigned to Configuration space! With a
@@ -152,13 +148,15 @@
 //   WB_IMAGE0 is assigned to Configuration space). That leave us WB_IMAGE5 as
 //   the maximum number of images.
 `define WB_IMAGE5
+
+`define WB_AM0 20'hffff_f
 // if WB_CNF_IMAGE is commented out, than access to configuration space from WISHBONE for GUEST bridges is disabled alltogether ( even read only )
 //`define WB_CNF_IMAGE
 
 // decode speed for WISHBONE definition - initial cycle on WISHBONE bus will take 1 WS for FAST, 2 WSs for MEDIUM and 3 WSs for slow. 
 // slower the decode speed, faster the WISHBONE clock can be
-//`define WB_DECODE_FAST
-`define WB_DECODE_MEDIUM
+`define WB_DECODE_FAST
+//`define WB_DECODE_MEDIUM
 //`define WB_DECODE_SLOW
 
 // definition of how many address lines are compared on address decoding for WISHBONE and PCI images. Put a number of smallest image used here.

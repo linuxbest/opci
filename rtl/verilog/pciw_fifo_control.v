@@ -47,6 +47,8 @@
 /* FIFO_CONTROL module provides read/write address and status generation for
    FIFOs implemented with standard dual port SRAM cells in ASIC or FPGA designs */
 `include "constants.v"
+`include "timescale.v"
+
 `ifdef FPGA
     // fifo design in FPGA will be synchronous
     `ifdef SYNCHRONOUS

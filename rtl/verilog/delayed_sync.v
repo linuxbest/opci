@@ -42,14 +42,18 @@
 // CVS Revision History
 //
 // $Log: delayed_sync.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
 // module provides synchronization mechanism between requesting and completing side of the bridge
 `include "constants.v"
 `include "bus_commands.v"
+`include "timescale.v"
 module DELAYED_SYNC
 (
     reset_in,

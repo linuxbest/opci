@@ -42,8 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_target_unit.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
@@ -51,6 +54,7 @@
 // PCI target unit consists of modules that together form datapath
 // between external WISHBONE slaves and external PCI initiators
 `include "constants.v"
+`include "timescale.v"
 
 module PCI_TARGET_UNIT
 (

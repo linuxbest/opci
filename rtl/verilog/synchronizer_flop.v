@@ -1,5 +1,5 @@
 //===========================================================================
-// $Id: synchronizer_flop.v,v 1.1 2001/10/02 15:33:47 mihad Exp $
+// $Id: synchronizer_flop.v,v 1.2 2001/10/05 08:14:30 mihad Exp $
 //
 //////////////////////////////////////////////////////////////////////
 ////                                                              ////
@@ -62,8 +62,11 @@
 // CVS Revision History
 //
 // $Log: synchronizer_flop.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 // Revision 1.5  2001/09/26 21:51:00  Tadej Markovic
 //   Added parameter 'width', if module is used for e.g. bus
@@ -82,7 +85,7 @@
 //
 //
 
-`timescale 1ns/1ps
+`include "timescale.v"
 
 // If the vendor has a flop which is particularly good at settling out of
 //   metastability, it should be used here.

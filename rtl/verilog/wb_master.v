@@ -42,8 +42,11 @@
 // CVS Revision History
 //
 // $Log: wb_master.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
@@ -52,6 +55,7 @@
 
 `include "bus_commands.v"
 `include "constants.v"
+`include "timescale.v"
 
 module WB_MASTER (  wb_clock_in,		// CLK_I
                     reset_in,			// RST_I

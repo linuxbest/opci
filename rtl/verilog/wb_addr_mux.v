@@ -42,13 +42,17 @@
 // CVS Revision History
 //
 // $Log: wb_addr_mux.v,v $
-// Revision 1.1  2001/10/02 15:33:47  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:30  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:47  mihad
+// New project directory structure
 //
 //
 
 // module provides instantiation of address decoders and address multiplexer for various number of implemented wishbone images
 `include "constants.v"
+`include "timescale.v"
 
 module WB_ADDR_MUX
 (

@@ -42,8 +42,11 @@
 // CVS Revision History
 //
 // $Log: conf_cyc_addr_dec.v,v $
-// Revision 1.1  2001/10/02 15:33:46  mihad
-// Initial revision
+// Revision 1.2  2001/10/05 08:14:28  mihad
+// Updated all files with inclusion of timescale file for simulation purposes.
+//
+// Revision 1.1.1.1  2001/10/02 15:33:46  mihad
+// New project directory structure
 //
 //
 
@@ -53,6 +56,8 @@
 // initiated then address goes through unchanged
 
 `include "constants.v"
+`include "timescale.v"
+
 module CONF_CYC_ADDR_DEC
 (
     ccyc_addr_in,
