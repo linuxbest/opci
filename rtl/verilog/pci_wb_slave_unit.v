@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_wb_slave_unit.v,v $
+// Revision 1.4  2006/07/04 13:16:19  mihad
+// Write burst performance patch applied.
+// Not tested. Everything should be backwards
+// compatible, since functional code is ifdefed.
+//
 // Revision 1.3  2004/01/24 11:54:18  mihad
 // Update! SPOCI Implemented!
 //
@@ -414,6 +419,7 @@ wire [3:0]  fifos_wbw_cbe_out ;
 wire [3:0]  fifos_wbw_control_out ;
 wire        fifos_wbw_almost_full_out ;
 wire        fifos_wbw_full_out ;
+wire        fifos_wbw_half_full_out; //Robert, burst issue
 wire        fifos_wbw_empty_out ;
 wire        fifos_wbw_transaction_ready_out ;
 
@@ -467,6 +473,7 @@ wire [3:0]  wbs_sm_del_be_in                =       del_sync_be_out ;
 wire [31:0] wbs_sm_conf_data_in             =       wbu_conf_data_in ;
 wire        wbs_sm_wbw_almost_full_in       =       fifos_wbw_almost_full_out ;
 wire        wbs_sm_wbw_full_in              =       fifos_wbw_full_out ;
+wire        wbs_sm_wbw_half_full_in         =       fifos_wbw_half_full_out; ////Robert, burst issue
 wire [3:0]  wbs_sm_wbr_be_in                =       fifos_wbr_be_out ;
 wire [31:0] wbs_sm_wbr_data_in              =       fifos_wbr_data_out ;
 wire [3:0]  wbs_sm_wbr_control_in           =       fifos_wbr_control_out ;
@@ -518,6 +525,7 @@ pci_wb_slave wishbone_slave(
                         .wbw_fifo_control_out     (wbs_sm_wbw_control_out),
                         .wbw_fifo_almost_full_in  (wbs_sm_wbw_almost_full_in),
                         .wbw_fifo_full_in         (wbs_sm_wbw_full_in),
+                  						.wbw_fifo_half_full_in    (wbs_sm_wbw_half_full_in), ////Robert, burst issue
                         .wbr_fifo_renable_out     (wbs_sm_wbr_renable_out),
                         .wbr_fifo_be_in           (wbs_sm_wbr_be_in),
                         .wbr_fifo_data_in         (wbs_sm_wbr_data_in),
@@ -580,6 +588,7 @@ pci_wbw_wbr_fifos fifos
     .wbw_full_out              (fifos_wbw_full_out),
     .wbw_empty_out             (fifos_wbw_empty_out),
     .wbw_transaction_ready_out (fifos_wbw_transaction_ready_out),
+	 .wbw_half_full_out        (fifos_wbw_half_full_out),////Robert, burst issue
     .wbr_wenable_in            (fifos_wbr_wenable_in),
     .wbr_data_in               (fifos_wbr_data_in),
     .wbr_be_in                 (fifos_wbr_be_in),

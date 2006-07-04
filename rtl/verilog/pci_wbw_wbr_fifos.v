@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_wbr_fifos.v,v $
+// Revision 1.7  2006/07/04 13:16:19  mihad
+// Write burst performance patch applied.
+// Not tested. Everything should be backwards
+// compatible, since functional code is ifdefed.
+//
 // Revision 1.6  2003/12/19 11:11:30  mihad
 // Compact PCI Hot Swap support added.
 // New testcases added.
@@ -100,6 +105,8 @@
 `include "timescale.v"
 // synopsys translate_on
 
+
+
 module pci_wbw_wbr_fifos
 (
     wb_clock_in,
@@ -118,6 +125,7 @@ module pci_wbw_wbr_fifos
     wbw_full_out,
     wbw_empty_out,
     wbw_transaction_ready_out,
+	 wbw_half_full_out, ////Robert, burst issue
     wbr_wenable_in,
     wbr_data_in,
     wbr_be_in,
@@ -128,6 +136,7 @@ module pci_wbw_wbr_fifos
     wbr_control_out,
     wbr_flush_in,
     wbr_empty_out
+	 
 
 `ifdef PCI_BIST
     ,
@@ -193,6 +202,7 @@ output wbw_almost_full_out ;
 output wbw_full_out ;
 output wbw_empty_out ;
 output wbw_transaction_ready_out ;
+output wbw_half_full_out; ////Robert, burst issue
 
 /*-----------------------------------------------------------------------------------------------------------
 WISHBONE READ FIFO interface signals prefixed with wbr_ - FIFO is used for holding delayed read completions
@@ -365,7 +375,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
     pci_wb_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbw_fifo_storage
     (
-        // Generic synchronous two-port RAM interface
+        /////////////////Generic synchronous two-port RAM interface
         .clk_a(wb_clock_in),
         .rst_a(reset_in),
         .ce_a(1'b1),
@@ -391,7 +401,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
         .mbist_ctrl_i       (mbist_ctrl_i)
     `endif
     );
-
+	 
     pci_wb_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbr_fifo_storage
     (
         // Generic synchronous two-port RAM interface
@@ -420,6 +430,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
         .mbist_ctrl_i       (mbist_ctrl_i)
     `endif
     );
+
 
 `else // RAM blocks sharing between two fifos
 
@@ -484,6 +495,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
 
 `endif
 
+
 /*-----------------------------------------------------------------------------------------------------------
 Instantiation of two control logic modules - one for WBW_FIFO and one for WBR_FIFO
 -----------------------------------------------------------------------------------------------------------*/
@@ -494,14 +506,15 @@ pci_wbw_fifo_control #(WBW_ADDR_LENGTH) wbw_fifo_ctrl
     .renable_in(wbw_renable_in),
     .wenable_in(wbw_wenable_in),
     .reset_in(reset_in),
-//    .flush_in(wbw_flush_in),
+//////////////////////////////    .flush_in(wbw_flush_in),
     .almost_full_out(wbw_almost_full_out),
     .full_out(wbw_full_out),
     .empty_out(wbw_empty),
     .waddr_out(wbw_waddr),
     .raddr_out(wbw_raddr),
     .rallow_out(wbw_rallow),
-    .wallow_out(wbw_wallow)
+    .wallow_out(wbw_wallow),
+	.half_full_out(wbw_half_full_out) ////Robert, burst issue
 );
 
 pci_wbr_fifo_control #(WBR_ADDR_LENGTH) wbr_fifo_ctrl

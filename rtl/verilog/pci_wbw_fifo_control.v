@@ -42,6 +42,11 @@
 // CVS Revision History
 //
 // $Log: pci_wbw_fifo_control.v,v $
+// Revision 1.5  2006/07/04 13:16:19  mihad
+// Write burst performance patch applied.
+// Not tested. Everything should be backwards
+// compatible, since functional code is ifdefed.
+//
 // Revision 1.4  2003/08/14 13:06:03  simons
 // synchronizer_flop replaced with pci_synchronizer_flop, artisan ram instance updated.
 //
@@ -99,10 +104,11 @@ module pci_wbw_fifo_control
     waddr_out,
     raddr_out,
     rallow_out,
-    wallow_out
+    wallow_out,
+	half_full_out ////Robert, burst issue
 );
 
-parameter ADDR_LENGTH = 7 ;
+parameter ADDR_LENGTH = 7;
 
 // independent clock inputs - rclock_in = read clock, wclock_in = write clock
 input  rclock_in, wclock_in;
@@ -128,6 +134,8 @@ output [(ADDR_LENGTH - 1):0] waddr_out, raddr_out;
 
 // read and write allow outputs
 output rallow_out, wallow_out ;
+
+output half_full_out;
 
 // read address register
 reg [(ADDR_LENGTH - 1):0] raddr ;
@@ -164,6 +172,15 @@ assign rallow_out = renable_in & ~empty_out ; // reads allowed if read enable is
 // at any clock edge that rallow is high, this register provides next read address, so wait cycles are not necessary
 // when FIFO is empty, this register provides actual read address, so first location can be read
 reg [(ADDR_LENGTH - 1):0] raddr_plus_one ;
+
+
+wire [ADDR_LENGTH :0] fifo_fullness; //Robert, burst issue
+
+//Robert, burst issue
+assign fifo_fullness = (waddr > raddr) ? ({1'b0, waddr} - {1'b0, raddr}) : ({1'b1, waddr} - {1'b0, raddr});
+assign half_full_out   = fifo_fullness[(ADDR_LENGTH - 1)] ;
+//Robert, burst issue
+
 
 // address output mux - when FIFO is empty, current actual address is driven out, when it is non - empty next address is driven out
 // done for zero wait state burst
