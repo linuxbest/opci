@@ -459,10 +459,10 @@ assign  spoci_sda_o = 1'b0  ;
    output 	 i_idle;	// TODO
 
    /* target state machine */
-   output 	 idle;		// TODO
-   output 	 b_busy;	// TODO
-   output 	 s_data;	// TODO
-   output 	 backoff;	// TODO
+   output 	 idle;		// C0
+   output 	 b_busy;	// C0
+   output 	 s_data;	// C0
+   output 	 backoff;	// C0
 
    /* misc signals */
    output 	 frameq_n;	// S1
@@ -1265,9 +1265,13 @@ pci_target_unit pci_target_unit
     ,
  /*AUTOINST*/
  // Outputs
+ .b_busy				(b_busy),
+ .backoff				(backoff),
  .base_hit				(base_hit[7:0]),
  .cfg_hit				(cfg_hit),
+ .idle					(idle),
  .pci_cmd				(pci_cmd[15:0]),
+ .s_data				(s_data),
  .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld));
 
