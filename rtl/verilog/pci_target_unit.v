@@ -203,7 +203,7 @@ module pci_target_unit
     ,
     /*AUTOARG*/
    // Outputs
-   addr_vld
+   s_wrdn, pci_cmd, addr_vld
    );
 
 `ifdef HOST
@@ -324,7 +324,13 @@ input   mbist_si_i;       // bist scan serial in
 output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
-
+   
+   /*AUTOINPUT*/
+   /*AUTOOUTPUT*/
+   // Beginning of automatic outputs (from unused autoinst outputs)
+   output [15:0]	pci_cmd;		// From pci_target_if of pci_target32_interface.v
+   output		s_wrdn;			// From pci_target_sm of pci_target32_sm.v
+   // End of automatics
 
 // pci target state machine and interface outputs
 wire        pcit_sm_trdy_out ;
@@ -846,8 +852,10 @@ pci_target32_interface pci_target_if
     .addr_tran_en2_in               (pcit_if_addr_tran_en2_in),
     .addr_tran_en3_in               (pcit_if_addr_tran_en3_in),
     .addr_tran_en4_in               (pcit_if_addr_tran_en4_in),
-    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in)
-) ;
+    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in),
+ /*AUTOINST*/
+ // Outputs
+ .pci_cmd				(pci_cmd[15:0])); 
 
 // pci target state machine inputs
 wire        pcit_sm_frame_in                    =   pciu_pciif_frame_in ;
@@ -944,8 +952,10 @@ pci_target32_sm pci_target_sm
     .pcir_fifo_data_err_in              (pcit_sm_pcir_fifo_data_err_in),
     .wbw_fifo_empty_in                  (pcit_sm_wbw_fifo_empty_in),
     .wbu_del_read_comp_pending_in		(pcit_sm_wbu_del_read_comp_pending_in),
-    .wbu_frame_en_in                    (pcit_sm_wbu_frame_en_in)
-) ;
+    .wbu_frame_en_in                    (pcit_sm_wbu_frame_en_in),
+ /*AUTOINST*/
+ // Outputs
+ .s_wrdn				(s_wrdn)); 
 
    output   addr_vld;
    assign addr_vld = pcit_sm_addr_phase_out;

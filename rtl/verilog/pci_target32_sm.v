@@ -155,9 +155,11 @@ module pci_target32_sm
     pcir_fifo_data_err_in,
     wbw_fifo_empty_in,
     wbu_del_read_comp_pending_in,
-    wbu_frame_en_in
-
-) ;
+    wbu_frame_en_in,
+ /*AUTOARG*/
+   // Outputs
+   s_wrdn
+   ) ;
 
 /*----------------------------------------------------------------------------------------------------------------------
 Various parameters needed for state machine and other stuff
@@ -256,7 +258,8 @@ input			wbu_del_read_comp_pending_in ; // Indicates that WB SÈAVE UNIT has a del
 input           wbu_frame_en_in ;           // Indicates that WB SLAVE UNIT is accessing the PCI bus (important if
                                             //   address on PCI bus is also claimed by decoder in this PCI TARGET UNIT
 output          target_abort_set_out ;      // Signal used to be set in configuration space registers
-
+   output 	s_wrdn;
+   
 /*==================================================================================================================
 END of input / output PORT DEFINITONS !!!
 ==================================================================================================================*/
@@ -754,5 +757,8 @@ assign  address_out = pci_ad_reg_in ;
 assign  bc_out = pci_cbe_reg_in ;
 assign  bc0_out = rw_cbe0 ;
 
-
+   /* write is 1
+    * read  is 0 */
+   assign s_wrdn = rw_cbe0;
+   
 endmodule

@@ -209,8 +209,11 @@ module pci_target32_interface
 	addr_tran_en2_in,
 	addr_tran_en3_in,
 	addr_tran_en4_in,
-	addr_tran_en5_in
-) ;
+	addr_tran_en5_in,
+ /*AUTOARG*/
+   // Outputs
+   pci_cmd
+   ) ;
 
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
@@ -959,4 +962,35 @@ assign	burst_ok_out = (norm_bc[3] && addr_burst_ok) || (norm_bc[2] && norm_prf_e
 //assign	conf_re_out = fetch_conf_in ;
 assign	conf_re_out = 1'b0 ;
 
+   output [15:0] pci_cmd;
+   reg [15:0] 	 pci_cmd;
+   always @(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  pci_cmd <= #1 16'h0;
+	else if (addr_phase_in) begin
+	   case (bc_in)
+	     4'h0:   pci_cmd <= #1 16'b0000_0000_0000_0001;
+	     4'h1:   pci_cmd <= #1 16'b0000_0000_0000_0010;
+	     4'h2:   pci_cmd <= #1 16'b0000_0000_0000_0100;
+	     4'h3:   pci_cmd <= #1 16'b0000_0000_0000_1000;
+	     
+	     4'h4:   pci_cmd <= #1 16'b0000_0000_0001_0000;
+	     4'h5:   pci_cmd <= #1 16'b0000_0000_0010_0000;
+	     4'h6:   pci_cmd <= #1 16'b0000_0000_0100_0000;
+	     4'h7:   pci_cmd <= #1 16'b0000_0000_1000_0000;
+	     
+	     4'h8:   pci_cmd <= #1 16'b0000_0001_0000_0000;
+	     4'h9:   pci_cmd <= #1 16'b0000_0010_0000_0000;
+	     4'ha:   pci_cmd <= #1 16'b0000_0100_0000_0000;
+	     4'hb:   pci_cmd <= #1 16'b0000_1000_0000_0000;
+	     
+	     4'hc:   pci_cmd <= #1 16'b0001_0000_0000_0000;
+	     4'hd:   pci_cmd <= #1 16'b0010_0000_0000_0000;
+	     4'he:   pci_cmd <= #1 16'b0100_0000_0000_0000;
+	     4'hf:   pci_cmd <= #1 16'b1000_0000_0000_0000;
+	   endcase
+	end
+     end
+   
 endmodule

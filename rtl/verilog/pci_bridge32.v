@@ -1225,6 +1225,8 @@ pci_target_unit pci_target_unit
     ,
  /*AUTOINST*/
  // Outputs
+ .pci_cmd				(pci_cmd[15:0]),
+ .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld));
 
 
