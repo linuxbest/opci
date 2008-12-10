@@ -158,7 +158,7 @@ module pci_target32_sm
     wbu_frame_en_in,
  /*AUTOARG*/
    // Outputs
-   s_wrdn, idle, b_busy, s_data, backoff
+   s_wrdn, idle, b_busy, s_data, backoff, s_data_vld
    ) ;
 
 /*----------------------------------------------------------------------------------------------------------------------
@@ -264,6 +264,8 @@ output          target_abort_set_out ;      // Signal used to be set in configur
    output 	b_busy;
    output 	s_data;
    output 	backoff;
+
+   output 	s_data_vld;
    
 /*==================================================================================================================
 END of input / output PORT DEFINITONS !!!
@@ -766,7 +768,9 @@ assign  bc0_out = rw_cbe0 ;
     * read  is 0 */
    assign s_wrdn = rw_cbe0;
    assign idle   = c_state == S_IDLE;
-   assign s_data = c_state == S_DATA;
+   assign s_data = c_state == S_TRANSFERE;
    assign b_busy = 1'bz;
+
+   assign s_data_vld = sel_fifo_mreg_out;
    
 endmodule

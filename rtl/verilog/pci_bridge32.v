@@ -427,7 +427,7 @@ assign  spoci_sda_o = 1'b0  ;
    /* target control */
    output 	 addr_vld;	// C1 
    output 	 cfg_vld;	// C1 
-   output 	 s_data_vld;	// S1 
+   output 	 s_data_vld;	// C1 
    output 	 s_src_en;	// TODO 
    output 	 s_wrdn;	// S1 
    output [15:0] pci_cmd;	// C1 
@@ -1272,6 +1272,7 @@ pci_target_unit pci_target_unit
  .idle					(idle),
  .pci_cmd				(pci_cmd[15:0]),
  .s_data				(s_data),
+ .s_data_vld				(s_data_vld),
  .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld));
 
