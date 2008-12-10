@@ -1689,5 +1689,6 @@ pci_in_reg input_register
      end
 
    assign cfg_vld = addr_vld && pci_idsel_i;
+   assign s_cbe   = in_reg_cbe_out;
    
 endmodule
