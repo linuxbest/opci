@@ -1225,6 +1225,8 @@ pci_target_unit pci_target_unit
     ,
  /*AUTOINST*/
  // Outputs
+ .base_hit				(base_hit[7:0]),
+ .cfg_hit				(cfg_hit),
  .pci_cmd				(pci_cmd[15:0]),
  .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld));

@@ -212,7 +212,7 @@ module pci_target32_interface
 	addr_tran_en5_in,
  /*AUTOARG*/
    // Outputs
-   pci_cmd
+   pci_cmd, base_hit, cfg_hit
    ) ;
 
 `ifdef HOST
@@ -992,5 +992,11 @@ assign	conf_re_out = 1'b0 ;
 	   endcase
 	end
      end
+
+   output [7:0] base_hit;
+   assign base_hit = {4'h0, hit2_in, hit1_in, hit0_in};
+
+   output cfg_hit;
+   assign cfg_hit = hit0_conf;
    
 endmodule

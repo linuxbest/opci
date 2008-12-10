@@ -203,7 +203,7 @@ module pci_target_unit
     ,
     /*AUTOARG*/
    // Outputs
-   s_wrdn, pci_cmd, addr_vld
+   s_wrdn, pci_cmd, cfg_hit, base_hit, addr_vld
    );
 
 `ifdef HOST
@@ -328,6 +328,8 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    /*AUTOINPUT*/
    /*AUTOOUTPUT*/
    // Beginning of automatic outputs (from unused autoinst outputs)
+   output [7:0]		base_hit;		// From pci_target_if of pci_target32_interface.v
+   output		cfg_hit;		// From pci_target_if of pci_target32_interface.v
    output [15:0]	pci_cmd;		// From pci_target_if of pci_target32_interface.v
    output		s_wrdn;			// From pci_target_sm of pci_target32_sm.v
    // End of automatics
@@ -855,7 +857,9 @@ pci_target32_interface pci_target_if
     .addr_tran_en5_in               (pcit_if_addr_tran_en5_in),
  /*AUTOINST*/
  // Outputs
- .pci_cmd				(pci_cmd[15:0])); 
+ .pci_cmd				(pci_cmd[15:0]),
+ .base_hit				(base_hit[7:0]),
+ .cfg_hit				(cfg_hit)); 
 
 // pci target state machine inputs
 wire        pcit_sm_frame_in                    =   pciu_pciif_frame_in ;
