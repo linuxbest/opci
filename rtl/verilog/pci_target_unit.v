@@ -200,7 +200,11 @@ module pci_target_unit
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
-);
+    ,
+    /*AUTOARG*/
+   // Outputs
+   addr_vld
+   );
 
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
@@ -943,4 +947,7 @@ pci_target32_sm pci_target_sm
     .wbu_frame_en_in                    (pcit_sm_wbu_frame_en_in)
 ) ;
 
+   output   addr_vld;
+   assign addr_vld = pcit_sm_addr_phase_out;
+   
 endmodule

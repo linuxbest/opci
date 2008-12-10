@@ -251,10 +251,16 @@ module pci_bridge32
     spoci_scl_oe_o  ,
     spoci_sda_i     ,
     spoci_sda_o     ,
-    spoci_sda_oe_o
+    spoci_sda_oe_o  
 `endif
-
-);
+  , 
+  /*AUTOARG*/
+   // Outputs
+   addr, adio_out, addr_vld, cfg_vld, s_data_vld, s_src_en,
+   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit,
+   // Inputs
+   adio_in, c_ready, c_term, s_ready, s_term, s_abort
+   );
 
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
@@ -408,6 +414,27 @@ assign  spoci_scl_o = 1'b0  ;
 assign  spoci_sda_o = 1'b0  ;
 `endif
 
+   /* Address and Data Path */   
+   output [31:0] addr;
+   input [31:0]  adio_in; 
+   output [31:0] adio_out;
+   
+   /* target control */
+   output 	 addr_vld;
+   output 	 cfg_vld;
+   output 	 s_data_vld;
+   output 	 s_src_en;
+   output 	 s_wrdn;
+   output [15:0] pci_cmd;
+   output [3:0]  s_cbe;
+   output [7:0]  base_hit;
+   output 	 cfg_hit;
+   input 	 c_ready;
+   input 	 c_term;
+   input 	 s_ready;
+   input 	 s_term;
+   input 	 s_abort;
+   
 // declare clock and reset wires
 wire pci_clk = pci_clk_i ;
 wire wb_clk  = wb_clk_i ;
@@ -1195,7 +1222,10 @@ pci_target_unit pci_target_unit
     .mbist_so_o       (mbist_so_o),
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
-);
+    ,
+ /*AUTOINST*/
+ // Outputs
+ .addr_vld				(addr_vld));
 
 
 // CONFIGURATION SPACE INPUTS
@@ -1650,4 +1680,14 @@ pci_in_reg input_register
     .pci_cbe_reg_out    (in_reg_cbe_out)
 );
 
+   assign adio_out = in_reg_ad_out;
+   reg [31:0] 	addr;
+   always @(posedge pci_clk)
+     begin
+	if (addr_vld)
+	  addr <= #1 adio_out;
+     end
+
+   assign cfg_vld = addr_vld && pci_idsel_i;
+   
 endmodule
