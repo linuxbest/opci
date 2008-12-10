@@ -746,6 +746,13 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
    assign optional = pci_cmd[15:0] == 16'h80 && addr[31:0] == 32'h10000114;
    wire load     = bar_0_wr & s_data_vld;
    wire oe       = bar_0_rd & s_data;
+   reg [31:0] q;
+   always @(posedge CLK or posedge RST_I)
+     begin
+	if (load)
+	  q <= #1 adio_out;
+     end
+   assign adio_in = oe ? q : 32'hz;
 
    always @(posedge CLK or posedge RST_I)
      begin
@@ -755,7 +762,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 	  s_abort <= #1 1'b0;
      end
 
-   always @(posedge CLK_I or posedge RST_I)
+   always @(posedge CLK or posedge RST_I)
      begin
 	if (RST_I)
 	  s_ready <= #1 1'b0;
@@ -763,14 +770,14 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 	  s_ready <= #1 1'b1;
      end
 
-   always @(posedge CLK_I or posedge RST_I) 
+   always @(posedge CLK or posedge RST_I) 
      begin
 	if (RST_I)
 	  s_term <= #1 1'b0;
 	else
 	  s_term <= #1 1'b1;
      end
-   
+
 endmodule // TOP
 
 // Local Variables:
