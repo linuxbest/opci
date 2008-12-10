@@ -420,21 +420,21 @@ assign  spoci_sda_o = 1'b0  ;
 `endif
 
    /* Address and Data Path */   
-   output [31:0] addr;		/* S1 */
-   input [31:0]  adio_in;	/* S1 */
-   output [31:0] adio_out;	/* DONE */
+   output [31:0] addr;		// C1 
+   input [31:0]  adio_in;	// TODO 
+   output [31:0] adio_out;	// C1 
    
    /* target control */
-   output 	 addr_vld;	/* S1 */
-   output 	 cfg_vld;	/* S1 */
-   output 	 s_data_vld;	/* S1 */
-   output 	 s_src_en;	/* TODO */
-   output 	 s_wrdn;	/* S1 */
-   output [15:0] pci_cmd;	/* S1 */
-   output [3:0]  s_cbe;		/* S1 */
-   output [7:0]  base_hit;	/* S1 */
-   output 	 cfg_hit;	/* S1 */
-   input 	 c_ready;	/* TODO */
+   output 	 addr_vld;	// C1 
+   output 	 cfg_vld;	// C1 
+   output 	 s_data_vld;	// S1 
+   output 	 s_src_en;	// TODO 
+   output 	 s_wrdn;	// S1 
+   output [15:0] pci_cmd;	// C1 
+   output [3:0]  s_cbe;		// C1 
+   output [7:0]  base_hit;	// S1 XXX 
+   output 	 cfg_hit;	// C1 
+   input 	 c_ready;	// TODO 
    input 	 c_term;	// TODO
    input 	 s_ready;	// TODO
    input 	 s_term;	// TODO
@@ -1732,7 +1732,7 @@ pci_in_reg input_register
 	  addr <= #1 adio_out;
      end
 
-   assign cfg_vld = addr_vld && pci_idsel_i;
+   assign cfg_vld = addr_vld && in_reg_idsel_out;
    assign s_cbe   = in_reg_cbe_out;
 
    assign frameq_n = in_reg_frame_out;

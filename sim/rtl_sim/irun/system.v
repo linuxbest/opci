@@ -969,7 +969,7 @@ begin
     $fdisplay(pci_mon_log_file_desc, "*********************************** Start PCI Bus Monitor log file ******************************************") ;
 
     $dumpfile("pci.vcd");
-    $dumpvars(0, SYSTEM.bridge32_top); 
+    //$dumpvars(0, SYSTEM.bridge32_top); 
 
     run_tests ;
 end
@@ -1137,12 +1137,15 @@ begin
             $display("########################################################################") ;
             $display("########################################################################") ;
 `endif
+            $dumpvars(0, SYSTEM.bridge32_top); 
+
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
 
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
                 test_conf_cycle_type1_reference ;
             `endif
+            
 
             `ifdef HOST
              `ifdef NO_CNF_IMAGE
@@ -1157,8 +1160,11 @@ begin
              `endif
             `endif
 
+
             $display("PCI image 1 is ALWAYS implemented!") ;
             test_pci_image(1) ;
+            
+            $finish;
 
             `ifdef PCI_IMAGE2
             $display("PCI image 2 is implemented!") ;
