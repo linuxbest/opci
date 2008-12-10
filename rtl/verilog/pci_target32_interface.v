@@ -994,9 +994,17 @@ assign	conf_re_out = 1'b0 ;
      end
 
    output [7:0] base_hit;
-   assign base_hit = {4'h0, hit2_in, hit1_in, hit0_in};
-
+   reg [7:0] 	base_hit;
+   always @(posedge clk_in)
+     begin
+	base_hit <= #1 {4'h0, hit2_in, hit1_in, hit0_in};
+     end
+   
    output cfg_hit;
-   assign cfg_hit = hit0_conf;
+   reg 	  cfg_hit;
+   always @(posedge clk_in)
+     begin
+	cfg_hit <= #1 hit0_conf;
+     end
    
 endmodule

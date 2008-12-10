@@ -429,7 +429,7 @@ assign  spoci_sda_o = 1'b0  ;
    output 	 cfg_vld;	// C1 
    output 	 s_data_vld;	// C1 
    output 	 s_src_en;	// TODO 
-   output 	 s_wrdn;	// S1 
+   output 	 s_wrdn;	// C1 
    output [15:0] pci_cmd;	// C1 
    output [3:0]  s_cbe;		// C1 
    output [7:0]  base_hit;	// S1 XXX 

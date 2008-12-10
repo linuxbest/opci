@@ -770,7 +770,7 @@ assign  bc0_out = rw_cbe0 ;
    assign idle   = c_state == S_IDLE;
    assign s_data = c_state == S_TRANSFERE;
    assign b_busy = 1'bz;
-
+   
    assign s_data_vld = sel_fifo_mreg_out;
    
 endmodule
