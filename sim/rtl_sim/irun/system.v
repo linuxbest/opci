@@ -1146,7 +1146,7 @@ begin
                 test_conf_cycle_type1_reference ;
             `endif
             
-
+`ifdef WB_ENABLE
             `ifdef HOST
              `ifdef NO_CNF_IMAGE
               `ifdef PCI_IMAGE0
@@ -1212,7 +1212,11 @@ begin
         `else
             target_completion_expiration ;
         `endif
-
+`else
+            lg_test_pci;
+#50;
+            $finish;
+`endif
             $display(" ") ;
             $display("PCI transaction ordering tests finished!") ;
         end
@@ -24534,6 +24538,43 @@ begin:main
 
 end
 endtask // test_target_io_err_wr
+
+task lg_test_pci ;
+    reg   [11:0] offset;
+    reg   [31:0] data;
+    reg   [PCI_BUS_DATA_RANGE:0] pci_address;
+    reg   [PCI_BUS_CBE_RANGE:0]  byte_enables_l; // active LOW
+    reg   ok;
+begin
+    $display(" ");
+    $display("########################################################################") ;
+    $display("LG test PCI");
+    test_name = "PCI IMAGE SETTINGS" ;
+    offset = 12'h114;
+    data   = 32'h12153524;
+    byte_enables_l = ~4'hF;
+
+    pci_address = Target_Base_Addr_R[0] | { 20'h0, offset} ;
+    fork 
+     begin
+     DO_REF ("MEM_W_CONF", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
+                    PCI_COMMAND_MEMORY_WRITE, data[PCI_BUS_DATA_RANGE:0],
+                    byte_enables_l[PCI_BUS_CBE_RANGE:0],
+                    `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
+                    8'h0_0, `Test_One_Zero_Target_WS,
+                    `Test_Devsel_Medium, `Test_No_Fast_B2B,
+                    `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
+     do_pause( 1 ) ;
+    end
+    begin
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+      @(posedge pci_clock) ;
+    end
+   join
+   repeat( 2 )
+   @(posedge wb_clock) ;
+end
+endtask
 
 task test_pci_image ;
     input [2:0]  image_num ;
