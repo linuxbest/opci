@@ -415,25 +415,25 @@ assign  spoci_sda_o = 1'b0  ;
 `endif
 
    /* Address and Data Path */   
-   output [31:0] addr;
-   input [31:0]  adio_in; 
-   output [31:0] adio_out;
+   output [31:0] addr;		/* S1 */
+   input [31:0]  adio_in;	/* S1 */
+   output [31:0] adio_out;	/* DONE */
    
    /* target control */
-   output 	 addr_vld;
-   output 	 cfg_vld;
-   output 	 s_data_vld;
-   output 	 s_src_en;
-   output 	 s_wrdn;
-   output [15:0] pci_cmd;
-   output [3:0]  s_cbe;
-   output [7:0]  base_hit;
-   output 	 cfg_hit;
-   input 	 c_ready;
-   input 	 c_term;
-   input 	 s_ready;
-   input 	 s_term;
-   input 	 s_abort;
+   output 	 addr_vld;	/* S1 */
+   output 	 cfg_vld;	/* S1 */
+   output 	 s_data_vld;	/* S1 */
+   output 	 s_src_en;	/* TODO */
+   output 	 s_wrdn;	/* S1 */
+   output [15:0] pci_cmd;	/* S1 */
+   output [3:0]  s_cbe;		/* S1 */
+   output [7:0]  base_hit;	/* S1 */
+   output 	 cfg_hit;	/* S1 */
+   input 	 c_ready;	/* TODO */
+   input 	 c_term;	// TODO
+   input 	 s_ready;	// TODO
+   input 	 s_term;	// TODO
+   input 	 s_abort;	// TODO
    
 // declare clock and reset wires
 wire pci_clk = pci_clk_i ;
