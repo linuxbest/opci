@@ -257,9 +257,14 @@ module pci_bridge32
   /*AUTOARG*/
    // Outputs
    addr, adio_out, addr_vld, cfg_vld, s_data_vld, s_src_en,
-   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit,
+   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit, m_data_vld,
+   m_src_en, time_out, m_data, dr_bus, m_addr_n, i_idle,
+   idle, b_busy, s_data, backoff, frameq_n, devselq_n,
+   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n,
    // Inputs
-   adio_in, c_ready, c_term, s_ready, s_term, s_abort
+   adio_in, c_ready, c_term, s_ready, s_term, s_abort,
+   request, requesthold, m_cbe, m_wrdn, complete, m_ready,
+   cfg_self, int_n
    );
 
 `ifdef HOST
@@ -434,6 +439,41 @@ assign  spoci_sda_o = 1'b0  ;
    input 	 s_ready;	// TODO
    input 	 s_term;	// TODO
    input 	 s_abort;	// TODO
+
+   /* initiator control */
+   input 	 request;	// TODO
+   input 	 requesthold;	// TODO
+   input [3:0] 	 m_cbe;		// TODO
+   input 	 m_wrdn;	// TODO
+   input 	 complete;	// TODO
+   input 	 m_ready;	// TODO
+   output 	 m_data_vld;	// TODO
+   output 	 m_src_en;	// TODO
+   input 	 cfg_self;	// TODO
+   output 	 time_out;	// TODO
+   
+   /* initiator state machine */
+   output 	 m_data;	// TODO
+   output 	 dr_bus;	// TODO
+   output 	 m_addr_n;	// TODO
+   output 	 i_idle;	// TODO
+
+   /* target state machine */
+   output 	 idle;		// TODO
+   output 	 b_busy;	// TODO
+   output 	 s_data;	// TODO
+   output 	 backoff;	// TODO
+
+   /* misc signals */
+   output 	 frameq_n;	// S1
+   output 	 devselq_n;	// S1
+   output 	 irdyq_n;	// S1
+   output 	 trdyq_n;	// S1
+   output 	 stopq_n;	// S1
+   
+   output 	 perrq_n;	// TODO
+   output 	 serrq_n;	// TODO
+   input 	 int_n;		// TODO
    
 // declare clock and reset wires
 wire pci_clk = pci_clk_i ;
@@ -1694,5 +1734,11 @@ pci_in_reg input_register
 
    assign cfg_vld = addr_vld && pci_idsel_i;
    assign s_cbe   = in_reg_cbe_out;
-   
+
+   assign frameq_n = in_reg_frame_out;
+   assign devselq_n= in_reg_devsel_out;
+   assign irdyq_n  = in_reg_irdy_out;
+   assign trdyq_n  = in_reg_trdy_out;
+   assign stopq_n  = in_reg_stop_out;
+
 endmodule
