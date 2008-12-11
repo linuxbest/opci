@@ -204,7 +204,9 @@ module pci_target_unit
     /*AUTOARG*/
    // Outputs
    s_wrdn, s_data_vld, s_data, pci_cmd, idle, cfg_hit,
-   base_hit, backoff, b_busy, addr_vld
+   base_hit, backoff, b_busy, addr_vld,
+   // Inputs
+   s_term, s_ready, s_abort, c_term, c_ready
    );
 
 `ifdef HOST
@@ -327,6 +329,13 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
 `endif
    
    /*AUTOINPUT*/
+   // Beginning of automatic inputs (from unused autoinst inputs)
+   input		c_ready;		// To pci_target_sm of pci_target32_sm.v
+   input		c_term;			// To pci_target_sm of pci_target32_sm.v
+   input		s_abort;		// To pci_target_sm of pci_target32_sm.v
+   input		s_ready;		// To pci_target_sm of pci_target32_sm.v
+   input		s_term;			// To pci_target_sm of pci_target32_sm.v
+   // End of automatics
    /*AUTOOUTPUT*/
    // Beginning of automatic outputs (from unused autoinst outputs)
    output		b_busy;			// From pci_target_sm of pci_target32_sm.v
@@ -970,7 +979,13 @@ pci_target32_sm pci_target_sm
  .b_busy				(b_busy),
  .s_data				(s_data),
  .backoff				(backoff),
- .s_data_vld				(s_data_vld)); 
+ .s_data_vld				(s_data_vld),
+ // Inputs
+ .c_ready				(c_ready),
+ .c_term				(c_term),
+ .s_ready				(s_ready),
+ .s_term				(s_term),
+ .s_abort				(s_abort)); 
 
    output   addr_vld;
    assign addr_vld = pcit_sm_addr_phase_out;

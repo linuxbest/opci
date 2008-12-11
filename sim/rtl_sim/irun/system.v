@@ -1141,7 +1141,7 @@ begin
 `endif
 
             $display("Testing PCI target images' features!") ;
-            configure_bridge_target_base_addresses ;
+            //configure_bridge_target_base_addresses ;
 
 `ifdef WB_ENABLE
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
@@ -24558,7 +24558,8 @@ begin
                     0,                      /* type */
                     4'hF,                   /* byte enable */
                     data);
-
+#100;
+    $finish;
     data = 32'h12345678;
     configuration_cycle_write(8'h00,         /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */

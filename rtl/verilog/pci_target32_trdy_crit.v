@@ -73,17 +73,19 @@ module pci_target32_trdy_crit
     pci_trdy_out
 );
 
-input       trdy_w ;			// trdy signal (composed without critical signals) that do not need critical inputs
-input       trdy_w_frm ;		// trdy signal (composed without critical signals) that needs AND with critical FRAME input
-input       trdy_w_frm_irdy ;	// trdy signal (composed without critical signals) that needs AND with critical FRAME and
-								// IRDY inputs
-input       pci_frame_in ;		// critical constrained input signal
-input		pci_irdy_in ;		// critical constrained input signal
-
-output		pci_trdy_out ;		// PCI trdy output
-
+   input       trdy_w ;			// trdy signal (composed without critical signals) that do not need critical inputs
+   input       trdy_w_frm ;		// trdy signal (composed without critical signals) that needs AND with critical FRAME input
+   input       trdy_w_frm_irdy ;	// trdy signal (composed without critical signals) that needs AND with critical FRAME and
+   // IRDY inputs
+   input       pci_frame_in ;		// critical constrained input signal
+   input       pci_irdy_in ;		// critical constrained input signal
+   
+   output      pci_trdy_out ;		// PCI trdy output
+   
 // PCI trdy output with preserved hierarchy for minimum delay!
-assign 	pci_trdy_out = ~(trdy_w || (trdy_w_frm && ~pci_frame_in) || (trdy_w_frm_irdy && ~pci_frame_in && pci_irdy_in)) ;
+assign 	pci_trdy_out = ~(trdy_w || 
+			 (trdy_w_frm && ~pci_frame_in) || 
+			 (trdy_w_frm_irdy && ~pci_frame_in && pci_irdy_in)) ;
 
 
 endmodule

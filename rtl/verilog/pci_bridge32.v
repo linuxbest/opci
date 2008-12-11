@@ -1274,7 +1274,13 @@ pci_target_unit pci_target_unit
  .s_data				(s_data),
  .s_data_vld				(s_data_vld),
  .s_wrdn				(s_wrdn),
- .addr_vld				(addr_vld));
+ .addr_vld				(addr_vld),
+ // Inputs
+ .c_ready				(c_ready),
+ .c_term				(c_term),
+ .s_abort				(s_abort),
+ .s_ready				(s_ready),
+ .s_term				(s_term));
 
 
 // CONFIGURATION SPACE INPUTS

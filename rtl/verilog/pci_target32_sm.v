@@ -158,7 +158,9 @@ module pci_target32_sm
     wbu_frame_en_in,
  /*AUTOARG*/
    // Outputs
-   s_wrdn, idle, b_busy, s_data, backoff, s_data_vld
+   s_wrdn, idle, b_busy, s_data, backoff, s_data_vld,
+   // Inputs
+   c_ready, c_term, s_ready, s_term, s_abort
    ) ;
 
 /*----------------------------------------------------------------------------------------------------------------------
@@ -258,6 +260,12 @@ input			wbu_del_read_comp_pending_in ; // Indicates that WB SÈAVE UNIT has a del
 input           wbu_frame_en_in ;           // Indicates that WB SLAVE UNIT is accessing the PCI bus (important if
                                             //   address on PCI bus is also claimed by decoder in this PCI TARGET UNIT
 output          target_abort_set_out ;      // Signal used to be set in configuration space registers
+
+   input 	c_ready;
+   input 	c_term;
+   input 	s_ready;
+   input 	s_term;
+   input 	s_abort;
    
    output 	s_wrdn;
    output 	idle;
@@ -436,17 +444,19 @@ end
 
 // Signal used in S_WAIT state to determin next state
 wire s_wait_progress =  (
-                        (~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
-                        (~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && ~target_abort_in && ~pcir_fifo_data_err_in) ||
-                        (~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && ~target_abort_in) ||
-                        (cnf_progress && ~target_abort_in)
-                        ) ;
-
+                         (~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
+                         (~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && 
+			  ~target_abort_in && ~pcir_fifo_data_err_in) ||
+                         (~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && 
+			  ~target_abort_in) ||
+                         (cnf_progress && ~target_abort_in)
+                         ) ;
+   
 // Signal used in S_TRANSFERE state to determin next state
 wire s_tran_progress =  (
-                        (rw_cbe0 && !disconect_wo_data) ||
-                        (~rw_cbe0 && !disconect_wo_data && !target_abort_in && !pcir_fifo_data_err_in)
-                        ) ;
+                         (rw_cbe0 && !disconect_wo_data) ||
+                         (~rw_cbe0 && !disconect_wo_data && !target_abort_in && !pcir_fifo_data_err_in)
+                         ) ;
 
 // Clock enable for PCI state machine driven directly from critical inputs - FRAME and IRDY
 wire            pcit_sm_clk_en ;
@@ -475,15 +485,18 @@ assign config_disconnect = sm_transfere && (norm_access_to_conf_reg || cnf_progr
 // Clock enable module used for preserving the architecture because of minimum delay for critical inputs
 pci_target32_clk_en pci_target_clock_en
 (
-    .addr_phase             (addr_phase),
-    .config_access          (config_access),
-    .addr_claim_in          (addr_claim_in),
-    .pci_frame_in           (pci_frame_in),
-    .state_wait             (state_wait),
     .state_transfere        (sm_transfere),
-    .state_default          (state_default),
-    .clk_enable             (pcit_sm_clk_en)
-);
+    .clk_enable             (pcit_sm_clk_en),
+ /*AUTOINST*/
+ // Inputs
+ .addr_phase				(addr_phase),
+ .config_access				(config_access),
+ .addr_claim_in				(addr_claim_in),
+ .pci_frame_in				(pci_frame_in),
+ .state_wait				(state_wait),
+ .state_default				(state_default),
+ .c_ready				(c_ready),
+ .c_term				(c_term));
 
 reg [2:0]  c_state ; //current state register
 reg [2:0]  n_state ; //next state input to current state register
@@ -532,32 +545,40 @@ end
         // if not retry and not target abort
         // NO CRITICAL SIGNALS
 wire    trdy_w          =   (
-        (state_wait && ~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
-        (state_wait && ~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && ~target_abort_in && !pcir_fifo_data_err_in) ||
-        (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && ~target_abort_in) ||
-        (state_wait && cnf_progress && ~target_abort_in)
-                            ) ;
+			     (state_wait && ~cnf_progress && rw_cbe0 && wr_progress &&
+			      ~target_abort_in) ||
+			     (state_wait && ~cnf_progress && ~rw_cbe0 && same_read_reg && 
+			      rd_progress && ~target_abort_in && !pcir_fifo_data_err_in) ||
+			     (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && 
+			      norm_access_to_conf_reg && ~target_abort_in) ||
+			     (state_wait && cnf_progress && ~target_abort_in) 
+			     ) ;
         // if not disconnect without data and not target abort (only during reads)
         // MUST BE ANDED WITH CRITICAL ~FRAME
 wire    trdy_w_frm      =   (
-        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && rw_cbe0 && !disconect_wo_data) ||
-        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && ~rw_cbe0 && !disconect_wo_data && ~pcir_fifo_data_err_in) ||
-        (state_transfere && !cnf_progress && !norm_access_to_conf_reg && disconect_w_data && pci_irdy_reg_in && 
-                                                                         ((~rw_cbe0 && ~pcir_fifo_data_err_in) || rw_cbe0))
-                            ) ;
+			     (state_transfere && !cnf_progress && !norm_access_to_conf_reg && 
+			      rw_cbe0 && !disconect_wo_data) ||
+			     (state_transfere && !cnf_progress && !norm_access_to_conf_reg && 
+			      ~rw_cbe0 && !disconect_wo_data && ~pcir_fifo_data_err_in) ||
+			     (state_transfere && !cnf_progress && !norm_access_to_conf_reg && 
+			      disconect_w_data && pci_irdy_reg_in &&
+			      ((~rw_cbe0 && ~pcir_fifo_data_err_in) || rw_cbe0)) 
+			     ) ;
         // if not disconnect without data and not target abort (only during reads)
         // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
 wire    trdy_w_frm_irdy =   ( ~bckp_trdy_in ) ;
 // TRDY critical module used for preserving the architecture because of minimum delay for critical inputs
 pci_target32_trdy_crit pci_target_trdy_critical
 (
-    .trdy_w                 (trdy_w),
-    .trdy_w_frm             (trdy_w_frm),
-    .trdy_w_frm_irdy        (trdy_w_frm_irdy),
-    .pci_frame_in           (pci_frame_in),
-    .pci_irdy_in            (pci_irdy_in),
-    .pci_trdy_out           (pci_trdy_out)
-);
+ /*AUTOINST*/
+ // Outputs
+ .pci_trdy_out				(pci_trdy_out),
+ // Inputs
+ .trdy_w				(trdy_w),
+ .trdy_w_frm				(trdy_w_frm),
+ .trdy_w_frm_irdy			(trdy_w_frm_irdy),
+ .pci_frame_in				(pci_frame_in),
+ .pci_irdy_in				(pci_irdy_in));
 
         // if target abort or retry
         // NO CRITICAL SIGNALS
@@ -601,25 +622,27 @@ wire    devs_w          =   (
         // if not target abort (only during reads) or if asserted, wait for deactivating the frame
         // MUST BE ANDED WITH CRITICAL ~FRAME
 wire    devs_w_frm      =   (
-        (state_transfere && rw_cbe0) ||
-        (state_transfere && ~rw_cbe0 && ~pcir_fifo_data_err_in) ||
-        (state_backoff && ~bckp_devsel_in)
-                            ) ;
-        // if not target abort (only during reads)
-        // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
-wire    devs_w_frm_irdy =   (
-        (state_transfere && ~rw_cbe0 && pcir_fifo_data_err_in)
-                            ) ;
-// DEVSEL critical module used for preserving the architecture because of minimum delay for critical inputs
+			     (state_transfere && rw_cbe0) ||
+			     (state_transfere && ~rw_cbe0 && ~pcir_fifo_data_err_in) ||
+			     (state_backoff && ~bckp_devsel_in)
+                             ) ;
+   // if not target abort (only during reads)
+   // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
+   wire devs_w_frm_irdy =   (
+			     (state_transfere && ~rw_cbe0 && pcir_fifo_data_err_in)
+                             ) ;
+   // DEVSEL critical module used for preserving the architecture because of minimum delay for critical inputs
 pci_target32_devs_crit pci_target_devsel_critical
-(
-    .devs_w                 (devs_w),
-    .devs_w_frm             (devs_w_frm),
-    .devs_w_frm_irdy        (devs_w_frm_irdy),
-    .pci_frame_in           (pci_frame_in),
-    .pci_irdy_in            (pci_irdy_in),
-    .pci_devsel_out         (pci_devsel_out)
-);
+ (
+ /*AUTOINST*/
+ // Outputs
+ .pci_devsel_out			(pci_devsel_out),
+ // Inputs
+ .devs_w				(devs_w),
+ .devs_w_frm				(devs_w_frm),
+ .devs_w_frm_irdy			(devs_w_frm_irdy),
+ .pci_frame_in				(pci_frame_in),
+ .pci_irdy_in				(pci_irdy_in));
 
 // signal used in AD enable module with preserving the hierarchy because of minimum delay for critical inputs
 assign	pci_ad_en_out =    (

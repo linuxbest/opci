@@ -73,17 +73,19 @@ module pci_target32_devs_crit
     pci_devsel_out
 );
 
-input       devs_w ;			// devsel signal (composed without critical signals) that do not need critical inputs
-input       devs_w_frm ;		// devsel signal (composed without critical signals) that needs AND with critical FRAME input
-input       devs_w_frm_irdy ;	// devsel signal (composed without critical signals) that needs AND with critical FRAME and
-								// IRDY inputs
-input       pci_frame_in ;		// critical constrained input signal
-input		pci_irdy_in ;		// critical constrained input signal
-
-output		pci_devsel_out ;	// PCI devsel output
-
-// PCI devsel output with preserved hierarchy for minimum delay!
-assign 	pci_devsel_out = ~(devs_w || (devs_w_frm && ~pci_frame_in) || (devs_w_frm_irdy && ~pci_frame_in && pci_irdy_in)) ;
+   input       devs_w ;			// devsel signal (composed without critical signals) that do not need critical inputs
+   input       devs_w_frm ;		// devsel signal (composed without critical signals) that needs AND with critical FRAME input
+   input       devs_w_frm_irdy ;	// devsel signal (composed without critical signals) that needs AND with critical FRAME and
+   // IRDY inputs
+   input       pci_frame_in ;		// critical constrained input signal
+   input       pci_irdy_in ;		// critical constrained input signal
+   
+   output      pci_devsel_out ;	// PCI devsel output
+   
+   // PCI devsel output with preserved hierarchy for minimum delay!
+   assign 	pci_devsel_out = ~(devs_w || 
+				   (devs_w_frm && ~pci_frame_in) || 
+				   (devs_w_frm_irdy && ~pci_frame_in && pci_irdy_in)) ;
 
 
 endmodule
