@@ -1983,7 +1983,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[0])
 						interrupt_line <= w_conf_data[7:0] ;
 				end
-`ifdef          PCI_WB_BRIDGE
+/*`ifdef          PCI_WB_BRIDGE*/
 				// PCI target - configuration space
 `ifdef		HOST
   `ifdef	NO_CNF_IMAGE
@@ -2467,7 +2467,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
                     end
                 end
 `endif
-`endif /* PCI_WB_BRIDGE */
+/*`endif /* PCI_WB_BRIDGE */
 		end // end of we
 
         // Not register bits; used only internally after reset!

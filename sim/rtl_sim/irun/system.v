@@ -1007,6 +1007,8 @@ begin
     wb_subseq_waits        = 0 ;
     pci_subseq_waits       = 0 ;
     tb_target_decode_speed = 0 ;
+            
+    $dumpvars(0, SYSTEM.bridge32_top); 
 
     // first - reset logic
     do_reset ;
@@ -1137,7 +1139,6 @@ begin
             $display("########################################################################") ;
             $display("########################################################################") ;
 `endif
-            $dumpvars(0, SYSTEM.bridge32_top); 
 
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
