@@ -1024,7 +1024,7 @@ begin
 
     //additional test of all reset values
     //Some values have been changed in test_initial_conf_values 
-   test_initial_all_conf_values;
+   //test_initial_all_conf_values;
 
 
 `ifdef PCI_CPCI_HS_IMPLEMENT
@@ -1142,11 +1142,11 @@ begin
             $display("Testing PCI target images' features!") ;
             configure_bridge_target_base_addresses ;
 
+`ifdef WB_ENABLE
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
                 test_conf_cycle_type1_reference ;
             `endif
             
-`ifdef WB_ENABLE
             `ifdef HOST
              `ifdef NO_CNF_IMAGE
               `ifdef PCI_IMAGE0
@@ -24546,6 +24546,35 @@ task lg_test_pci ;
     reg   [PCI_BUS_CBE_RANGE:0]  byte_enables_l; // active LOW
     reg   ok;
 begin
+    $display(" ");
+    $display("########################################################################") ;
+    $display("########################################################################") ;
+    $display("CONF READ PCI");
+    configuration_cycle_read(8'h00,         /* bus number */
+                    `TAR0_IDSEL_INDEX - 11, /* device number */
+                    0,                      /* function */
+                    1,                      /* register */
+                    0,                      /* type */
+                    4'hF,                   /* byte enable */
+                    data);
+
+    data = 32'h12345678;
+    configuration_cycle_write(8'h00,         /* bus number */
+                    `TAR0_IDSEL_INDEX - 11, /* device number */
+                    0,                      /* function */
+                    8'h20,                  /* register */
+                    0,                      /* type */
+                    4'hF,                   /* byte enable */
+                    data);
+
+    configuration_cycle_read(8'h00,         /* bus number */
+                    `TAR0_IDSEL_INDEX - 11, /* device number */
+                    0,                      /* function */
+                    8'h20,                  /* register */
+                    0,                      /* type */
+                    4'hF,                   /* byte enable */
+                    data);
+
     $display(" ");
     $display("########################################################################") ;
     $display("LG test PCI");

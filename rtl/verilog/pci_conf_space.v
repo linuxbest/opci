@@ -946,6 +946,7 @@ end
         end
     `endif
     	8'hf: r_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
+`ifdef PCI_WB_ENABLE
     `ifdef PCI_CPCI_HS_IMPLEMENT
         (`PCI_CAP_PTR_VAL >> 2):
         begin
@@ -1198,6 +1199,7 @@ end
                                   spoci_cs_adr[7:0],
                                   spoci_cs_dat[7:0]} ;
     `endif
+`endif
     	default	: r_conf_data_out = 32'h0000_0000 ;
     	endcase
     end
@@ -1345,6 +1347,7 @@ begin
 		w_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
 		w_reg_select_dec = 57'h000_0000_0000_0004 ;
 	end
+`ifdef PCI_WB_BRIDGE
 `ifdef PCI_CPCI_HS_IMPLEMENT
     (`PCI_CAP_PTR_VAL >> 2):
     begin
@@ -1720,7 +1723,7 @@ begin
         w_reg_select_dec = 57'h000_0000_0000_0000 ;
     end
 `endif
-
+`endif /* PCI_WB_BRIDGE */
 	default:
 	begin
 		w_conf_data_out = 32'h0000_0000 ;
@@ -1980,6 +1983,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[0])
 						interrupt_line <= w_conf_data[7:0] ;
 				end
+`ifdef          PCI_WB_BRIDGE
 				// PCI target - configuration space
 `ifdef		HOST
   `ifdef	NO_CNF_IMAGE
@@ -2463,6 +2467,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
                     end
                 end
 `endif
+`endif /* PCI_WB_BRIDGE */
 		end // end of we
 
         // Not register bits; used only internally after reset!
