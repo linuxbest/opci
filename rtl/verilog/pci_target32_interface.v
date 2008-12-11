@@ -589,32 +589,22 @@ wire			pre_fetch_en5 = 1'b0 ;
 					) ;
 `endif
 
-// Internal signals for image hit determination
-reg				addr_claim ;// address claim signal is asinchronous set for addr_claim_out signal to PCI Target SM
-
-// Determining if image 0 is assigned to configuration space or as normal pci to wb access!
-//   if normal access is allowed to configuration space, then hit0 is hit0_conf
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-			parameter	hit0_conf = 1'b0 ;
-	`else
-			parameter	hit0_conf = 1'b1 ;	// if normal access is allowed to configuration space, then hit0 is hit0_conf
-	`endif
-`else // GUEST
-			parameter	hit0_conf = 1'b1 ;	// if normal access is allowed to configuration space, then hit0 is hit0_conf
-`endif
-
-// Logic with address mux, determining if address is still in the same image space and if it is prefetced or not
-always@(hit5_in or     hit4_in or     hit3_in or     hit2_in or     hit1_in or     hit0_in or
-		address5_in or address4_in or address3_in or address2_in or address1_in or address0_in or
-		pre_fetch_en5 or
-		pre_fetch_en4 or
-		pre_fetch_en3 or
-		pre_fetch_en2 or
-		pre_fetch_en1 or
-		pre_fetch_en0
-		)
-begin
+   // Internal signals for image hit determination
+   reg 			addr_claim ;
+   // address claim signal is asinchronous set for addr_claim_out signal to PCI Target SM
+   
+   // Determining if image 0 is assigned to configuration space or as normal pci to wb access!
+   //   if normal access is allowed to configuration space, then hit0 is hit0_conf
+   
+   // Logic with address mux, determining if address is still in the same image space and if it is prefetced or not
+   always@(/*AS*/address0_in or address1_in or address2_in
+	   or address3_in or address4_in or address5_in
+	   or hit0_in or hit1_in or hit2_in or hit3_in
+	   or hit4_in or hit5_in or pre_fetch_en0
+	   or pre_fetch_en1 or pre_fetch_en2
+	   or pre_fetch_en3 or pre_fetch_en4
+	   or pre_fetch_en5)
+     begin
 	addr_claim <= (hit5_in || hit4_in) || (hit3_in || hit2_in || hit1_in || hit0_in) ;
 	case ({hit5_in, hit4_in, hit3_in, hit2_in, hit0_in})
 	5'b10000 :
@@ -650,318 +640,270 @@ begin
 	endcase
 end
 
-// Address claim output to PCI Target SM
-assign	addr_claim_out = addr_claim ;
-
-reg		[31:0]	norm_address ;		// stored normal address (decoded and translated) for access to WB
-reg				norm_prf_en ;		// stored pre-fetch enable
-reg		[3:0]	norm_bc ;			// stored bus-command
-reg				same_read_reg ;		// stored SAME_READ information
-reg				target_rd ;		// delayed registered TRDY output equivalent signal
-
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-	begin
-		norm_address <= #`FF_DELAY 32'h0000_0000 ;
-		norm_prf_en <= #`FF_DELAY 1'b0 ;
-		norm_bc <= #`FF_DELAY 4'h0 ;
-		same_read_reg <= #`FF_DELAY 1'b0 ;
-	end
+   // Address claim output to PCI Target SM
+   assign	addr_claim_out = addr_claim ;
+   
+   reg		[31:0]	norm_address ;		// stored normal address (decoded and translated) for access to WB
+   reg 			norm_prf_en ;		// stored pre-fetch enable
+   reg [3:0] 		norm_bc ;			// stored bus-command
+   reg 			same_read_reg ;		// stored SAME_READ information
+   reg 			target_rd ;		// delayed registered TRDY output equivalent signal
+   
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  begin
+	     norm_address <= #`FF_DELAY 32'h0000_0000 ;
+	     norm_prf_en <= #`FF_DELAY 1'b0 ;
+	     norm_bc <= #`FF_DELAY 4'h0 ;
+	     same_read_reg <= #`FF_DELAY 1'b0 ;
+	  end
 	else
-	begin
-		if (addr_phase_in)
-		begin
-			norm_address <= #`FF_DELAY address ;
-			norm_prf_en <= #`FF_DELAY pre_fetch_en ;
-			norm_bc <= #`FF_DELAY bc_in ;
-			same_read_reg <= #`FF_DELAY same_read_out ;
-		end
-	end
-end
-
-`ifdef		HOST
-  `ifdef	NO_CNF_IMAGE
-			reg		 [1:0]	strd_address ;		// stored INPUT address for accessing Configuration space registers
-  `else
-			reg		[11:0]	strd_address ;		// stored INPUT address for accessing Configuration space registers
-  `endif
-`else
-			reg		[11:0]	strd_address ;		// stored INPUT address for accessing Configuration space registers
-`endif
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-	begin
-		strd_address <= #`FF_DELAY 0 ;
-	end
+	  begin
+	     if (addr_phase_in)
+	       begin
+		  norm_address <= #`FF_DELAY address ;
+		  norm_prf_en <= #`FF_DELAY pre_fetch_en ;
+		  norm_bc <= #`FF_DELAY bc_in ;
+		  same_read_reg <= #`FF_DELAY same_read_out ;
+	       end
+	  end
+     end
+   
+   reg		[11:0]	strd_address ;		// stored INPUT address for accessing Configuration space registers
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  begin
+	     strd_address <= #`FF_DELAY 0 ;
+	  end
 	else
-	begin
-		if (addr_phase_in)
-		begin
-`ifdef		HOST
-  `ifdef	NO_CNF_IMAGE
-			strd_address <= #`FF_DELAY address_in[1:0] ;
-  `else
-			strd_address <= #`FF_DELAY address_in[11:0] ;
-  `endif
-`else
-			strd_address <= #`FF_DELAY address_in[11:0] ;
-`endif
-		end
-	end
-end
-
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-	begin
-		target_rd		<= #`FF_DELAY 1'b0 ;
-	end
+	  begin
+	     if (addr_phase_in)
+	       begin
+		  strd_address <= #`FF_DELAY address_in[11:0] ;
+	       end
+	  end
+     end
+   
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  begin
+	     target_rd		<= #`FF_DELAY 1'b0 ;
+	  end
 	else
-	begin
-		if (same_read_reg && !bckp_trdy_in)
-			target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
-		else if (same_read_reg && bckp_devsel_in && !bckp_stop_in)
-			target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
-		else if ((!same_read_reg) || (last_reg_in && target_rd))
-			target_rd	<= #`FF_DELAY 1'b0 ;// Signal indicates when target ready is deaserted on PCI bus
-	end
-end
-// '1' indicates asserted TRDY signal when same read operation is performed
-wire	target_rd_completed	= target_rd ;
-
-reg				same_read_request ;
-
-// When delayed read is completed on WB, addres and bc must be compered, if there is the same read request
-always@(address or strd_addr_in or bc_in or strd_bc_in)
-begin
+	  begin
+	     if (same_read_reg && !bckp_trdy_in)
+	       target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
+	     else if (same_read_reg && bckp_devsel_in && !bckp_stop_in)
+	       target_rd	<= #`FF_DELAY 1'b1 ;// Signal indicates when target ready is deaserted on PCI bus
+	     else if ((!same_read_reg) || (last_reg_in && target_rd))
+	       target_rd	<= #`FF_DELAY 1'b0 ;// Signal indicates when target ready is deaserted on PCI bus
+	  end
+     end
+   // '1' indicates asserted TRDY signal when same read operation is performed
+   wire	target_rd_completed	= target_rd ;
+   
+   reg 	same_read_request ;
+   
+   // When delayed read is completed on WB, addres and bc must be compered, if there is the same read request
+   always@(address or strd_addr_in or bc_in or strd_bc_in)
+     begin
 	if ((address == strd_addr_in) & (bc_in == strd_bc_in))
-		same_read_request <= 1'b1 ;
+	  same_read_request <= 1'b1 ;
 	else
-		same_read_request <= 1'b0 ;
-end
-
-assign	same_read_out = (same_read_request) ; // && ~pcir_fifo_empty_in) ;
-
-// Signals for byte enable checking
-reg				addr_burst_ok ;
-reg				io_be_ok ;
-
-// Byte enable checking for IO, MEMORY and CONFIGURATION spaces - be_in is active low!
-always@(strd_address or be_in)
-begin
+	  same_read_request <= 1'b0 ;
+     end
+   
+   assign	same_read_out = (same_read_request) ; // && ~pcir_fifo_empty_in) ;
+   
+   // Signals for byte enable checking
+   reg				addr_burst_ok ;
+   reg				io_be_ok ;
+   
+   // Byte enable checking for IO, MEMORY and CONFIGURATION spaces - be_in is active low!
+   always@(strd_address or be_in)
+     begin
 	case (strd_address[1:0])
-	2'b11 :
-	begin
-		addr_burst_ok <= 1'b0 ;
-		io_be_ok <= (be_in[2] && be_in[1] && be_in[0]) ; // only be3 can be active
-	end
-	2'b10 :
-	begin
-		addr_burst_ok <= 1'b0 ;
-		io_be_ok <= (~be_in[2] && be_in[1] && be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-	end
-	2'b01 :
-	begin
-		addr_burst_ok <= 1'b0 ;
-		io_be_ok <= (~be_in[1] && be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-	end
-	default :	// 2'b00
-	begin
-		addr_burst_ok <= 1'b1 ;
-		io_be_ok <= (~be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
-	end
+	  2'b11 :
+	    begin
+	       addr_burst_ok <= 1'b0 ;
+	       io_be_ok <= (be_in[2] && be_in[1] && be_in[0]) ; // only be3 can be active
+	    end
+	  2'b10 :
+	    begin
+	       addr_burst_ok <= 1'b0 ;
+	       io_be_ok <= (~be_in[2] && be_in[1] && be_in[0]) ||
+			   (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
+	    end
+	  2'b01 :
+	    begin
+	       addr_burst_ok <= 1'b0 ;
+	       io_be_ok <= (~be_in[1] && be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
+	    end
+	  default :	// 2'b00
+	    begin
+	       addr_burst_ok <= 1'b1 ;
+	       io_be_ok <= (~be_in[0]) || (be_in[3] && be_in[2] && be_in[1] && be_in[0]) ;
+	    end
 	endcase
-end
+     end
+   
+   wire calc_target_abort = (norm_bc[3:1] == `BC_IO_RW) ? !io_be_ok : 1'b0 ;
+   
+   wire [3:0] pcir_fifo_control_input = pcir_fifo_empty_in ? 4'h0 : pcir_fifo_control_in ;
+   
+   // Medium registers for data and control busses from PCIR_FIFO
+   reg [31:0] pcir_fifo_data_reg ;
+   reg [3:0]  pcir_fifo_ctrl_reg ;
+   
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  begin
+    	     pcir_fifo_data_reg <= #`FF_DELAY 32'h0000_0000 ;
+    	     pcir_fifo_ctrl_reg <=  #`FF_DELAY 4'h0 ;
+	  end
+	else
+	  begin
+    	     if (load_medium_reg_in)
+    	       begin
+    		  pcir_fifo_data_reg <= #`FF_DELAY pcir_fifo_data_in ;
+    		  pcir_fifo_ctrl_reg <= #`FF_DELAY pcir_fifo_control_input ;
+    	       end
+	  end
+     end
+   
+   // when disconnect is signalled, the next data written to fifo will be the last
+   // also when this happens, disconnect must stay asserted until last data is written to the fifo
+   reg keep_desconnect_wo_data_set ;
+   
+   // selecting "fifo data" from medium registers or from PCIR_FIFO
+   wire [31:0] pcir_fifo_data = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_data_in : pcir_fifo_data_reg ;
+   wire [3:0]  pcir_fifo_ctrl = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_control_input : pcir_fifo_ctrl_reg ;
+   
+   // signal assignments to PCI Target FSM
+   assign	read_completed_out = req_comp_pending_in ; // completion pending input for requesting side of the bridge
+   assign	read_processing_out = req_req_pending_in ; // request pending input for requesting side
+   // when '1', the bus command is IO command - not supported commands are checked in pci_decoder modules
+   wire        io_memory_bus_command = !norm_bc[3] && !norm_bc[2] ;
+   assign	disconect_wo_data_out = (
+					 ((/*pcir_fifo_ctrl[`LAST_CTRL_BIT] ||*/ 
+					   pcir_fifo_empty_in || 
+					   ~burst_ok_out/*addr_burst_ok*/ || 
+					   io_memory_bus_command) && 
+					  ~bc0_in && ~frame_reg_in) ||
+					 ((pciw_fifo_full_in || pciw_fifo_almost_full_in || 
+					   keep_desconnect_wo_data_set || pciw_fifo_two_left_in || 
+					   (pciw_fifo_three_left_in && pciw_fifo_wenable) || ~addr_burst_ok || 
+					   io_memory_bus_command) && 
+					  bc0_in && ~frame_reg_in)
+					 ) ;
+   assign	disconect_w_data_out =	(
+					 ( burst_ok_out  && !io_memory_bus_command && ~bc0_in ) || 
+					 ( addr_burst_ok && !io_memory_bus_command && bc0_in )
+					 ) ;
+   assign	target_abort_out = ( ~addr_phase_in && calc_target_abort ) ;
+   
+   // signal assignments to PCI Target FSM
+   assign	norm_access_to_config_out = (hit0_in && hit0_conf) ;
+   // control signal assignments to read request sinchronization module
+   assign	done_out =  (~sel_conf_fifo_in && target_rd_completed && last_reg_in) ;
+   assign	in_progress_out = (~sel_conf_fifo_in && same_read_reg && ~bckp_trdy_in) ;
+   // signal used for PCIR_FIFO flush (with comp_flush_in signal)
+   wire        pcir_fifo_flush = (~sel_conf_fifo_in && target_rd_completed && last_reg_in && ~pcir_fifo_empty_in) ;
 
-wire calc_target_abort = (norm_bc[3:1] == `BC_IO_RW) ? !io_be_ok : 1'b0 ;
+   // flush signal for PCIR_FIFO must be registered, since it asinchronously resets some status registers
+   wire        pcir_fifo_flush_reg ;
+   pci_async_reset_flop async_reset_as_pcir_flush
+     (
+      .data_in        	  (comp_flush_in || pcir_fifo_flush),
+      .clk_in         	  (clk_in),
+      .async_reset_data_out (pcir_fifo_flush_reg),
+      .reset_in    		  (reset_in)
+      ) ;
+   
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+          keep_desconnect_wo_data_set     <= #1 1'b0 ;
+	else if (keep_desconnect_wo_data_set && pciw_fifo_wenable)
+          keep_desconnect_wo_data_set     <= #1 1'b0 ;
+	else if (pciw_fifo_wenable && disconect_wo_data_out)
+          keep_desconnect_wo_data_set     <= #1 1'b1 ;
+     end
+   
+   
+   // signal assignments from fifo to PCI Target FSM
+   assign	wbw_fifo_empty_out = wbw_fifo_empty_in ;
+   assign	wbu_del_read_comp_pending_out = wbu_del_read_comp_pending_in ;
+   assign	pciw_fifo_full_out = (pciw_fifo_full_in || 
+				      pciw_fifo_almost_full_in || 
+				      pciw_fifo_two_left_in || 
+				      pciw_fifo_three_left_in) ;
+   assign	pcir_fifo_data_err_out = pcir_fifo_ctrl[`DATA_ERROR_CTRL_BIT] && !sel_conf_fifo_in ;
+   // signal assignments to PCIR FIFO fifo
+   assign	pcir_fifo_flush_out    = pcir_fifo_flush_reg ;
+   assign	pcir_fifo_renable_out  = fetch_pcir_fifo_in && !pcir_fifo_empty_in ;
+   
+   // signal assignments to PCIW FIFO
+   reg          pciw_fifo_wenable_out;
+   assign       pciw_fifo_wenable = load_to_pciw_fifo_in ;
+   reg [3:0] 	pciw_fifo_control_out;
+   reg [31:0] 	pciw_fifo_addr_data_out;
+   reg [3:0] 	pciw_fifo_cbe_out;
+   always@(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  begin
+             pciw_fifo_wenable_out   <= #1 1'b0;
+             pciw_fifo_control_out   <= #1 4'h0;
+             // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
+             pciw_fifo_addr_data_out <= #1 32'h0; 
+             pciw_fifo_cbe_out       <= #1 4'h0;
+	  end
+	else
+	  begin
+             pciw_fifo_wenable_out                       <= #1 load_to_pciw_fifo_in ;
+             pciw_fifo_control_out[`ADDR_CTRL_BIT]       <= #1 ~rdy_in ;
+             pciw_fifo_control_out[`BURST_BIT]           <= #1 rdy_in ? ~frame_reg_in : 1'b0 ;
+             // if '1' then next burst BE is not equat to current one => burst will be chopped into single transfers
+             pciw_fifo_control_out[`DATA_ERROR_CTRL_BIT] <= #1 rdy_in && (next_be_in != be_in) && ~bckp_trdy_in; // valid comp. 
+             pciw_fifo_control_out[`LAST_CTRL_BIT]       <= #1 rdy_in && (frame_reg_in || (bckp_trdy_in && ~bckp_stop_in));
+             // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
+             pciw_fifo_addr_data_out                     <= #1 rdy_in ? data_in : {norm_address[31:2], 
+										   norm_address[1] && io_memory_bus_command, 
+										   norm_address[0] && io_memory_bus_command} ; 
+             pciw_fifo_cbe_out                           <= #1 rdy_in ? be_in : norm_bc ;
+	  end
+     end
+   
+   // data and address outputs assignments to PCI Target FSM
+   assign	data_out = sel_conf_fifo_in ? conf_data_in : pcir_fifo_data ;
 
-wire [3:0]	pcir_fifo_control_input = pcir_fifo_empty_in ? 4'h0 : pcir_fifo_control_in ;
-
-// Medium registers for data and control busses from PCIR_FIFO
-reg		[31:0]	pcir_fifo_data_reg ;
-reg		[3:0]	pcir_fifo_ctrl_reg ;
-
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-    begin
-    	pcir_fifo_data_reg <= #`FF_DELAY 32'h0000_0000 ;
-    	pcir_fifo_ctrl_reg <=  #`FF_DELAY 4'h0 ;
-    end
-    else
-    begin
-    	if (load_medium_reg_in)
-    	begin
-    		pcir_fifo_data_reg <= #`FF_DELAY pcir_fifo_data_in ;
-    		pcir_fifo_ctrl_reg <= #`FF_DELAY pcir_fifo_control_input ;
-    	end
-    end
-end
-
-// when disconnect is signalled, the next data written to fifo will be the last
-// also when this happens, disconnect must stay asserted until last data is written to the fifo
-reg keep_desconnect_wo_data_set ;
-
-// selecting "fifo data" from medium registers or from PCIR_FIFO
-wire [31:0]	pcir_fifo_data = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_data_in : pcir_fifo_data_reg ;
-wire [3:0]	pcir_fifo_ctrl = (sel_fifo_mreg_in && !pcir_fifo_empty_in) ? pcir_fifo_control_input : pcir_fifo_ctrl_reg ;
-
-// signal assignments to PCI Target FSM
-assign	read_completed_out = req_comp_pending_in ; // completion pending input for requesting side of the bridge
-assign	read_processing_out = req_req_pending_in ; // request pending input for requesting side
-  // when '1', the bus command is IO command - not supported commands are checked in pci_decoder modules
-  wire	io_memory_bus_command = !norm_bc[3] && !norm_bc[2] ;
-assign	disconect_wo_data_out = (
-	((/*pcir_fifo_ctrl[`LAST_CTRL_BIT] ||*/ pcir_fifo_empty_in || ~burst_ok_out/*addr_burst_ok*/ || io_memory_bus_command) && 
-		~bc0_in && ~frame_reg_in) ||
-	((pciw_fifo_full_in || pciw_fifo_almost_full_in || keep_desconnect_wo_data_set || pciw_fifo_two_left_in || 
-                (pciw_fifo_three_left_in && pciw_fifo_wenable) || ~addr_burst_ok || io_memory_bus_command) && 
-		bc0_in && ~frame_reg_in)
-								) ;
-assign	disconect_w_data_out =	(
-	( burst_ok_out  && !io_memory_bus_command && ~bc0_in ) || 
-	( addr_burst_ok && !io_memory_bus_command && bc0_in )
-								) ;
-assign	target_abort_out = ( ~addr_phase_in && calc_target_abort ) ;
-
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-			// signal assignments to PCI Target FSM
-			assign	norm_access_to_config_out = 1'b0 ;
-			// control signal assignments to read request sinchronization module
-			assign	done_out =  (target_rd_completed && last_reg_in) ;
-			assign	in_progress_out = (same_read_reg && ~bckp_trdy_in) ;
-			// signal used for PCIR_FIFO flush (with comp_flush_in signal)
-			wire	pcir_fifo_flush = (target_rd_completed && last_reg_in && ~pcir_fifo_empty_in) ;
-	`else
-			// signal assignments to PCI Target FSM
-			assign	norm_access_to_config_out = (hit0_in && hit0_conf) ;
-			// control signal assignments to read request sinchronization module
-			assign	done_out =  (~sel_conf_fifo_in && target_rd_completed && last_reg_in) ;
-			assign	in_progress_out = (~sel_conf_fifo_in && same_read_reg && ~bckp_trdy_in) ;
-			// signal used for PCIR_FIFO flush (with comp_flush_in signal)
-			wire	pcir_fifo_flush = (~sel_conf_fifo_in && target_rd_completed && last_reg_in && ~pcir_fifo_empty_in) ;
-	`endif
-`else
-			// signal assignments to PCI Target FSM
-			assign	norm_access_to_config_out = (hit0_in && hit0_conf) ;
-			// control signal assignments to read request sinchronization module
-			assign	done_out =  (~sel_conf_fifo_in && target_rd_completed && last_reg_in) ;
-			assign	in_progress_out = (~sel_conf_fifo_in && same_read_reg && ~bckp_trdy_in) ;
-			// signal used for PCIR_FIFO flush (with comp_flush_in signal)
-			wire	pcir_fifo_flush = (~sel_conf_fifo_in && target_rd_completed && last_reg_in && ~pcir_fifo_empty_in) ;
-`endif
-
-// flush signal for PCIR_FIFO must be registered, since it asinchronously resets some status registers
-wire		pcir_fifo_flush_reg ;
-pci_async_reset_flop async_reset_as_pcir_flush
-(
-    .data_in        	  (comp_flush_in || pcir_fifo_flush),
-    .clk_in         	  (clk_in),
-    .async_reset_data_out (pcir_fifo_flush_reg),
-    .reset_in    		  (reset_in)
-) ;
-
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-        keep_desconnect_wo_data_set     <= #1 1'b0 ;
-    else if (keep_desconnect_wo_data_set && pciw_fifo_wenable)
-        keep_desconnect_wo_data_set     <= #1 1'b0 ;
-    else if (pciw_fifo_wenable && disconect_wo_data_out)
-        keep_desconnect_wo_data_set     <= #1 1'b1 ;
-end
-
-
-// signal assignments from fifo to PCI Target FSM
-assign	wbw_fifo_empty_out = wbw_fifo_empty_in ;
-assign	wbu_del_read_comp_pending_out = wbu_del_read_comp_pending_in ;
-assign	pciw_fifo_full_out = (pciw_fifo_full_in || pciw_fifo_almost_full_in || pciw_fifo_two_left_in || pciw_fifo_three_left_in) ;
-assign	pcir_fifo_data_err_out = pcir_fifo_ctrl[`DATA_ERROR_CTRL_BIT] && !sel_conf_fifo_in ;
-// signal assignments to PCIR FIFO fifo
-assign	pcir_fifo_flush_out							= pcir_fifo_flush_reg ;
-assign	pcir_fifo_renable_out						= fetch_pcir_fifo_in && !pcir_fifo_empty_in ;
-
-// signal assignments to PCIW FIFO
-reg          pciw_fifo_wenable_out;
-assign       pciw_fifo_wenable = load_to_pciw_fifo_in ;
-reg   [3:0]  pciw_fifo_control_out;
-reg  [31:0]  pciw_fifo_addr_data_out;
-reg   [3:0]  pciw_fifo_cbe_out;
-always@(posedge clk_in or posedge reset_in)
-begin
-    if (reset_in)
-    begin
-        pciw_fifo_wenable_out   <= #1 1'b0;
-        pciw_fifo_control_out   <= #1 4'h0;
-        // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
-        pciw_fifo_addr_data_out <= #1 32'h0; 
-        pciw_fifo_cbe_out       <= #1 4'h0;
-    end
-    else
-    begin
-        pciw_fifo_wenable_out                       <= #1 load_to_pciw_fifo_in ;
-        pciw_fifo_control_out[`ADDR_CTRL_BIT]       <= #1 ~rdy_in ;
-        pciw_fifo_control_out[`BURST_BIT]           <= #1 rdy_in ? ~frame_reg_in : 1'b0 ;
-        // if '1' then next burst BE is not equat to current one => burst will be chopped into single transfers
-        pciw_fifo_control_out[`DATA_ERROR_CTRL_BIT] <= #1 rdy_in && (next_be_in != be_in) && ~bckp_trdy_in; // valid comp. 
-        pciw_fifo_control_out[`LAST_CTRL_BIT]       <= #1 rdy_in && (frame_reg_in || (bckp_trdy_in && ~bckp_stop_in));
-        // data and address outputs assignments to PCIW_FIFO - correction of 2 LSBits 
-        pciw_fifo_addr_data_out                     <= #1 rdy_in ? data_in : {norm_address[31:2], 
-                                                                          norm_address[1] && io_memory_bus_command, 
-                                                                          norm_address[0] && io_memory_bus_command} ; 
-        pciw_fifo_cbe_out                           <= #1 rdy_in ? be_in : norm_bc ;
-    end
-end
-
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-			// data and address outputs assignments to PCI Target FSM
-			assign	data_out = pcir_fifo_data ;
-	`else
-			// data and address outputs assignments to PCI Target FSM
-			assign	data_out = sel_conf_fifo_in ? conf_data_in : pcir_fifo_data ;
-	`endif
-`else
-			// data and address outputs assignments to PCI Target FSM
-			assign	data_out = sel_conf_fifo_in ? conf_data_in : pcir_fifo_data ;
-`endif
-
-// data and address outputs assignments to read request sinchronization module
-assign	req_out = req_in ;
-	// this address is stored in delayed_sync module and is connected back as strd_addr_in 
-assign	addr_out = norm_address[31:0] ; // correction of 2 LSBits is done in wb_master module, original address must be saved
-assign	be_out = be_in ;
-assign	we_out = 1'b0 ;
-assign	bc_out = norm_bc ;
-// burst is OK for reads when there is ((MEM_READ_LN or MEM_READ_MUL) and AD[1:0]==2'b00) OR
-//   (MEM_READ and Prefetchable_IMAGE and AD[1:0]==2'b00)
-assign	burst_ok_out = (norm_bc[3] && addr_burst_ok) || (norm_bc[2] && norm_prf_en && addr_burst_ok) ;
-// data and address outputs assignments to Configuration space
-`ifdef		HOST
-	`ifdef	NO_CNF_IMAGE
-			assign	conf_data_out	= 32'h0 ;
-			assign	conf_addr_out	= 12'h0 ;
-			assign	conf_be_out		= 4'b0 ;
-			assign	conf_we_out		= 1'h0 ;
-	`else
-			assign	conf_data_out	= data_in ;
-			assign	conf_addr_out	= strd_address[11:0] ;
-			assign	conf_be_out		= be_in ;
-			assign	conf_we_out		= load_to_conf_in ;
-	`endif
-`else
-			assign	conf_data_out	= data_in ;
-			assign	conf_addr_out	= strd_address[11:0] ;
-			assign	conf_be_out		= be_in ;
-			assign	conf_we_out		= load_to_conf_in ;
-`endif
-// NOT USED NOW, SONCE READ IS ASYNCHRONOUS
-//assign	conf_re_out = fetch_conf_in ;
-assign	conf_re_out = 1'b0 ;
-
+   // data and address outputs assignments to read request sinchronization module
+   assign	req_out = req_in ;
+   // this address is stored in delayed_sync module and is connected back as strd_addr_in 
+   assign	addr_out = norm_address[31:0] ; 
+   // correction of 2 LSBits is done in wb_master module, original address must be saved
+   assign	be_out = be_in ;
+   assign	we_out = 1'b0 ;
+   assign	bc_out = norm_bc ;
+   // burst is OK for reads when there is ((MEM_READ_LN or MEM_READ_MUL) and AD[1:0]==2'b00) OR
+   //   (MEM_READ and Prefetchable_IMAGE and AD[1:0]==2'b00)
+   assign	burst_ok_out = (norm_bc[3] && addr_burst_ok) || (norm_bc[2] && norm_prf_en && addr_burst_ok) ;
+   // data and address outputs assignments to Configuration space
+   
+   assign	conf_data_out	= data_in ;
+   assign	conf_addr_out	= strd_address[11:0] ;
+   assign	conf_be_out	= be_in ;
+   assign	conf_we_out	= load_to_conf_in ;
+   
+   // NOT USED NOW, SONCE READ IS ASYNCHRONOUS
+   //assign	conf_re_out = fetch_conf_in ;
+   assign	conf_re_out = 1'b0 ;
+   
    output [15:0] pci_cmd;
    reg [15:0] 	 pci_cmd;
    always @(posedge clk_in or posedge reset_in)

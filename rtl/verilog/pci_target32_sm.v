@@ -268,7 +268,8 @@ module pci_target32_sm (/*AUTOARG*/
 	   // idsel asserted with correct bus command(101x)
            (pci_ad_reg_in[1:0] == 2'b00) ; // has to be type 0 configuration cycle
    
-   // Critically calculated signals are latched in this clock period (address phase) to be used in the next clock period
+   // Critically calculated signals are latched in this clock period 
+   // (address phase) to be used in the next clock period
    reg 	   rw_cbe0 ;
    reg 	   same_read_reg ;
    always@(posedge clk_in or posedge reset_in)
@@ -499,14 +500,15 @@ module pci_target32_sm (/*AUTOARG*/
    // STOP critical module used for preserving the architecture because of minimum delay
    //  for critical inputs
    pci_target32_stop_crit pci_target_stop_critical
-     (
-      .stop_w                 (stop_w),
-      .stop_w_frm             (stop_w_frm),
-      .stop_w_frm_irdy        (stop_w_frm_irdy),
-      .pci_frame_in           (pci_frame_in),
-      .pci_irdy_in            (pci_irdy_in),
-      .pci_stop_out           (pci_stop_out)
-      );
+     (/*AUTOINST*/
+      // Outputs
+      .pci_stop_out			(pci_stop_out),
+      // Inputs
+      .stop_w				(stop_w),
+      .stop_w_frm			(stop_w_frm),
+      .stop_w_frm_irdy			(stop_w_frm_irdy),
+      .pci_frame_in			(pci_frame_in),
+      .pci_irdy_in			(pci_irdy_in));
    
    // if OK to respond and not target abort
    // NO CRITICAL SIGNALS
