@@ -90,18 +90,18 @@ output			clk_enable ;			// FSM clock enable output
    
 
    // clock enable signal when FSM is in IDLE state
-   wire 		s_idle_clk_en	=	((addr_phase && config_access) ||
-						 (addr_phase && ~config_access && addr_claim_in)) ;
+   wire 		s_idle_clk_en = ((addr_phase && config_access) ||
+					 (addr_phase && ~config_access && addr_claim_in)) ;
    
    // clock enable signal when FSM is in WAIT state or in DEFAULT state
-   wire 		s_wait_clk_en	=	(state_wait || state_default) ;
+   wire 		s_wait_clk_en = (state_wait || state_default) ;
    
    // clock enable signal when FSM is in TRANSFERE state
-   wire 		s_tran_clk_en	=	(state_transfere && pci_frame_in) ;
+   wire 		s_tran_clk_en = (state_transfere && pci_frame_in) ;
    
    
    // Clock enable signal for FSM with preserved hierarchy for minimum delay!
-   assign clk_enable	=	(s_idle_clk_en || s_wait_clk_en || s_tran_clk_en) ;
+   assign clk_enable = (s_idle_clk_en || s_wait_clk_en || s_tran_clk_en) ;
    
 
 endmodule
