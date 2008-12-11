@@ -254,60 +254,30 @@ module pci_target32_sm (/*AUTOARG*/
 	end
      end
    
-   // Address phase is when previous frame was 1 and this frame is 0 and frame isn't generated from pci master (in WBU)
-   wire    addr_phase = (previous_frame && ~pci_frame_reg_in && ~wbu_frame_en_in) ;
+   // Address phase is when previous frame was 1 and 
+   // this frame is 0 and 
+   // frame isn't generated from pci master (in WBU)
+   wire    addr_phase = (previous_frame && 
+			 ~pci_frame_reg_in && 
+			 ~wbu_frame_en_in) ;
    
-   // Wire tells when there is configuration (read or write) command with IDSEL signal active
+   // Wire tells when there is configuration (read or write) 
+   // command with IDSEL signal active
    wire    config_access = (pci_idsel_reg_in && pci_cbe_reg_in[3]) && 
-	   (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1]) &&     // idsel asserted with correct bus command(101x)
-           (pci_ad_reg_in[1:0] == 2'b00) ;        // has to be type 0 configuration cycle
-   
-   // Write and read progresses are used for determining next state
-   wire    write_progress  =   ( (norm_access_to_config_in) || 
-            			 (read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ||
-                                 (~read_processing_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ) ;
-   wire    read_progress   =   ( (~read_completed_in && norm_access_to_config_in) ||
-                                 (read_completed_in && wbw_fifo_empty_in) ) ;
-
-   // Signal for loading data to medium register from pcir fifo when read completed from WB side!
-   wire    prepare_rd_fifo_data = (read_completed_in && ~read_completed_reg) ;
-   
-   // Write allowed to PCIW_FIFO
-   wire    write_to_fifo   =   ((read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) || 
-				(~read_processing_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in)) ;
-   
-   // Read allowed from PCIR_FIFO
-   wire    read_from_fifo  =   (read_completed_in && wbw_fifo_empty_in) ;
-
-   // Read request is allowed to be proceed regarding the WB side
-   wire    read_request    =   (~read_completed_in && ~read_processing_in && ~norm_access_to_config_in) ;
+	   (~pci_cbe_reg_in[2] && pci_cbe_reg_in[1]) &&  
+	   // idsel asserted with correct bus command(101x)
+           (pci_ad_reg_in[1:0] == 2'b00) ; // has to be type 0 configuration cycle
    
    // Critically calculated signals are latched in this clock period (address phase) to be used in the next clock period
    reg 	   rw_cbe0 ;
-   reg 	   wr_progress ;
-   reg 	   rd_progress ;
-   reg 	   rd_from_fifo ;
-   reg 	   rd_request ;
-   reg 	   wr_to_fifo ;
    reg 	   same_read_reg ;
-   
    always@(posedge clk_in or posedge reset_in)
      begin
 	if (reset_in) begin
            rw_cbe0                         <= #`FF_DELAY 1'b0 ;
-           wr_progress                     <= #`FF_DELAY 1'b0 ;
-           rd_progress                     <= #`FF_DELAY 1'b0 ;
-           rd_from_fifo                    <= #`FF_DELAY 1'b0 ;
-           rd_request                      <= #`FF_DELAY 1'b0 ;
-           wr_to_fifo                      <= #`FF_DELAY 1'b0 ;
            same_read_reg                   <= #`FF_DELAY 1'b0 ;
 	end else if (addr_phase) begin
            rw_cbe0                     <= #`FF_DELAY pci_cbe_reg_in[0] ;
-           wr_progress                 <= #`FF_DELAY write_progress ;
-           rd_progress                 <= #`FF_DELAY read_progress ;
-           rd_from_fifo                <= #`FF_DELAY read_from_fifo ;
-           rd_request                  <= #`FF_DELAY read_request ;
-           wr_to_fifo                  <= #`FF_DELAY write_to_fifo ;
            same_read_reg               <= #`FF_DELAY same_read_in ;
         end
      end // always@ (posedge clk_in or posedge reset_in)
@@ -621,6 +591,50 @@ module pci_target32_sm (/*AUTOARG*/
              state_backoff_reg <= #`FF_DELAY state_backoff ;
 	  end
      end
+
+   /* FIFO */
+   // Signal for loading data to medium register from pcir fifo when read completed from WB side!
+   wire    prepare_rd_fifo_data = (read_completed_in && ~read_completed_reg) ;
+   
+   // Write allowed to PCIW_FIFO
+   wire    write_to_fifo   =   ((read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) || 
+				(~read_processing_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in)) ;
+   
+   // Read allowed from PCIR_FIFO
+   wire    read_from_fifo  =   (read_completed_in && wbw_fifo_empty_in) ;
+
+   // Write and read progresses are used for determining next state
+   wire    write_progress  =   ( (norm_access_to_config_in) || 
+            			 (read_completed_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ||
+                                 (~read_processing_in && ~pciw_fifo_full_in && ~wbu_del_read_comp_pending_in) ) ;
+   wire    read_progress   =   ( (~read_completed_in && norm_access_to_config_in) ||
+                                 (read_completed_in && wbw_fifo_empty_in) ) ;
+
+   // Read request is allowed to be proceed regarding the WB side
+   wire    read_request    =   (~read_completed_in && ~read_processing_in && ~norm_access_to_config_in) ;
+
+   reg 	   wr_progress ;
+   reg 	   rd_progress ;
+   reg 	   rd_request ;
+   reg 	   wr_to_fifo ;
+   reg 	   rd_from_fifo ;
+   
+   always @(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in) begin
+	   wr_to_fifo   <= #`FF_DELAY 1'b0 ;
+	   rd_from_fifo <= #`FF_DELAY 1'b0 ;
+	   wr_progress  <= #`FF_DELAY 1'b0 ;
+           rd_progress  <= #`FF_DELAY 1'b0 ;
+	   rd_request   <= #`FF_DELAY 1'b0 ;
+	end else if (addr_phase) begin
+	   wr_to_fifo   <= #`FF_DELAY write_to_fifo ;
+	   rd_from_fifo <= #`FF_DELAY read_from_fifo ;
+	   wr_progress  <= #`FF_DELAY write_progress ;
+           rd_progress  <= #`FF_DELAY read_progress ;
+	   rd_request   <= #`FF_DELAY read_request ;
+	end
+     end
    
    // Read control signals assignments
    assign
@@ -650,7 +664,8 @@ module pci_target32_sm (/*AUTOARG*/
    assign 
      sel_fifo_mreg_out = (~pci_irdy_reg_in && ~bckp_trdy_reg) ;
 
-   assign  sel_conf_fifo_out = (cnf_progress || norm_access_to_conf_reg) ;
+   assign 
+     sel_conf_fifo_out = (cnf_progress || norm_access_to_conf_reg) ;
 
    // Write control signals assignments
    assign
