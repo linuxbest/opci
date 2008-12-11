@@ -401,7 +401,10 @@ wire            SERR_en ;
    
    wire [31:0] 		adio_in;
    wire [3:0] 		m_cbe;
-
+   
+   reg 			c_ready;
+   reg 			c_term;
+   
    reg 			s_abort;
    reg 			s_ready;
    reg 			s_term;
@@ -726,6 +729,63 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 `endif
 `endif
 
+`define PCI_CONFIG_WAIT 1
+   
+`ifdef PCI_CONFIG_WAIT
+   reg 			cfg_rd;
+   reg 			cfg_wr;
+   always @(posedge CLK or posedge RST_I)
+     begin
+	if (RST_I) begin
+	   cfg_rd <= #1 1'b0;
+	   cfg_wr <= #1 1'b0;
+	end else if (cfg_hit) begin
+	   cfg_rd <= #1 !s_wrdn;
+	   cfg_wr <= #1  s_wrdn;
+	end else if (!s_data) begin
+	   cfg_rd <= #1 1'b0;
+	   cfg_wr <= #1 1'b0;
+	end
+     end
+   wire load = cfg_wr & s_data_vld & addr[7:2] == 6'h20;
+   wire oe   = cfg_rd & s_data && addr[7:2] == 6'h20;
+   reg [31:0] q;
+   always @(posedge CLK or posedge RST_I)
+     begin
+	if (load)
+	  q <= #1 adio_out;
+     end
+   assign adio_in = oe ? q : 32'hz;
+
+   reg [3:0] cfg_timer;
+   always @(posedge CLK or posedge RST_I)
+     begin
+	if (RST_I)
+	  cfg_timer <= #1 4'h0;
+	else if (cfg_vld)
+	  cfg_timer <= #1 4'h7;
+	else if (cfg_timer != 4'h0)
+	  cfg_timer <= #1 cfg_timer - 4'h1;
+     end
+
+   wire blat_rdy = (cfg_timer <= 4'h4);
+   wire user_cfg = addr[7:0] == 6'h20;
+   wire terminate = (!user_cfg | blat_rdy) & s_data;
+
+   always @(posedge CLK or posedge RST_I)
+     begin
+	if (RST_I) begin
+	   c_ready <= #1 1'b0;
+	   c_term  <= #1 1'b0;
+	end else begin
+	   c_ready <= #1 (cfg_rd | cfg_wr) & terminate;
+	   c_term  <= #1 (cfg_rd | cfg_wr) & terminate;
+	end
+     end
+   
+`endif
+   
+`ifdef PCI_TARGET_SIGNAL_BYTE_NO_WAIT   
    reg 			bar_0_rd;
    reg 			bar_0_wr;
    wire 		optional;
@@ -777,7 +837,8 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 	else
 	  s_term <= #1 1'b1;
      end
-
+`endif //  `ifdef PCI_TARGET_SIGNAL_BYTE
+   
 endmodule // TOP
 
 // Local Variables:

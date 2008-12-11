@@ -499,44 +499,36 @@ begin
 end
 
 // state machine logic
-always@(c_state)
-begin
-    case (c_state)
-    S_IDLE :
-    begin
-        state_idle      <= 1'b1 ;
-        state_wait      <= 1'b0 ;
-        sm_transfere <= 1'b0 ;
-        state_default   <= 1'b0 ;
-        n_state <= S_WAIT ;
-    end
-    S_WAIT :
-    begin
-        state_idle      <= 1'b0 ;
-        state_wait      <= 1'b1 ;
-        sm_transfere <= 1'b0 ;
-        state_default   <= 1'b0 ;
-        n_state <= S_TRANSFERE ;
-    end
-    S_TRANSFERE :
-    begin
-        state_idle      <= 1'b0 ;
-        state_wait      <= 1'b0 ;
-        sm_transfere <= 1'b1 ;
-        state_default   <= 1'b0 ;
-        n_state <= S_IDLE ;
-    end
-    default :
-    begin
-        state_idle      <= 1'b0 ;
-        state_wait      <= 1'b0 ;
-        sm_transfere <= 1'b0 ;
-        state_default   <= 1'b1 ;
-        n_state <= S_IDLE ;
-    end
-    endcase
-end
+   always @(/*AS*/c_state)
+     begin
+	state_idle = 1'b0;
+	state_wait = 1'b0;
+	sm_transfere = 1'b0;
+	state_default = 1'b0;
+	n_state = S_IDLE;
+	
+	case (c_state)
+	  S_IDLE: begin
+	     state_idle = 1'b1;
+	     n_state = S_WAIT;
+	  end
+	  
+	  S_WAIT: begin
+	     state_wait = 1'b1;
+	     n_state = S_TRANSFERE;
+	  end
+	  
+	  S_TRANSFERE: begin
+	     sm_transfere = 1'b1;
+	     n_state = S_IDLE;
+	  end
 
+	  default: begin
+	     state_default = 1'b1;
+	  end
+	endcase
+     end
+   
         // if not retry and not target abort
         // NO CRITICAL SIGNALS
 wire    trdy_w          =   (
