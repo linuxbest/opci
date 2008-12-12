@@ -24543,9 +24543,11 @@ endtask // test_target_io_err_wr
 task lg_test_pci ;
     reg   [11:0] offset;
     reg   [31:0] data;
+    reg   [31:0] read_data;
+    reg   [31:0] expected_value;
     reg   [PCI_BUS_DATA_RANGE:0] pci_address;
     reg   [PCI_BUS_CBE_RANGE:0]  byte_enables_l; // active LOW
-    reg   ok;
+    reg   ok, failed;
 begin
     $display(" ");
     $display("########################################################################") ;
@@ -24558,24 +24560,27 @@ begin
                     0,                      /* type */
                     4'hF,                   /* byte enable */
                     data);
-    
-    data = 32'h12345678;
-    configuration_cycle_write(8'h00,         /* bus number */
+    expected_value = 32'h1234_5678;
+    configuration_cycle_write(8'h00,        /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */
                     0,                      /* function */
                     8'h20,                  /* register */
                     0,                      /* type */
                     4'hF,                   /* byte enable */
-                    data);
-
-
+                    expected_value);
     configuration_cycle_read(8'h00,         /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */
                     0,                      /* function */
                     8'h20,                  /* register */
                     0,                      /* type */
                     4'hF,                   /* byte enable */
-                    data);
+                    read_data);
+    if( read_data !== expected_value)
+    begin
+        test_fail("initial value of BAR0 register(8'h20) not as expected") ;
+        failed = 1 ;
+    end
+
 #100; $finish;
 
     $display(" ");
