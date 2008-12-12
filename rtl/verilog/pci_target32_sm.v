@@ -736,7 +736,11 @@ module pci_target32_sm (/*AUTOARG*/
     * read  is 0 */
    assign s_wrdn = rw_cbe0;
    assign idle   = c_state == S_IDLE;
-   assign s_data = (c_state == S_TRANSFERE || c_state == S_WAIT);
+   reg s_data;
+   always @(posedge clk_in)
+     begin
+	s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);
+     end
    assign b_busy = 1'bz;
    
    assign s_data_vld = sel_fifo_mreg_out;

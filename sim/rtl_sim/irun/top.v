@@ -763,7 +763,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 	if (RST_I)
 	  cfg_timer <= #1 4'h0;
 	else if (cfg_vld)
-	  cfg_timer <= #1 4'h4;
+	  cfg_timer <= #1 4'h0;
 	else if (cfg_timer != 4'h0)
 	  cfg_timer <= #1 cfg_timer - 4'h1;
      end
