@@ -1008,7 +1008,6 @@ begin
     pci_subseq_waits       = 0 ;
     tb_target_decode_speed = 0 ;
             
-    $dumpvars(0, SYSTEM.bridge32_top); 
 
     // first - reset logic
     do_reset ;
@@ -1214,8 +1213,8 @@ begin
             target_completion_expiration ;
         `endif
 `else
+            $dumpvars(0, SYSTEM.bridge32_top); 
             lg_test_pci;
-#50;
             $finish;
 `endif
             $display(" ") ;
@@ -24581,21 +24580,29 @@ begin
         failed = 1 ;
     end
 
-#100; $finish;
+    @(posedge pci_clock) ;
+    configure_target(1);
+    @(posedge pci_clock) ;
+    configure_target(2);
+
+    configure_bridge_target_base_addresses;
+    
+    @(posedge pci_clock) ;
 
     $display(" ");
     $display("########################################################################") ;
     $display("LG test PCI");
     test_name = "PCI IMAGE SETTINGS" ;
-    offset = 12'h114;
+    offset = 12'h0;
     data   = 32'h12153524;
     byte_enables_l = ~4'hF;
 
-    pci_address = Target_Base_Addr_R[0] | { 20'h0, offset} ;
+    /* reading bar0 with register 0 */
+    pci_address = Target_Base_Addr_R[0] | { 20'h0, 12'h0} ;
     fork 
      begin
-     DO_REF ("MEM_W_CONF", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
-                    PCI_COMMAND_MEMORY_WRITE, data[PCI_BUS_DATA_RANGE:0],
+     DO_REF ("MEM_R_CONF", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
+                    PCI_COMMAND_MEMORY_READ, data[PCI_BUS_DATA_RANGE:0],
                     byte_enables_l[PCI_BUS_CBE_RANGE:0],
                     `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
                     8'h0_0, `Test_One_Zero_Target_WS,
@@ -24604,12 +24611,33 @@ begin
      do_pause( 1 ) ;
     end
     begin
-      pci_transaction_progress_monitor( pci_address, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
       @(posedge pci_clock) ;
     end
    join
    repeat( 2 )
    @(posedge wb_clock) ;
+    
+   pci_address = Target_Base_Addr_R[2] | { 20'h0, 12'h00} ;
+    fork 
+     begin
+     DO_REF ("MEM_R_CONF", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
+                    PCI_COMMAND_MEMORY_READ, data[PCI_BUS_DATA_RANGE:0],
+                    byte_enables_l[PCI_BUS_CBE_RANGE:0],
+                    `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
+                    8'h0_0, `Test_One_Zero_Target_WS,
+                    `Test_Devsel_Medium, `Test_No_Fast_B2B,
+                    `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
+     do_pause( 1 ) ;
+    end
+    begin
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+      @(posedge pci_clock) ;
+    end
+   join
+   repeat( 2 )
+    @(posedge wb_clock) ;
+
 end
 endtask
 

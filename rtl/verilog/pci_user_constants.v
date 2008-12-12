@@ -171,10 +171,10 @@
     `endif
 `endif
 
-//`define PCI_IMAGE2
-//`define PCI_IMAGE3
-//`define PCI_IMAGE4
-//`define PCI_IMAGE5
+`define PCI_IMAGE2
+`define PCI_IMAGE3
+`define PCI_IMAGE4
+`define PCI_IMAGE5
 
 // initial value for PCI image address masks. Address masks can be defined in enabled state,
 // to allow device independent software to detect size of image and map base addresses to

@@ -12,3 +12,5 @@
 ../../../bench/verilog/i2c_slave_model.v
 system.v
 top.v
+cfg_wait.v
+mem_target.v

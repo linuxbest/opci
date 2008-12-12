@@ -374,6 +374,8 @@ wire            SERR_en ;
    wire			b_busy;			// From bridge of pci_bridge32.v
    wire			backoff;		// From bridge of pci_bridge32.v
    wire [7:0]		base_hit;		// From bridge of pci_bridge32.v
+   wire			c_ready;		// From cfg_wait of cfg_wait.v
+   wire			c_term;			// From cfg_wait of cfg_wait.v
    wire			cfg_hit;		// From bridge of pci_bridge32.v
    wire			cfg_vld;		// From bridge of pci_bridge32.v
    wire			devselq_n;		// From bridge of pci_bridge32.v
@@ -388,10 +390,13 @@ wire            SERR_en ;
    wire			m_src_en;		// From bridge of pci_bridge32.v
    wire [15:0]		pci_cmd;		// From bridge of pci_bridge32.v
    wire			perrq_n;		// From bridge of pci_bridge32.v
+   wire			s_abort;		// From mem_target of mem_target.v
    wire [3:0]		s_cbe;			// From bridge of pci_bridge32.v
    wire			s_data;			// From bridge of pci_bridge32.v
    wire			s_data_vld;		// From bridge of pci_bridge32.v
+   wire			s_ready;		// From mem_target of mem_target.v
    wire			s_src_en;		// From bridge of pci_bridge32.v
+   wire			s_term;			// From mem_target of mem_target.v
    wire			s_wrdn;			// From bridge of pci_bridge32.v
    wire			serrq_n;		// From bridge of pci_bridge32.v
    wire			stopq_n;		// From bridge of pci_bridge32.v
@@ -401,13 +406,6 @@ wire            SERR_en ;
    
    wire [31:0] 		adio_in;
    wire [3:0] 		m_cbe;
-   
-   reg 			c_ready;
-   reg 			c_term;
-   
-   reg 			s_abort;
-   reg 			s_ready;
-   reg 			s_term;
    
 pci_bridge32 bridge
 (
@@ -729,117 +727,38 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 `endif
 `endif
 
-`define PCI_CONFIG_WAIT 1
+   cfg_wait cfg_wait (/*AUTOINST*/
+		      // Outputs
+		      .adio_in		(adio_in[31:0]),
+		      .c_term		(c_term),
+		      .c_ready		(c_ready),
+		      // Inputs
+		      .RST_I		(RST_I),
+		      .CLK		(CLK),
+		      .cfg_hit		(cfg_hit),
+		      .cfg_vld		(cfg_vld),
+		      .s_wrdn		(s_wrdn),
+		      .s_data		(s_data),
+		      .s_data_vld	(s_data_vld),
+		      .addr		(addr[31:0]),
+		      .adio_out		(adio_out[31:0]));
    
-`ifdef PCI_CONFIG_WAIT
-   reg 			cfg_rd;
-   reg 			cfg_wr;
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I) begin
-	   cfg_rd <= #1 1'b0;
-	   cfg_wr <= #1 1'b0;
-	end else if (cfg_hit) begin
-	   cfg_rd <= #1 !s_wrdn;
-	   cfg_wr <= #1  s_wrdn;
-	end else if (!s_data) begin
-	   cfg_rd <= #1 1'b0;
-	   cfg_wr <= #1 1'b0;
-	end
-     end
-   wire load = cfg_wr & s_data_vld & addr[7:2] == 6'h20;
-   wire oe   = cfg_rd & s_data && addr[7:2] == 6'h20;
-   reg [31:0] q;
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I)
-	  q <= #1 32'h0;
-	else if (load)
-	  q <= #1 adio_out;
-     end
-   assign adio_in = oe ? q : 32'h0;
-
-   reg [3:0] cfg_timer;
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I)
-	  cfg_timer <= #1 4'h0;
-	else if (cfg_vld)
-	  cfg_timer <= #1 4'h0;
-	else if (cfg_timer != 4'h0)
-	  cfg_timer <= #1 cfg_timer - 4'h1;
-     end
-
-   wire blat_rdy = (cfg_timer <= 4'h4);
-   wire user_cfg = addr[7:2] == 6'h20;
-   wire terminate = (!user_cfg | blat_rdy) & s_data;
-
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I) begin
-	   c_ready <= #1 1'b0;
-	   c_term  <= #1 1'b0;
-	end else begin
-	   c_ready <= #1 (cfg_rd | cfg_wr) & terminate;
-	   c_term  <= #1 (cfg_rd | cfg_wr) & terminate;
-	end
-     end
-   
-`endif
-   
-`ifdef PCI_TARGET_SIGNAL_BYTE_NO_WAIT   
-   reg 			bar_0_rd;
-   reg 			bar_0_wr;
-   wire 		optional;
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I) begin
-	   bar_0_rd <= #1 1'b0;
-	   bar_0_wr <= #1 1'b0;
-	end else if (base_hit[0]) begin
-	   bar_0_rd <= #1 !s_wrdn & optional;
-	   bar_0_wr <= #1  s_wrdn & optional;
-	end else if (!s_data) begin
-	   bar_0_wr <= #1 1'b0;
-	   bar_0_rd <= #1 1'b0;
-	end
-     end // always @ (posedge CLK or posedge RST_I)
-
-   assign optional = pci_cmd[15:0] == 16'h80 && addr[31:0] == 32'h10000114;
-   wire load     = bar_0_wr & s_data_vld;
-   wire oe       = bar_0_rd & s_data;
-   reg [31:0] q;
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (load)
-	  q <= #1 adio_out;
-     end
-   assign adio_in = oe ? q : 32'hz;
-
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I)
-	  s_abort <= #1 1'b1;
-	else
-	  s_abort <= #1 1'b0;
-     end
-
-   always @(posedge CLK or posedge RST_I)
-     begin
-	if (RST_I)
-	  s_ready <= #1 1'b0;
-	else
-	  s_ready <= #1 1'b1;
-     end
-
-   always @(posedge CLK or posedge RST_I) 
-     begin
-	if (RST_I)
-	  s_term <= #1 1'b0;
-	else
-	  s_term <= #1 1'b1;
-     end
-`endif //  `ifdef PCI_TARGET_SIGNAL_BYTE
+   mem_target mem_target (/*AUTOINST*/
+			  // Outputs
+			  .adio_in		(adio_in[31:0]),
+			  .s_ready		(s_ready),
+			  .s_term		(s_term),
+			  .s_abort		(s_abort),
+			  // Inputs
+			  .RST_I		(RST_I),
+			  .CLK			(CLK),
+			  .s_wrdn		(s_wrdn),
+			  .pci_cmd		(pci_cmd[15:0]),
+			  .addr			(addr[31:0]),
+			  .base_hit		(base_hit[7:0]),
+			  .s_data		(s_data),
+			  .s_data_vld		(s_data_vld),
+			  .adio_out		(adio_out[31:0]));
    
 endmodule // TOP
 
