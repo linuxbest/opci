@@ -481,7 +481,7 @@ module pci_target32_sm (/*AUTOARG*/
    wire    stop_w = (
 		     (state_wait && target_abort_in) ||
 		     (state_wait && ~cnf_progress && rw_cbe0 && ~wr_progress) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_abort) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && pcir_fifo_data_err_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && ~norm_access_to_conf_reg)
 		     ) ;
