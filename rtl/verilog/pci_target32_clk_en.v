@@ -94,7 +94,7 @@ output			clk_enable ;			// FSM clock enable output
 					 (addr_phase && ~config_access && addr_claim_in)) ;
    
    // clock enable signal when FSM is in WAIT state or in DEFAULT state
-   wire 		s_wait_clk_en = (state_wait || state_default) ;
+   wire 		s_wait_clk_en = (state_wait && c_ready) ;
    
    // clock enable signal when FSM is in TRANSFERE state
    wire 		s_tran_clk_en = (state_transfere && pci_frame_in) ;

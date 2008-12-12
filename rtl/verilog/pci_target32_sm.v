@@ -213,6 +213,11 @@ module pci_target32_sm (/*AUTOARG*/
    input 	 wbu_frame_en_in ;           // Indicates that WB SLAVE UNIT is accessing the PCI bus (important if
    //   address on PCI bus is also claimed by decoder in this PCI TARGET UNIT
    output 	 target_abort_set_out ;      // Signal used to be set in configuration space registers
+
+   // WAIT         TRDY=1,DEVSEL=0,STOP=1  S_TERM=0,S_READY=0
+   // NORMAL       TRDY=0,DEVSEL=0,STOP=1  S_TERM=0,S_READY=1
+   // DIS wo data  TRDY=1,DEVSEL=0,STOP=0  S_TERM=1,S_READY=0
+   // DIS w  data  TRDY=0,DEVSEL=0,STOP=0  S_TERM=1,S_READY=1
    
    input 	 c_ready;
    input 	 c_term;
@@ -240,8 +245,8 @@ module pci_target32_sm (/*AUTOARG*/
    //reg             disconect_wo_data_reg ;
    
    wire 	 config_disconnect ;
-   wire 	 disconect_wo_data = disconect_wo_data_in || config_disconnect ;
-   wire 	 disconect_w_data  = disconect_w_data_in ;
+   wire 	 disconect_wo_data = c_term && ~c_ready;
+   wire 	 disconect_w_data  = c_term &&  c_ready;
    // Delayed frame signal for determining the address phase!
    always@(posedge clk_in or posedge reset_in)
      begin
@@ -307,7 +312,7 @@ module pci_target32_sm (/*AUTOARG*/
 			     ~target_abort_in && ~pcir_fifo_data_err_in) ||
                             (~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && 
 			     ~target_abort_in) ||
-                            (cnf_progress && ~target_abort_in)
+                            (cnf_progress && ~target_abort_in && c_ready)
                             ) ;
    
    // Signal used in S_TRANSFERE state to determin next state
@@ -315,8 +320,7 @@ module pci_target32_sm (/*AUTOARG*/
    // 2: read, no disconnect, no target abort, no fifo error
    wire s_tran_progress =  (
                             (rw_cbe0 && !disconect_wo_data) ||
-                            (~rw_cbe0 && !disconect_wo_data && !target_abort_in && 
-			     !pcir_fifo_data_err_in)
+                            (~rw_cbe0 && !disconect_wo_data && !target_abort_in && !pcir_fifo_data_err_in)
                             ) ;
 
    // Clock enable for PCI state machine driven directly from critical inputs - FRAME and IRDY
@@ -329,7 +333,7 @@ module pci_target32_sm (/*AUTOARG*/
    reg 	state_default ;
    wire state_backoff   = sm_transfere && backoff ;
    wire state_transfere = sm_transfere && !backoff ;
-   
+
    always@(posedge clk_in or posedge reset_in)
      begin
 	if ( reset_in )
@@ -445,7 +449,7 @@ module pci_target32_sm (/*AUTOARG*/
 		      rd_progress && ~target_abort_in && !pcir_fifo_data_err_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && 
 		      norm_access_to_conf_reg && ~target_abort_in) ||
-		     (state_wait && cnf_progress && ~target_abort_in) 
+		     (state_wait && cnf_progress && ~target_abort_in && c_ready) 
 		     ) ;
    // if not disconnect without data and not target abort (only during reads)
    // MUST BE ANDED WITH CRITICAL ~FRAME
@@ -732,7 +736,7 @@ module pci_target32_sm (/*AUTOARG*/
     * read  is 0 */
    assign s_wrdn = rw_cbe0;
    assign idle   = c_state == S_IDLE;
-   assign s_data = c_state == S_TRANSFERE;
+   assign s_data = (c_state == S_TRANSFERE || c_state == S_WAIT);
    assign b_busy = 1'bz;
    
    assign s_data_vld = sel_fifo_mreg_out;

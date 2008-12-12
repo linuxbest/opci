@@ -763,13 +763,13 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 	if (RST_I)
 	  cfg_timer <= #1 4'h0;
 	else if (cfg_vld)
-	  cfg_timer <= #1 4'h7;
+	  cfg_timer <= #1 4'h4;
 	else if (cfg_timer != 4'h0)
 	  cfg_timer <= #1 cfg_timer - 4'h1;
      end
 
    wire blat_rdy = (cfg_timer <= 4'h4);
-   wire user_cfg = addr[7:0] == 6'h20;
+   wire user_cfg = addr[7:2] == 6'h20;
    wire terminate = (!user_cfg | blat_rdy) & s_data;
 
    always @(posedge CLK or posedge RST_I)

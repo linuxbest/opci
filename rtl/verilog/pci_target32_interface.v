@@ -212,7 +212,7 @@ module pci_target32_interface
 	addr_tran_en5_in,
  /*AUTOARG*/
    // Outputs
-   pci_cmd, base_hit, cfg_hit
+   pci_cmd, base_hit
    ) ;
 
 `ifdef HOST
@@ -467,25 +467,6 @@ wire	[31:0]	address5_in	= 32'h0 ;
 wire			pre_fetch_en5 = 1'b0 ;
 `endif
 
-// Include address decoders
-`ifdef			HOST
-	`ifdef		NO_CNF_IMAGE
-		`ifdef	PCI_IMAGE0	// if PCI bridge is HOST and IMAGE0 is assigned as general image space
-	pci_pci_decoder   #(pci_ba0_width) decoder0
-				   (.hit			(hit0_in),
-					.addr_out		(address0_in),
-					.addr_in		(address_in),
-					.bc_in			(bc_in),
-					.base_addr		(pci_base_addr0_in),
-					.mask_addr		(pci_addr_mask0_in),
-					.tran_addr		(pci_tran_addr0_in),
-					.at_en			(addr_tran_en0_in),
-					.mem_io_space	(mem_io_addr_space0_in),
-					.mem_en			(mem_enable_in),
-					.io_en			(io_enable_in)
-					) ;
-		`endif
-	`else
 	pci_pci_decoder   #(pci_ba0_width) decoder0
 				   (.hit			(hit0_in),
 					.addr_out		(address0_in),
@@ -499,22 +480,7 @@ wire			pre_fetch_en5 = 1'b0 ;
 					.mem_en			(mem_enable_in),
 					.io_en			(1'b0)
 					) ;
-	`endif
-`else // GUEST
-	pci_pci_decoder   #(pci_ba0_width) decoder0
-				   (.hit			(hit0_in),
-					.addr_out		(address0_in),
-					.addr_in		(address_in),
-					.bc_in			(bc_in),
-					.base_addr		(pci_base_addr0_in),
-					.mask_addr		({pci_ba0_width{1'b1}}),
-					.tran_addr		({pci_ba0_width{1'b0}}),
-					.at_en			(1'b0),
-					.mem_io_space	(1'b0),
-					.mem_en			(mem_enable_in),
-					.io_en			(1'b0)
-					) ;
-`endif
+
 	pci_pci_decoder   #(`PCI_NUM_OF_DEC_ADDR_LINES) decoder1
 				   (.hit			(hit1_in),
 					.addr_out		(address1_in),
@@ -595,7 +561,8 @@ wire			pre_fetch_en5 = 1'b0 ;
    
    // Determining if image 0 is assigned to configuration space or as normal pci to wb access!
    //   if normal access is allowed to configuration space, then hit0 is hit0_conf
-   
+   parameter hit0_conf = 1'b1;
+
    // Logic with address mux, determining if address is still in the same image space and if it is prefetced or not
    always@(/*AS*/address0_in or address1_in or address2_in
 	   or address3_in or address4_in or address5_in
@@ -790,15 +757,12 @@ end
    wire        io_memory_bus_command = !norm_bc[3] && !norm_bc[2] ;
    assign	disconect_wo_data_out = (
 					 ((/*pcir_fifo_ctrl[`LAST_CTRL_BIT] ||*/ 
-					   pcir_fifo_empty_in || 
-					   ~burst_ok_out/*addr_burst_ok*/ || 
-					   io_memory_bus_command) && 
+					   pcir_fifo_empty_in || ~burst_ok_out/*addr_burst_ok*/ || io_memory_bus_command) && 
 					  ~bc0_in && ~frame_reg_in) ||
-					 ((pciw_fifo_full_in || pciw_fifo_almost_full_in || 
-					   keep_desconnect_wo_data_set || pciw_fifo_two_left_in || 
+					 ((pciw_fifo_full_in || pciw_fifo_almost_full_in || keep_desconnect_wo_data_set || 
+					   pciw_fifo_two_left_in || 
 					   (pciw_fifo_three_left_in && pciw_fifo_wenable) || ~addr_burst_ok || 
-					   io_memory_bus_command) && 
-					  bc0_in && ~frame_reg_in)
+					   io_memory_bus_command) && bc0_in && ~frame_reg_in)
 					 ) ;
    assign	disconect_w_data_out =	(
 					 ( burst_ok_out  && !io_memory_bus_command && ~bc0_in ) || 
@@ -940,13 +904,6 @@ end
    always @(posedge clk_in)
      begin
 	base_hit <= #1 {4'h0, hit2_in, hit1_in, hit0_in};
-     end
-   
-   output cfg_hit;
-   reg 	  cfg_hit;
-   always @(posedge clk_in)
-     begin
-	cfg_hit <= #1 hit0_conf;
      end
    
 endmodule

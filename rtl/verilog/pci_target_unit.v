@@ -203,8 +203,8 @@ module pci_target_unit
     ,
     /*AUTOARG*/
    // Outputs
-   s_wrdn, s_data_vld, s_data, pci_cmd, idle, cfg_hit,
-   base_hit, backoff, b_busy, addr_vld,
+   s_wrdn, s_data_vld, s_data, pci_cmd, idle, base_hit,
+   backoff, b_busy, addr_vld,
    // Inputs
    s_term, s_ready, s_abort, c_term, c_ready
    );
@@ -341,7 +341,6 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    output		b_busy;			// From pci_target_sm of pci_target32_sm.v
    output		backoff;		// From pci_target_sm of pci_target32_sm.v
    output [7:0]		base_hit;		// From pci_target_if of pci_target32_interface.v
-   output		cfg_hit;		// From pci_target_if of pci_target32_interface.v
    output		idle;			// From pci_target_sm of pci_target32_sm.v
    output [15:0]	pci_cmd;		// From pci_target_if of pci_target32_interface.v
    output		s_data;			// From pci_target_sm of pci_target32_sm.v
@@ -873,8 +872,7 @@ pci_target32_interface pci_target_if
  /*AUTOINST*/
  // Outputs
  .pci_cmd				(pci_cmd[15:0]),
- .base_hit				(base_hit[7:0]),
- .cfg_hit				(cfg_hit)); 
+ .base_hit				(base_hit[7:0])); 
 
 // pci target state machine inputs
 wire        pcit_sm_frame_in                    =   pciu_pciif_frame_in ;

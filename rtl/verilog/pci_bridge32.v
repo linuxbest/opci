@@ -1268,7 +1268,6 @@ pci_target_unit pci_target_unit
  .b_busy				(b_busy),
  .backoff				(backoff),
  .base_hit				(base_hit[7:0]),
- .cfg_hit				(cfg_hit),
  .idle					(idle),
  .pci_cmd				(pci_cmd[15:0]),
  .s_data				(s_data),
@@ -1751,5 +1750,13 @@ pci_in_reg input_register
    assign irdyq_n  = in_reg_irdy_out;
    assign trdyq_n  = in_reg_trdy_out;
    assign stopq_n  = in_reg_stop_out;
-
+   
+   reg cfg_hit;
+   always @(posedge pci_clk)
+     begin
+	if (cfg_vld && adio_out[7])
+	  cfg_hit <= #1 1'b1;
+	else 
+	  cfg_hit <= #1 1'b0;
+     end
 endmodule
