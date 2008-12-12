@@ -69,7 +69,7 @@ module pci_target32_clk_en (/*AUTOARG*/
    // Inputs
    addr_phase, config_access, addr_claim_in, pci_frame_in,
    state_wait, state_transfere, state_default, cfg_ready,
-   cfg_term
+   cfg_term, s_ready, s_term, s_abort
    );
 
 input           addr_phase ;			// indicates registered address phase on PCI bus
@@ -84,10 +84,9 @@ output			clk_enable ;			// FSM clock enable output
    
    input 		cfg_ready;
    input 		cfg_term;
-   /*input 		s_ready;
+   input 		s_ready;
    input 		s_term;
-   input 		s_abort;*/
-   
+   input 		s_abort;
 
    // clock enable signal when FSM is in IDLE state
    wire 		s_idle_clk_en = ((addr_phase && config_access) ||

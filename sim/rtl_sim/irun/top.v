@@ -727,13 +727,15 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 `endif
 `endif
 
+   wire 		reset = RST_O;
+   
    cfg_wait cfg_wait (/*AUTOINST*/
 		      // Outputs
 		      .adio_in		(adio_in[31:0]),
 		      .c_term		(c_term),
 		      .c_ready		(c_ready),
 		      // Inputs
-		      .RST_I		(RST_I),
+		      .reset		(reset),
 		      .CLK		(CLK),
 		      .cfg_hit		(cfg_hit),
 		      .cfg_vld		(cfg_vld),
@@ -750,7 +752,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 			  .s_term		(s_term),
 			  .s_abort		(s_abort),
 			  // Inputs
-			  .RST_I		(RST_I),
+			  .reset		(reset),
 			  .CLK			(CLK),
 			  .s_wrdn		(s_wrdn),
 			  .pci_cmd		(pci_cmd[15:0]),
@@ -758,6 +760,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 			  .base_hit		(base_hit[7:0]),
 			  .s_data		(s_data),
 			  .s_data_vld		(s_data_vld),
+			  .addr_vld		(addr_vld),
 			  .adio_out		(adio_out[31:0]));
    
 endmodule // TOP

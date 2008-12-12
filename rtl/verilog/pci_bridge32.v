@@ -1760,8 +1760,8 @@ pci_in_reg input_register
    reg cfg_hit;
    always @(posedge pci_clk)
      begin
-	if (cfg_vld && adio_out[7])
-	  cfg_hit <= #1 1'b1;
+	if (addr_vld)
+	  cfg_hit <= #1 cfg_vld && adio_out[7];
 	else 
 	  cfg_hit <= #1 1'b0;
      end
@@ -1770,12 +1770,10 @@ pci_in_reg input_register
      begin
 	if (reset)
 	  cfg_sel <= #1 1'b0;
-	if (cfg_vld && adio_out[7])
-	  cfg_sel <= #1 'b1;
-	else if (cfg_vld && ~adio_out[7])
-	  cfg_sel <= #1 1'b0;
+	else if (addr_vld)
+	  cfg_sel <= #1 cfg_vld && adio_out[7];
      end
-   assign cfg_ready = cfg_sel ? c_ready : 1'b1;
+   assign cfg_ready = cfg_sel ? c_ready : s_ready;
    assign cfg_term  = cfg_sel ? c_term  : 1'b0;
    
 endmodule

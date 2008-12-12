@@ -308,10 +308,8 @@ module pci_target32_sm (/*AUTOARG*/
    // 4: conf, no target abort
    wire s_wait_progress =  (
                             (~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
-                            (~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && 
-			     ~target_abort_in && ~pcir_fifo_data_err_in) ||
-                            (~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && 
-			     ~target_abort_in) ||
+                            (~cnf_progress && ~rw_cbe0 && s_ready && ~target_abort_in && ~pcir_fifo_data_err_in) ||
+                            (~cnf_progress && ~rw_cbe0 && ~s_ready && norm_access_to_conf_reg && ~target_abort_in) ||
                             (cnf_progress && ~target_abort_in && cfg_ready)
                             ) ;
    
@@ -363,7 +361,10 @@ module pci_target32_sm (/*AUTOARG*/
       .state_wait			(state_wait),
       .state_default			(state_default),
       .cfg_ready			(cfg_ready),
-      .cfg_term				(cfg_term));
+      .cfg_term				(cfg_term),
+      .s_ready				(s_ready),
+      .s_term				(s_term),
+      .s_abort				(s_abort));
    
    reg [2:0]  c_state ; //current state register
    reg [2:0]  n_state ; //next state input to current state register
@@ -443,12 +444,9 @@ module pci_target32_sm (/*AUTOARG*/
    // if not retry and not target abort
    // NO CRITICAL SIGNALS
    wire    trdy_w = (
-		     (state_wait && ~cnf_progress && rw_cbe0 && wr_progress &&
-		      ~target_abort_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && same_read_reg && 
-		      rd_progress && ~target_abort_in && !pcir_fifo_data_err_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && 
-		      norm_access_to_conf_reg && ~target_abort_in) ||
+		     (state_wait && ~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready && ~target_abort_in && ~pcir_fifo_data_err_in) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && norm_access_to_conf_reg && ~target_abort_in) ||
 		     (state_wait && cnf_progress && ~target_abort_in && cfg_ready) 
 		     ) ;
    // if not disconnect without data and not target abort (only during reads)
@@ -459,8 +457,7 @@ module pci_target32_sm (/*AUTOARG*/
 			 (state_transfere && !cnf_progress && !norm_access_to_conf_reg && 
 			  ~rw_cbe0 && !disconect_wo_data && ~pcir_fifo_data_err_in) ||
 			 (state_transfere && !cnf_progress && !norm_access_to_conf_reg && 
-			  disconect_w_data && pci_irdy_reg_in &&
-			  ((~rw_cbe0 && ~pcir_fifo_data_err_in) || rw_cbe0)) 
+			  disconect_w_data && pci_irdy_reg_in && ((~rw_cbe0 && ~pcir_fifo_data_err_in) || rw_cbe0)) 
 			 ) ;
    // if not disconnect without data and not target abort (only during reads)
    // MUST BE ANDED WITH CRITICAL ~FRAME AND IRDY
@@ -484,11 +481,9 @@ module pci_target32_sm (/*AUTOARG*/
    wire    stop_w = (
 		     (state_wait && target_abort_in) ||
 		     (state_wait && ~cnf_progress && rw_cbe0 && ~wr_progress) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && same_read_reg && ~rd_progress) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && 
-		      pcir_fifo_data_err_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && 
-		      ~norm_access_to_conf_reg)
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && pcir_fifo_data_err_in) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && ~norm_access_to_conf_reg)
 		     ) ;
    // if asserted, wait for deactivating the frame
    // MUST BE ANDED WITH CRITICAL ~FRAME
@@ -520,8 +515,7 @@ module pci_target32_sm (/*AUTOARG*/
 			     (addr_phase && config_access) ||
 			     (addr_phase && ~config_access && addr_claim_in) || 
 			     (state_wait && ~target_abort_in && 
-			      !(~cnf_progress && ~rw_cbe0 && same_read_reg && rd_progress && 
-				pcir_fifo_data_err_in) )
+			      !(~cnf_progress && ~rw_cbe0 && s_ready && pcir_fifo_data_err_in))
                              ) ;
 
    // if not target abort (only during reads) or if asserted, wait for deactivating the frame
@@ -738,9 +732,7 @@ module pci_target32_sm (/*AUTOARG*/
    assign idle   = c_state == S_IDLE;
    reg s_data;
    always @(posedge clk_in)
-     begin
-	s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);
-     end
+     s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);
    assign b_busy = 1'bz;
    
    assign s_data_vld = sel_fifo_mreg_out;
