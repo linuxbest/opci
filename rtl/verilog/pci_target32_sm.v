@@ -232,7 +232,7 @@ module pci_target32_sm (/*AUTOARG*/
    output 	 backoff;
    
    output 	 s_data_vld;
-   
+
    /*==================================================================================================================
     END of input / output PORT DEFINITONS !!!
     ==================================================================================================================*/
@@ -723,7 +723,7 @@ module pci_target32_sm (/*AUTOARG*/
    assign  rdy_out = ~bckp_trdy_reg ;
    
    // data and address outputs assignments!
-   assign  pci_ad_out = data_in ;
+   assign  pci_ad_out = data_in;
    
    assign  data_out = pci_ad_reg_in ;
    assign  be_out = pci_cbe_reg_in ;

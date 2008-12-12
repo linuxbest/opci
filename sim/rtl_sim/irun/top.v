@@ -752,10 +752,12 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
    reg [31:0] q;
    always @(posedge CLK or posedge RST_I)
      begin
-	if (load)
+	if (RST_I)
+	  q <= #1 32'h0;
+	else if (load)
 	  q <= #1 adio_out;
      end
-   assign adio_in = oe ? q : 32'hz;
+   assign adio_in = oe ? q : 32'h0;
 
    reg [3:0] cfg_timer;
    always @(posedge CLK or posedge RST_I)

@@ -206,7 +206,8 @@ module pci_target_unit
    s_wrdn, s_data_vld, s_data, pci_cmd, idle, base_hit,
    backoff, b_busy, addr_vld,
    // Inputs
-   s_term, s_ready, s_abort, cfg_term, cfg_ready
+   s_term, s_ready, s_abort, cfg_term, cfg_sel, cfg_ready,
+   adio_in
    );
 
 `ifdef HOST
@@ -330,7 +331,9 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    
    /*AUTOINPUT*/
    // Beginning of automatic inputs (from unused autoinst inputs)
+   input [31:0]		adio_in;		// To pci_target_if of pci_target32_interface.v
    input		cfg_ready;		// To pci_target_sm of pci_target32_sm.v
+   input		cfg_sel;		// To pci_target_if of pci_target32_interface.v
    input		cfg_term;		// To pci_target_sm of pci_target32_sm.v
    input		s_abort;		// To pci_target_sm of pci_target32_sm.v
    input		s_ready;		// To pci_target_sm of pci_target32_sm.v
@@ -872,7 +875,10 @@ pci_target32_interface pci_target_if
  /*AUTOINST*/
  // Outputs
  .pci_cmd				(pci_cmd[15:0]),
- .base_hit				(base_hit[7:0])); 
+ .base_hit				(base_hit[7:0]),
+ // Inputs
+ .adio_in				(adio_in[31:0]),
+ .cfg_sel				(cfg_sel)); 
 
 // pci target state machine inputs
 wire        pcit_sm_frame_in                    =   pciu_pciif_frame_in ;

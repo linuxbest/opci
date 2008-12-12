@@ -1171,6 +1171,7 @@ wire            pciu_pciif_stop_reg_in                  =   in_reg_stop_out ;
 
    wire 	cfg_ready;
    wire 	cfg_term;
+   reg 		cfg_sel;
    
 pci_target_unit pci_target_unit
 (
@@ -1278,7 +1279,9 @@ pci_target_unit pci_target_unit
  .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld),
  // Inputs
+ .adio_in				(adio_in[31:0]),
  .cfg_ready				(cfg_ready),
+ .cfg_sel				(cfg_sel),
  .cfg_term				(cfg_term),
  .s_abort				(s_abort),
  .s_ready				(s_ready),
@@ -1762,7 +1765,7 @@ pci_in_reg input_register
 	else 
 	  cfg_hit <= #1 1'b0;
      end
-   reg cfg_sel;
+
    always @(posedge pci_clk or posedge reset)
      begin
 	if (reset)

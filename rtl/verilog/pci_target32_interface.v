@@ -212,7 +212,9 @@ module pci_target32_interface
 	addr_tran_en5_in,
  /*AUTOARG*/
    // Outputs
-   pci_cmd, base_hit
+   pci_cmd, base_hit,
+   // Inputs
+   adio_in, cfg_sel
    ) ;
 
 `ifdef HOST
@@ -842,9 +844,13 @@ end
              pciw_fifo_cbe_out                           <= #1 rdy_in ? be_in : norm_bc ;
 	  end
      end
+
+   input [31:0] adio_in;
+   input 	cfg_sel;
+   wire [31:0] 	cfg_data = cfg_sel ? adio_in : conf_data_in;
    
    // data and address outputs assignments to PCI Target FSM
-   assign	data_out = sel_conf_fifo_in ? conf_data_in : pcir_fifo_data ;
+   assign	data_out = sel_conf_fifo_in ? cfg_data : adio_in;
 
    // data and address outputs assignments to read request sinchronization module
    assign	req_out = req_in ;
