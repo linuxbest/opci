@@ -111,7 +111,7 @@ module pci_target32_sm (/*AUTOARG*/
    disconect_wo_data_in, disconect_w_data_in,
    pciw_fifo_full_in, pcir_fifo_data_err_in,
    wbw_fifo_empty_in, wbu_del_read_comp_pending_in,
-   wbu_frame_en_in, c_ready, c_term, s_ready, s_term,
+   wbu_frame_en_in, cfg_ready, cfg_term, s_ready, s_term,
    s_abort
    ) ;
 
@@ -219,8 +219,8 @@ module pci_target32_sm (/*AUTOARG*/
    // DIS wo data  TRDY=1,DEVSEL=0,STOP=0  S_TERM=1,S_READY=0
    // DIS w  data  TRDY=0,DEVSEL=0,STOP=0  S_TERM=1,S_READY=1
    
-   input 	 c_ready;
-   input 	 c_term;
+   input 	 cfg_ready;
+   input 	 cfg_term;
    input 	 s_ready;
    input 	 s_term;
    input 	 s_abort;
@@ -245,8 +245,8 @@ module pci_target32_sm (/*AUTOARG*/
    //reg             disconect_wo_data_reg ;
    
    wire 	 config_disconnect ;
-   wire 	 disconect_wo_data = c_term && ~c_ready;
-   wire 	 disconect_w_data  = c_term &&  c_ready;
+   wire 	 disconect_wo_data = cfg_term && ~cfg_ready;
+   wire 	 disconect_w_data  = cfg_term &&  cfg_ready;
    // Delayed frame signal for determining the address phase!
    always@(posedge clk_in or posedge reset_in)
      begin
@@ -312,7 +312,7 @@ module pci_target32_sm (/*AUTOARG*/
 			     ~target_abort_in && ~pcir_fifo_data_err_in) ||
                             (~cnf_progress && ~rw_cbe0 && ~same_read_reg && norm_access_to_conf_reg && 
 			     ~target_abort_in) ||
-                            (cnf_progress && ~target_abort_in && c_ready)
+                            (cnf_progress && ~target_abort_in && cfg_ready)
                             ) ;
    
    // Signal used in S_TRANSFERE state to determin next state
@@ -362,8 +362,8 @@ module pci_target32_sm (/*AUTOARG*/
       .pci_frame_in			(pci_frame_in),
       .state_wait			(state_wait),
       .state_default			(state_default),
-      .c_ready				(c_ready),
-      .c_term				(c_term));
+      .cfg_ready			(cfg_ready),
+      .cfg_term				(cfg_term));
    
    reg [2:0]  c_state ; //current state register
    reg [2:0]  n_state ; //next state input to current state register
@@ -449,7 +449,7 @@ module pci_target32_sm (/*AUTOARG*/
 		      rd_progress && ~target_abort_in && !pcir_fifo_data_err_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~same_read_reg && 
 		      norm_access_to_conf_reg && ~target_abort_in) ||
-		     (state_wait && cnf_progress && ~target_abort_in && c_ready) 
+		     (state_wait && cnf_progress && ~target_abort_in && cfg_ready) 
 		     ) ;
    // if not disconnect without data and not target abort (only during reads)
    // MUST BE ANDED WITH CRITICAL ~FRAME

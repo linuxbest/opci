@@ -1169,6 +1169,9 @@ wire            pciu_pciif_bckp_stop_in                 =   out_bckp_stop_out ;
 wire            pciu_pciif_trdy_reg_in                  =   in_reg_trdy_out ;
 wire            pciu_pciif_stop_reg_in                  =   in_reg_stop_out ;
 
+   wire 	cfg_ready;
+   wire 	cfg_term;
+   
 pci_target_unit pci_target_unit
 (
     .reset_in                       (reset),
@@ -1275,8 +1278,8 @@ pci_target_unit pci_target_unit
  .s_wrdn				(s_wrdn),
  .addr_vld				(addr_vld),
  // Inputs
- .c_ready				(c_ready),
- .c_term				(c_term),
+ .cfg_ready				(cfg_ready),
+ .cfg_term				(cfg_term),
  .s_abort				(s_abort),
  .s_ready				(s_ready),
  .s_term				(s_term));
@@ -1759,4 +1762,17 @@ pci_in_reg input_register
 	else 
 	  cfg_hit <= #1 1'b0;
      end
+   reg cfg_sel;
+   always @(posedge pci_clk or posedge reset)
+     begin
+	if (reset)
+	  cfg_sel <= #1 1'b0;
+	if (cfg_vld && adio_out[7])
+	  cfg_sel <= #1 'b1;
+	else if (cfg_vld && ~adio_out[7])
+	  cfg_sel <= #1 1'b0;
+     end
+   assign cfg_ready = cfg_sel ? c_ready : 1'b1;
+   assign cfg_term  = cfg_sel ? c_term  : 1'b0;
+   
 endmodule

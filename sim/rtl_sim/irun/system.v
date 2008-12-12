@@ -24554,21 +24554,21 @@ begin
     configuration_cycle_read(8'h00,         /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */
                     0,                      /* function */
-                    8'h20,                  /* register */
+                    8'h00,                  /* register */
                     0,                      /* type */
                     4'hF,                   /* byte enable */
                     data);
-#100;
-    $finish;
+    
     data = 32'h12345678;
-    configuration_cycle_write(8'h00,         /* bus number */
+    configuration_cycle_read(8'h00,         /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */
                     0,                      /* function */
                     8'h20,                  /* register */
                     0,                      /* type */
                     4'hF,                   /* byte enable */
                     data);
-
+#100;
+$finish;
     configuration_cycle_read(8'h00,         /* bus number */
                     `TAR0_IDSEL_INDEX - 11, /* device number */
                     0,                      /* function */
