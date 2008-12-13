@@ -121,8 +121,11 @@ module pci_master32_sm
     rerror_out,
     first_out,
     mabort_out,
-    latency_tim_val_in
-) ;
+    latency_tim_val_in,
+ /*AUTOARG*/
+   // Inputs
+   request
+   ) ;
 
 // system inputs
 input   clk_in,
@@ -214,6 +217,8 @@ input        next_last_in ;
 output       ad_load_out,
              ad_load_on_transfer_out ;
 
+   input     request;
+   
 // parameters - states - one hot
 // idle state
 parameter S_IDLE            = 4'h1 ;
@@ -432,8 +437,19 @@ pci_mas_ad_load_crit mas_ad_load_feed
 // next data loading is allowed when state machine is in transfer state and operation is a write
 assign ad_load_on_transfer_out = sm_data_phases && do_write ;
 
+   reg request_reg;
+   always @(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  request_reg <= #1 1'b0;
+	else if (request)
+	  request_reg <= #1 1'b1;
+	else if (u_have_pci_bus)
+	  request_reg <= #1 1'b0;
+     end
+   
 // request for a bus is issued anytime when backend is requesting a transaction and state machine is in idle state
-assign pci_req_out = ~(req_in && sm_idle) ;
+assign pci_req_out = ~(request_reg && sm_idle) ;
 
 // change state signal is actually clock enable for state register
 // Non critical path for state change enable:

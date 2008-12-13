@@ -260,7 +260,7 @@ module pci_bridge32
    s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit, m_data_vld,
    m_src_en, time_out, m_data, dr_bus, m_addr_n, i_idle,
    idle, b_busy, s_data, backoff, frameq_n, devselq_n,
-   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n,
+   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n, csr,
    // Inputs
    adio_in, c_ready, c_term, s_ready, s_term, s_abort,
    request, requesthold, m_cbe, m_wrdn, complete, m_ready,
@@ -474,6 +474,8 @@ assign  spoci_sda_o = 1'b0  ;
    output 	 perrq_n;	// TODO
    output 	 serrq_n;	// TODO
    input 	 int_n;		// TODO
+
+   output [39:0] csr;		// TODO
    
 // declare clock and reset wires
 wire pci_clk = pci_clk_i ;
@@ -1080,7 +1082,10 @@ pci_wb_slave_unit wishbone_slave_unit
     .mbist_so_o       (mbist_so_o_internal),
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
-);
+ ,
+ /*AUTOINST*/
+ // Inputs
+ .request				(request));
 
 // PCI TARGET UNIT INPUTS
 wire    [31:0]  pciu_mdata_in                   =   wbm_dat_i ;
@@ -1583,7 +1588,7 @@ pci_io_mux pci_io_mux
     .ad_en_unregistered_out     (pci_mux_ad_en_unregistered_out),
 
     .init_complete_in           (pci_mux_init_complete_in)
-);
+ );
 
 pci_cur_out_reg output_backup
 (
@@ -1775,5 +1780,7 @@ pci_in_reg input_register
      end
    assign cfg_ready = cfg_sel ? c_ready : s_ready;
    assign cfg_term  = cfg_sel ? c_term  : 1'b0;
+   
+   assign m_addr_n = 1'b1;
    
 endmodule

@@ -1214,7 +1214,8 @@ begin
         `endif
 `else
             $dumpvars(0, SYSTEM.bridge32_top); 
-            lg_test_pci;
+            lg_test_pci_target ;
+            lg_test_pci_master ;
             $finish;
 `endif
             $display(" ") ;
@@ -24539,7 +24540,12 @@ begin:main
 end
 endtask // test_target_io_err_wr
 
-task lg_test_pci ;
+task lg_test_pci_master ;
+begin
+end
+endtask
+
+task lg_test_pci_target ;
     reg   [11:0] offset;
     reg   [31:0] data;
     reg   [31:0] read_data;

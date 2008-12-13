@@ -184,7 +184,11 @@ module pci_wb_slave_unit
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
-);
+ ,
+ /*AUTOARG*/
+   // Inputs
+   request
+   );
 
 input reset_in,
       wb_clock_in,
@@ -295,6 +299,13 @@ output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
+   /*AUTOINPUT*/
+   // Beginning of automatic inputs (from unused autoinst inputs)
+   input		request;		// To pci_initiator_sm of pci_master32_sm.v
+   // End of automatics
+   /*AUTOOUTPUT*/
+   /*AUTOWIRE*/
+   
 // pci master interface outputs
 wire [31:0] pcim_if_address_out ;
 wire [3:0]  pcim_if_bc_out ;
@@ -805,8 +816,7 @@ pci_master32_sm_if pci_initiator_if
     .rerror_in                     (pcim_if_rerror_in),
     .first_in                      (pcim_if_first_in),
     .mabort_in                     (pcim_if_mabort_in),
-    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out)
-);
+    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out));
 
 // pci master state machine inputs
 wire        pcim_sm_gnt_in                  =       wbu_pciif_gnt_in ;
@@ -879,7 +889,9 @@ pci_master32_sm pci_initiator_sm
     .retry_out                  (pcim_sm_retry_out),
     .rerror_out                 (pcim_sm_rerror_out),
     .first_out                  (pcim_sm_first_out),
-    .mabort_out                 (pcim_sm_mabort_out)
-) ;
+    .mabort_out                 (pcim_sm_mabort_out),
+ /*AUTOINST*/
+ // Inputs
+ .request				(request)); 
 
 endmodule
