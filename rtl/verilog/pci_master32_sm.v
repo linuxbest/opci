@@ -123,8 +123,10 @@ module pci_master32_sm
     mabort_out,
     latency_tim_val_in,
  /*AUTOARG*/
+   // Outputs
+   m_data, m_data_vld, m_addr_n,
    // Inputs
-   m_ready, request
+   adio_in, m_cbe, m_ready, request
    ) ;
 
 // system inputs
@@ -166,13 +168,9 @@ input   pci_trdy_in,
 input   [31:0]  pci_ad_reg_in ;
 output  [31:0]  pci_ad_out ;
 
-reg     [31:0]  pci_ad_out ;
-
 output          pci_ad_en_out ;
 
 output  [3:0]   pci_cbe_out ;
-
-reg     [3:0]   pci_cbe_out ;
 
 output          pci_cbe_en_out ;
 
@@ -217,8 +215,14 @@ input        next_last_in ;
 output       ad_load_out,
              ad_load_on_transfer_out ;
 
+   input [31:0] adio_in;
+   input [3:0] 	m_cbe;
    input     m_ready;
    input     request;
+
+   output    m_data;
+   output    m_data_vld;
+   output    m_addr_n;
    
 // parameters - states - one hot
 // idle state
@@ -516,7 +520,7 @@ pci_cbe_en_crit cbe_iob_feed
 assign pci_irdy_en_out   = pci_frame_en_in ;
 
 // frame enable driving - sometimes it's calculated from non critical paths
-wire frame_en_slow = (sm_idle && u_have_pci_bus && req_in && rdy_in) || sm_address || (sm_data_phases && ~pci_frame_out_in) ;
+wire frame_en_slow = (sm_idle && u_have_pci_bus && request_reg && m_ready) || sm_address || (sm_data_phases && ~pci_frame_out_in) ;
 wire frame_en_keep = sm_data_phases && pci_frame_out_in && ~mabort1 && ~mabort2 ;
 
 // most critical frame enable - calculated from heavily constrained target inputs in separate module
@@ -559,7 +563,8 @@ begin
                         // indicate the state
                         sm_address  = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_NEXT_DATA_BE ;
+                        wdata_selector = SEL_ADDR_BC;
+	   
                         // only possible next state is transfer state
                         next_state = S_TRANSFER ;
                     end
@@ -570,7 +575,7 @@ begin
                         // indicate the state
                         sm_data_phases         = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_NEXT_DATA_BE ;
+                        wdata_selector = SEL_DATA_BE ;
                         if ( pci_frame_out_in )
                         begin
                             // when frame is inactive next state will be turn arround
@@ -604,26 +609,9 @@ begin
         rdata_selector <= #`FF_DELAY wdata_selector ;
 end
 
-always@(rdata_selector or address_in or bc_in or data_in or be_in or next_data_in or next_be_in)
-begin
-    case ( rdata_selector )
-        SEL_ADDR_BC:    begin
-                            pci_ad_out  = address_in ;
-                            pci_cbe_out = bc_in ;
-                        end
-
-        SEL_DATA_BE:    begin
-                            pci_ad_out  = data_in ;
-                            pci_cbe_out = be_in ;
-                        end
-        SEL_NEXT_DATA_BE,
-        2'b10:              begin
-                                pci_ad_out  = next_data_in ;
-                                pci_cbe_out = next_be_in ;
-                            end
-    endcase
-end
-
+   assign pci_ad_out = adio_in;
+   assign pci_cbe_out = m_cbe;
+   
 // data output mux for reads
 always@(mabort_out or pci_ad_reg_in)
 begin
@@ -632,4 +620,7 @@ begin
     else
         data_out = pci_ad_reg_in ;
 end
+
+   assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
+   
 endmodule

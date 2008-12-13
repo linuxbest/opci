@@ -186,8 +186,10 @@ module pci_wb_slave_unit
 `endif
  ,
  /*AUTOARG*/
+   // Outputs
+   m_data_vld, m_data, m_addr_n,
    // Inputs
-   request, m_ready
+   request, m_ready, m_cbe, adio_in
    );
 
 input reset_in,
@@ -299,12 +301,20 @@ output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
+   output 			    m_addr_n;
+   
    /*AUTOINPUT*/
    // Beginning of automatic inputs (from unused autoinst inputs)
+   input [31:0]		adio_in;		// To pci_initiator_sm of pci_master32_sm.v
+   input [3:0]		m_cbe;			// To pci_initiator_if of pci_master32_sm_if.v, ...
    input		m_ready;		// To pci_initiator_sm of pci_master32_sm.v
    input		request;		// To pci_initiator_sm of pci_master32_sm.v
    // End of automatics
    /*AUTOOUTPUT*/
+   // Beginning of automatic outputs (from unused autoinst outputs)
+   output		m_data;			// From pci_initiator_sm of pci_master32_sm.v
+   output		m_data_vld;		// From pci_initiator_sm of pci_master32_sm.v
+   // End of automatics
    /*AUTOWIRE*/
    
 // pci master interface outputs
@@ -817,7 +827,11 @@ pci_master32_sm_if pci_initiator_if
     .rerror_in                     (pcim_if_rerror_in),
     .first_in                      (pcim_if_first_in),
     .mabort_in                     (pcim_if_mabort_in),
-    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out));
+    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out),
+ /*AUTOINST*/
+ // Inputs
+ .m_addr_n				(m_addr_n),
+ .m_cbe					(m_cbe[3:0]));
 
 // pci master state machine inputs
 wire        pcim_sm_gnt_in                  =       wbu_pciif_gnt_in ;
@@ -892,7 +906,13 @@ pci_master32_sm pci_initiator_sm
     .first_out                  (pcim_sm_first_out),
     .mabort_out                 (pcim_sm_mabort_out),
  /*AUTOINST*/
+ // Outputs
+ .m_data				(m_data),
+ .m_data_vld				(m_data_vld),
+ .m_addr_n				(m_addr_n),
  // Inputs
+ .adio_in				(adio_in[31:0]),
+ .m_cbe					(m_cbe[3:0]),
  .m_ready				(m_ready),
  .request				(request)); 
 

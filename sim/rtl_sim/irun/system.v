@@ -24541,7 +24541,29 @@ end
 endtask // test_target_io_err_wr
 
 task lg_test_pci_master ;
+    reg [31:0] pci_address;
+    reg ok;
 begin
+   repeat( 10 )
+    @(posedge pci_clock) ;
+
+    $display ("master test");
+
+    pci_address = 32'hC000_0000;
+
+    fork 
+     begin
+      SYSTEM.bridge32_top.master_tb.start_enable;
+      do_pause( 1 ) ;
+     end
+     begin
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ; 
+      @(posedge wb_clock) ;
+     end
+    join
+
+   repeat( 10 )
+   @(posedge wb_clock) ;
 end
 endtask
 
@@ -24589,10 +24611,8 @@ begin
     @(posedge pci_clock) ;
     configure_target(1);
     @(posedge pci_clock) ;
-    configure_target(2);
-
+    //configure_target(2);
     configure_bridge_target_base_addresses;
-    
     @(posedge pci_clock) ;
 
     $display(" ");
@@ -24665,6 +24685,26 @@ begin
     @(posedge wb_clock) ;
 
    pci_address = Target_Base_Addr_R[2] | { 20'h0, 12'h00} ;
+    fork 
+     begin
+     DO_REF ("MEM_R_MEM", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],
+                    PCI_COMMAND_MEMORY_READ, data[PCI_BUS_DATA_RANGE:0],
+                    byte_enables_l[PCI_BUS_CBE_RANGE:0],
+                    `Test_One_Word, `Test_No_Addr_Perr, `Test_No_Data_Perr,
+                    8'h0_0, `Test_One_Zero_Target_WS,
+                    `Test_Devsel_Medium, `Test_No_Fast_B2B,
+                    `Test_Target_Normal_Completion, `Test_Expect_No_Master_Abort);
+     do_pause( 1 ) ;
+    end
+    begin
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+      @(posedge pci_clock) ;
+    end
+   join
+   repeat( 2 )
+    @(posedge wb_clock) ;
+   
+    pci_address = 32'hc000_0000;
     fork 
      begin
      DO_REF ("MEM_R_MEM", `Test_Master_2, pci_address[PCI_BUS_DATA_RANGE:0],

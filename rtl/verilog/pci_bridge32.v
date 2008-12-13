@@ -1084,7 +1084,13 @@ pci_wb_slave_unit wishbone_slave_unit
 `endif
  ,
  /*AUTOINST*/
+ // Outputs
+ .m_addr_n				(m_addr_n),
+ .m_data				(m_data),
+ .m_data_vld				(m_data_vld),
  // Inputs
+ .adio_in				(adio_in[31:0]),
+ .m_cbe					(m_cbe[3:0]),
  .m_ready				(m_ready),
  .request				(request));
 
@@ -1781,7 +1787,5 @@ pci_in_reg input_register
      end
    assign cfg_ready = cfg_sel ? c_ready : s_ready;
    assign cfg_term  = cfg_sel ? c_term  : 1'b0;
-   
-   assign m_addr_n = 1'b1;
    
 endmodule

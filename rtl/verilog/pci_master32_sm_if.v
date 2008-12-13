@@ -148,8 +148,11 @@ module pci_master32_sm_if
     mabort_received_out,
     tabort_received_out,
 
-    posted_write_not_present_out
-);
+    posted_write_not_present_out,
+ /*AUTOARG*/
+   // Inputs
+   m_addr_n, m_cbe
+   );
 
 // system inputs
 input clk_in ;
@@ -235,7 +238,8 @@ output          mabort_received_out ;           // master abort signaled to stat
 output          tabort_received_out ;           // target abort signaled to status register
 
 output          posted_write_not_present_out ;  // used in target state machine - must deny read completions when this signal is 0
-
+   input 	m_addr_n;
+   input [3:0] 	m_cbe;
 
 assign err_bc_out   = bc_out ;
 
@@ -376,8 +380,8 @@ begin
     if (reset_in)
         bc_out <= #`FF_DELAY `BC_RESERVED0 ;
     else
-    if (address_change)
-        bc_out <= #`FF_DELAY new_bc ;
+    if (~m_addr_n)
+        bc_out <= #`FF_DELAY m_cbe ;
 end
 
 reg [29:0] current_dword_address ;
