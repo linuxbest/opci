@@ -590,7 +590,7 @@ wire [3:0]  fifos_wbr_be_in             =       pcim_if_wbr_be_out ;
 wire [3:0]  fifos_wbr_control_in        =       pcim_if_wbr_control_out ;
 wire        fifos_wbr_renable_in        =       wbs_sm_wbr_renable_out ;
 wire        fifos_wbr_flush_in          =       wbs_sm_wbr_flush_out || del_sync_comp_flush_out ;
-
+`ifdef FIFO
 // WBW_FIFO and WBR_FIFO instantiation
 pci_wbw_wbr_fifos fifos
 (
@@ -629,7 +629,7 @@ pci_wbw_wbr_fifos fifos
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 ) ;
-
+`endif
 wire [31:0] amux_addr_in  = ADDR_I ;
 wire        amux_sample_address_in = wbs_sm_sample_address_out ;
 

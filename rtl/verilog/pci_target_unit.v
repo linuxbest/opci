@@ -594,7 +594,7 @@ wire [3:0]  fifos_pcir_be_in            =   wbm_sm_pcir_fifo_be_out ;
 wire [3:0]  fifos_pcir_control_in       =   wbm_sm_pcir_fifo_control_out ;
 wire        fifos_pcir_renable_in       =   pcit_if_pcir_fifo_renable_out ;
 wire        fifos_pcir_flush_in         =   pcit_if_pcir_fifo_flush_out ;
-
+`ifdef FIFO
 // PCIW_FIFO and PCIR_FIFO instantiation
 pci_pciw_pcir_fifos fifos
 (
@@ -638,7 +638,7 @@ pci_pciw_pcir_fifos fifos
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 ) ;
-
+`endif
 // delayed transaction logic inputs
 wire        del_sync_req_in             =   pcit_if_req_out ;
 wire        del_sync_comp_in            =   wbm_sm_wb_read_done ;

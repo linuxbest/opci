@@ -301,6 +301,7 @@ module pci_target32_sm (/*AUTOARG*/
         end
      end
    
+   reg 	   wr_progress ;
    // Signal used in S_WAIT state to determin next state
    // 1: no conf, write, write progress, no target abort
    // 2: no conf, read, read match, rd progress, no target abort, no fifo error
@@ -613,7 +614,6 @@ module pci_target32_sm (/*AUTOARG*/
    // Read request is allowed to be proceed regarding the WB side
    wire    read_request    =   (~read_completed_in && ~read_processing_in && ~norm_access_to_config_in) ;
 
-   reg 	   wr_progress ;
    reg 	   rd_progress ;
    reg 	   rd_request ;
    reg 	   wr_to_fifo ;
