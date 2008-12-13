@@ -354,11 +354,15 @@ end
 
 wire timeout_termination = sm_turn_arround && timeout && pci_stop_reg_in ;
 
-// frame control logic
-// frame is forced to 0 (active) when state machine is in idle state, since only possible next state is address state which always drives frame active
-wire force_frame = ~sm_idle ;
-// slow signal for frame calculated from various registers in the core
-wire slow_frame  = /*last_in*/1'b1 || (latency_time_out && pci_gnt_in) || (next_last_in && sm_data_phases) || mabort1 ;
+   // frame control logic
+   // frame is forced to 0 (active) when state machine is in idle state, since only 
+   // possible next state is address state which always drives frame active
+   wire force_frame = ~sm_idle ;
+   // slow signal for frame calculated from various registers in the core
+   wire slow_frame  = /*last_in*/1'b1 || 
+	(latency_time_out && pci_gnt_in) || 
+	(next_last_in && sm_data_phases) || 
+	mabort1 ;
 // critical timing frame logic in separate module - some combinations of target signals force frame to inactive state immediately after sampled asserted
 // (STOP)
 pci_frame_crit frame_iob_feed
