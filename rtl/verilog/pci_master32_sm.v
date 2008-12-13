@@ -459,8 +459,11 @@ assign pci_req_out = ~(request_reg && sm_idle) ;
 // - state machine is in turn arround state
 // - state machine is in transfer state and master abort termination is in progress
 
-wire ch_state_slow = sm_address || sm_turn_arround || sm_data_phases && ( pci_frame_out_in && mabort1 || mabort2 ) ;
-
+   wire ch_state_slow = sm_address ||
+	sm_turn_arround ||
+	sm_data_phases && 
+	( pci_frame_out_in && mabort1 || mabort2 ) ;
+   
 // a bit more critical change state enable is calculated with GNT signal
 wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && request_reg && m_ready ;
 
