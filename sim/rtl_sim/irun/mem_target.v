@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 五 12月 12 14:22:23 2008 (+0800)
 // Version: 
-// Last-Updated: 五 12月 12 16:32:29 2008 (+0800)
+// Last-Updated: 六 12月 13 13:46:48 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 48
+//     Update #: 55
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -64,7 +64,8 @@ module mem_target (/*AUTOARG*/
    reg 		 bar_0_rd;
    reg 		 bar_0_wr;
    wire 	 optional;
-   always @(posedge CLK or posedge reset)
+   always @(/*AS*/base_hit or optional or reset or s_data
+	    or s_wrdn)
      begin
 	if (reset) begin
 	   bar_0_rd <= #1 1'b0;
@@ -78,7 +79,9 @@ module mem_target (/*AUTOARG*/
 	end
      end // always @ (posedge CLK or posedge RST_I)
 
-   assign optional = pci_cmd[15:0] == 16'h40 && addr[31:0] == 32'h4000_0000;
+   assign optional = (pci_cmd[15:0] == 16'h40 ||
+		      pci_cmd[15:0] == 16'h80 ) &&
+		     addr[31:0] == 32'h4000_0000;
    wire load     = bar_0_wr & s_data_vld;
    wire oe       = bar_0_rd & s_data;
    reg [31:0] q;

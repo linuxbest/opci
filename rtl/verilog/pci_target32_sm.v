@@ -300,7 +300,7 @@ module pci_target32_sm (/*AUTOARG*/
            cnf_progress            <= #`FF_DELAY config_access ;
         end
      end
-
+   
    // Signal used in S_WAIT state to determin next state
    // 1: no conf, write, write progress, no target abort
    // 2: no conf, read, read match, rd progress, no target abort, no fifo error
@@ -330,7 +330,7 @@ module pci_target32_sm (/*AUTOARG*/
    reg 	backoff ;
    reg 	state_default ;
    wire state_backoff   = sm_transfere && backoff ;
-   wire state_transfere = sm_transfere && !backoff ;
+   wire state_transfere = sm_transfere && !backoff;
 
    always@(posedge clk_in or posedge reset_in)
      begin
@@ -350,7 +350,6 @@ module pci_target32_sm (/*AUTOARG*/
    //  for critical inputs
    pci_target32_clk_en pci_target_clock_en
      (
-      .state_transfere        (sm_transfere),
       .clk_enable             (pcit_sm_clk_en),
       /*AUTOINST*/
       // Inputs
@@ -359,6 +358,7 @@ module pci_target32_sm (/*AUTOARG*/
       .addr_claim_in			(addr_claim_in),
       .pci_frame_in			(pci_frame_in),
       .state_wait			(state_wait),
+      .sm_transfere			(sm_transfere),
       .state_default			(state_default),
       .cfg_ready			(cfg_ready),
       .cfg_term				(cfg_term),
@@ -444,7 +444,7 @@ module pci_target32_sm (/*AUTOARG*/
    // if not retry and not target abort
    // NO CRITICAL SIGNALS
    wire    trdy_w = (
-		     (state_wait && ~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
+		     (state_wait && ~cnf_progress && rw_cbe0 && s_ready && ~target_abort_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready && ~target_abort_in && ~pcir_fifo_data_err_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && norm_access_to_conf_reg && ~target_abort_in) ||
 		     (state_wait && cnf_progress && ~target_abort_in && cfg_ready) 
@@ -480,7 +480,7 @@ module pci_target32_sm (/*AUTOARG*/
    // NO CRITICAL SIGNALS
    wire    stop_w = (
 		     (state_wait && target_abort_in) ||
-		     (state_wait && ~cnf_progress && rw_cbe0 && ~wr_progress) ||
+		     (state_wait && ~cnf_progress && rw_cbe0 && s_abort) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_abort) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && pcir_fifo_data_err_in) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && ~norm_access_to_conf_reg)
@@ -730,9 +730,10 @@ module pci_target32_sm (/*AUTOARG*/
     * read  is 0 */
    assign s_wrdn = rw_cbe0;
    assign idle   = c_state == S_IDLE;
-   reg s_data;
+   /*reg s_data;
    always @(posedge clk_in)
-     s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);
+     s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);*/
+   assign s_data = (c_state == S_TRANSFERE || c_state == S_WAIT || backoff);
    assign b_busy = 1'bz;
    
    assign s_data_vld = sel_fifo_mreg_out;
