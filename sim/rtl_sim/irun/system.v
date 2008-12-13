@@ -24553,17 +24553,31 @@ begin
 
     fork 
      begin
-      SYSTEM.bridge32_top.master_tb.start_enable;
+      SYSTEM.bridge32_top.master_tb.start_enable(0, pci_address);
       do_pause( 1 ) ;
      end
      begin
       pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ; 
-      @(posedge wb_clock) ;
+      @(posedge pci_clock) ;
      end
     join
 
-   repeat( 10 )
-   @(posedge wb_clock) ;
+   repeat( 2 )
+   @(posedge pci_clock) ;
+
+    fork 
+     begin
+      SYSTEM.bridge32_top.master_tb.start_enable(1, pci_address);
+      do_pause( 1 ) ;
+     end
+     begin
+      pci_transaction_progress_monitor( pci_address, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ; 
+      @(posedge pci_clock) ;
+     end
+    join
+
+   repeat( 2 )
+   @(posedge pci_clock) ;
 end
 endtask
 

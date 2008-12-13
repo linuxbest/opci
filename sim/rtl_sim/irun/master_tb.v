@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: Áù 12ÔÂ 13 15:51:09 2008 (+0800)
 // Version: 
-// Last-Updated: Áù 12ÔÂ 13 17:58:00 2008 (+0800)
+// Last-Updated: Áù 12ÔÂ 13 19:33:05 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 82
+//     Update #: 92
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -79,12 +79,17 @@ module master_tb (/*AUTOARG*/
 	end
      end
 
-   wire dir = 1'b0;
+   reg dir = 1'b0;
    reg start = 1'b0;
-
+   reg [31:0] address;
+   
    task start_enable;
+      input cmd_dir;
+      input [31:0] cmd_address;
       begin
 	 start = 1;
+	 dir   = cmd_dir;
+	 address = cmd_address;
       end
    endtask // start
    
@@ -160,7 +165,7 @@ module master_tb (/*AUTOARG*/
    wire [3:0] byte_enable = 4'b0000;
    
    wire       addr_oe = m_addr_n;
-   assign adio_in = ~addr_oe ? 32'hC000_0000 : 32'hz;
+
    assign m_cbe   = ~addr_oe ? command       : byte_enable;
    assign m_wrdn  = dir;
 
@@ -179,7 +184,18 @@ module master_tb (/*AUTOARG*/
 
    wire load = c_state == S_READ & m_data_vld;
    wire oe   = c_state == S_WRITE & m_data;
+
+   reg [31:0] q;
+   always @(posedge CLK or posedge reset)
+     begin
+	if (reset)
+	  q <= #1 32'h0;
+	else if (load)
+	  q <= #1 adio_out;
+     end
    
+   assign adio_in = ~addr_oe ? 32'hC000_0000 : 
+		    oe ? q : 32'hz;   
 endmodule // master_tb
 
 
