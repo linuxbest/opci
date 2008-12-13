@@ -124,7 +124,7 @@ module pci_master32_sm
     latency_tim_val_in,
  /*AUTOARG*/
    // Inputs
-   request
+   m_ready, request
    ) ;
 
 // system inputs
@@ -217,6 +217,7 @@ input        next_last_in ;
 output       ad_load_out,
              ad_load_on_transfer_out ;
 
+   input     m_ready;
    input     request;
    
 // parameters - states - one hot
@@ -461,7 +462,7 @@ assign pci_req_out = ~(request_reg && sm_idle) ;
 wire ch_state_slow = sm_address || sm_turn_arround || sm_data_phases && ( pci_frame_out_in && mabort1 || mabort2 ) ;
 
 // a bit more critical change state enable is calculated with GNT signal
-wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && req_in && rdy_in ;
+wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && request_reg && m_ready ;
 
 // most critical change state enable - calculated from target response signals
 pci_mas_ch_state_crit state_machine_ce

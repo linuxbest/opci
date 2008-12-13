@@ -187,7 +187,7 @@ module pci_wb_slave_unit
  ,
  /*AUTOARG*/
    // Inputs
-   request
+   request, m_ready
    );
 
 input reset_in,
@@ -301,6 +301,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
 
    /*AUTOINPUT*/
    // Beginning of automatic inputs (from unused autoinst inputs)
+   input		m_ready;		// To pci_initiator_sm of pci_master32_sm.v
    input		request;		// To pci_initiator_sm of pci_master32_sm.v
    // End of automatics
    /*AUTOOUTPUT*/
@@ -892,6 +893,7 @@ pci_master32_sm pci_initiator_sm
     .mabort_out                 (pcim_sm_mabort_out),
  /*AUTOINST*/
  // Inputs
+ .m_ready				(m_ready),
  .request				(request)); 
 
 endmodule

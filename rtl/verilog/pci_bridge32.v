@@ -1085,6 +1085,7 @@ pci_wb_slave_unit wishbone_slave_unit
  ,
  /*AUTOINST*/
  // Inputs
+ .m_ready				(m_ready),
  .request				(request));
 
 // PCI TARGET UNIT INPUTS
