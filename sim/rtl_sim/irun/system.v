@@ -421,7 +421,7 @@ WB_SLAVE_BEHAVIORAL wishbone_slave
 
 integer wbu_mon_log_file_desc ;
 integer pciu_mon_log_file_desc ;
-WB_BUS_MON wbu_wb_mon(
+/*WB_BUS_MON wbu_wb_mon(
                     .CLK_I(wb_clock),
                     .RST_I(reset_wb),
                     .ACK_I(ACK_O),
@@ -459,7 +459,7 @@ WB_BUS_MON pciu_wb_mon(
                     .CAB_O(1'b0),
                     .check_CTI(1'b1),
                     .log_file_desc( pciu_mon_log_file_desc )
-                  ) ;
+                  ) ;*/
 
 // some aditional signals are needed here because of the arbiter
 reg [3:0] pci_ext_req_prev ;

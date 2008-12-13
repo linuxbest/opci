@@ -120,148 +120,24 @@
 
 module pci_bridge32
 (
-    // WISHBONE system signals
-    wb_clk_i,
-    wb_rst_i,
-    wb_rst_o,
-    wb_int_i,
-    wb_int_o,
-
-    // WISHBONE slave interface
-    wbs_adr_i,
-    wbs_dat_i,
-    wbs_dat_o,
-    wbs_sel_i,
-    wbs_cyc_i,
-    wbs_stb_i,
-    wbs_we_i,
-
-`ifdef PCI_WB_REV_B3
-
-    wbs_cti_i,
-    wbs_bte_i,
-
-`else
-
-    wbs_cab_i,
-
-`endif
-
-    wbs_ack_o,
-    wbs_rty_o,
-    wbs_err_o,
-
-    // WISHBONE master interface
-    wbm_adr_o,
-    wbm_dat_i,
-    wbm_dat_o,
-    wbm_sel_o,
-    wbm_cyc_o,
-    wbm_stb_o,
-    wbm_we_o,
-    wbm_cti_o,
-    wbm_bte_o,
-    wbm_ack_i,
-    wbm_rty_i,
-    wbm_err_i,
-
-    // pci interface - system pins
-    pci_clk_i,
-    pci_rst_i,
-    pci_rst_o,
-    pci_inta_i,
-    pci_inta_o,
-    pci_rst_oe_o,
-    pci_inta_oe_o,
-
-    // arbitration pins
-    pci_req_o,
-    pci_req_oe_o,
-
-    pci_gnt_i,
-
-    // protocol pins
-    pci_frame_i,
-    pci_frame_o,
-
-    pci_frame_oe_o,
-    pci_irdy_oe_o,
-    pci_devsel_oe_o,
-    pci_trdy_oe_o,
-    pci_stop_oe_o,
-    pci_ad_oe_o,
-    pci_cbe_oe_o,
-
-    pci_irdy_i,
-    pci_irdy_o,
-
-    pci_idsel_i,
-
-    pci_devsel_i,
-    pci_devsel_o,
-
-    pci_trdy_i,
-    pci_trdy_o,
-
-    pci_stop_i,
-    pci_stop_o          ,
-
-    // data transfer pins
-    pci_ad_i,
-    pci_ad_o,
-
-    pci_cbe_i,
-    pci_cbe_o,
-
-    // parity generation and checking pins
-    pci_par_i,
-    pci_par_o,
-    pci_par_oe_o,
-
-    pci_perr_i,
-    pci_perr_o,
-    pci_perr_oe_o,
-
-    // system error pin
-    pci_serr_o,
-    pci_serr_oe_o
-
-`ifdef PCI_BIST
-    ,
-    // debug chain signals
-    mbist_si_i,       // bist scan serial in
-    mbist_so_o,       // bist scan serial out
-    mbist_ctrl_i        // bist chain shift control
-`endif
-
-`ifdef PCI_CPCI_HS_IMPLEMENT
-    ,
-    // Compact PCI Hot Swap signals
-    pci_cpci_hs_enum_o      ,   //  ENUM# output with output enable (open drain)
-    pci_cpci_hs_enum_oe_o   ,   //  ENUM# enum output enable
-    pci_cpci_hs_led_o       ,   //  LED output with output enable (open drain)
-    pci_cpci_hs_led_oe_o    ,   //  LED output enable
-    pci_cpci_hs_es_i            //  ejector switch state indicator input
-`endif
-
-`ifdef PCI_SPOCI
-    ,
-    // Serial power on configuration interface
-    spoci_scl_o     ,
-    spoci_scl_oe_o  ,
-    spoci_sda_i     ,
-    spoci_sda_o     ,
-    spoci_sda_oe_o  
-`endif
-  , 
   /*AUTOARG*/
    // Outputs
-   addr, adio_out, addr_vld, cfg_vld, s_data_vld, s_src_en,
-   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit, m_data_vld,
-   m_src_en, time_out, m_data, dr_bus, m_addr_n, i_idle,
-   idle, b_busy, s_data, backoff, frameq_n, devselq_n,
-   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n, csr,
+   pci_rst_o, pci_rst_oe_o, pci_inta_o, pci_inta_oe_o,
+   pci_req_o, pci_req_oe_o, pci_frame_o, pci_frame_oe_o,
+   pci_irdy_oe_o, pci_devsel_oe_o, pci_trdy_oe_o,
+   pci_stop_oe_o, pci_ad_oe_o, pci_cbe_oe_o, pci_irdy_o,
+   pci_devsel_o, pci_trdy_o, pci_stop_o, pci_ad_o,
+   pci_cbe_o, pci_par_o, pci_par_oe_o, pci_perr_o,
+   pci_perr_oe_o, pci_serr_o, pci_serr_oe_o, addr, adio_out,
+   addr_vld, cfg_vld, s_data_vld, s_src_en, s_wrdn, pci_cmd,
+   s_cbe, base_hit, cfg_hit, m_data_vld, m_src_en, time_out,
+   m_data, dr_bus, m_addr_n, i_idle, idle, b_busy, s_data,
+   backoff, frameq_n, devselq_n, irdyq_n, trdyq_n, stopq_n,
+   perrq_n, serrq_n, csr,
    // Inputs
+   pci_clk_i, pci_rst_i, pci_inta_i, pci_gnt_i, pci_frame_i,
+   pci_irdy_i, pci_idsel_i, pci_devsel_i, pci_trdy_i,
+   pci_stop_i, pci_ad_i, pci_cbe_i, pci_par_i, pci_perr_i,
    adio_in, c_ready, c_term, s_ready, s_term, s_abort,
    request, requesthold, m_cbe, m_wrdn, complete, m_ready,
    cfg_self, int_n
@@ -282,49 +158,49 @@ module pci_bridge32
 parameter pci_ba1_5_width = `PCI_NUM_OF_DEC_ADDR_LINES ;
 
 // WISHBONE system signals
-input   wb_clk_i ;
-input   wb_rst_i ;
-output  wb_rst_o ;
-input   wb_int_i ;
-output  wb_int_o ;
+wire    wb_clk_i ;
+wire    wb_rst_i ;
+wire    wb_rst_o ;
+wire    wb_int_i ;
+wire    wb_int_o ;
 
 // WISHBONE slave interface
-input   [31:0]  wbs_adr_i ;
-input   [31:0]  wbs_dat_i ;
-output  [31:0]  wbs_dat_o ;
-input   [3:0]   wbs_sel_i ;
-input           wbs_cyc_i ;
-input           wbs_stb_i ;
-input           wbs_we_i ;
+wire    [31:0]  wbs_adr_i ;
+wire    [31:0]  wbs_dat_i ;
+wire    [31:0]  wbs_dat_o ;
+wire    [3:0]   wbs_sel_i ;
+wire            wbs_cyc_i ;
+wire            wbs_stb_i ;
+wire            wbs_we_i ;
 
 `ifdef PCI_WB_REV_B3
 
-input [2:0] wbs_cti_i ;
-input [1:0] wbs_bte_i ;
+wire  [2:0] wbs_cti_i ;
+wire  [1:0] wbs_bte_i ;
 
 `else
 
-input wbs_cab_i ;
+wire wbs_cab_i ;
 
 `endif
 
-output          wbs_ack_o ;
-output          wbs_rty_o ;
-output          wbs_err_o ;
+wire  wbs_ack_o ;
+wire  wbs_rty_o ;
+wire  wbs_err_o ;
 
 // WISHBONE master interface
-output  [31:0]  wbm_adr_o ;
-input   [31:0]  wbm_dat_i ;
-output  [31:0]  wbm_dat_o ;
-output  [3:0]   wbm_sel_o ;
-output          wbm_cyc_o ;
-output          wbm_stb_o ;
-output          wbm_we_o ;
-output  [2:0]   wbm_cti_o ;
-output  [1:0]   wbm_bte_o ;
-input           wbm_ack_i ;
-input           wbm_rty_i ;
-input           wbm_err_i ;
+wire [31:0]  wbm_adr_o ;
+wire [31:0]  wbm_dat_i ;
+wire [31:0]  wbm_dat_o ;
+wire [3:0]   wbm_sel_o ;
+wire wbm_cyc_o ;
+wire wbm_stb_o ;
+wire wbm_we_o ;
+wire [2:0]   wbm_cti_o ;
+wire [1:0]   wbm_bte_o ;
+wire wbm_ack_i ;
+wire wbm_rty_i ;
+wire  wbm_err_i ;
 
 // pci interface - system pins
 input   pci_clk_i ;
@@ -391,29 +267,29 @@ output  pci_serr_oe_o ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   mbist_si_i;       // bist scan serial in
-output  mbist_so_o;       // bist scan serial out
-input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
+wire  mbist_si_i;       // bist scan serial in
+wire  mbist_so_o;       // bist scan serial out
+wire [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 `ifdef PCI_CPCI_HS_IMPLEMENT
     // Compact PCI Hot Swap signals
-output  pci_cpci_hs_enum_o      ;   //  ENUM# output with output enable (open drain)
-output  pci_cpci_hs_enum_oe_o   ;   //  ENUM# enum output enable
-output  pci_cpci_hs_led_o       ;   //  LED output with output enable (open drain)
-output  pci_cpci_hs_led_oe_o    ;   //  LED output enable
-input   pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
+wire pci_cpci_hs_enum_o      ;   //  ENUM# output with output enable (open drain)
+wire pci_cpci_hs_enum_oe_o   ;   //  ENUM# enum output enable
+wire pci_cpci_hs_led_o       ;   //  LED output with output enable (open drain)
+wire pci_cpci_hs_led_oe_o    ;   //  LED output enable
+wire pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
 
 assign  pci_cpci_hs_enum_o = 1'b0   ;
 assign  pci_cpci_hs_led_o  = 1'b0   ;
 `endif
 
 `ifdef PCI_SPOCI
-output  spoci_scl_o     ;
-output  spoci_scl_oe_o  ;
-input   spoci_sda_i     ;
-output  spoci_sda_o     ;
-output  spoci_sda_oe_o  ;
+wire spoci_scl_o     ;
+wire spoci_scl_oe_o  ;
+wire spoci_sda_i     ;
+wire spoci_sda_o     ;
+wire spoci_sda_oe_o  ;
 
 assign  spoci_scl_o = 1'b0  ;
 assign  spoci_sda_o = 1'b0  ;

@@ -414,6 +414,7 @@ wire            SERR_en ;
    
 pci_bridge32 bridge
 (
+`ifdef WB_ENABLE
     // WISHBONE system signals
     .wb_clk_i(CLK_I),
     .wb_rst_i(RST_I),
@@ -458,7 +459,7 @@ pci_bridge32 bridge
     .wbm_ack_i(ACK_I),
     .wbm_rty_i(RTY_I),
     .wbm_err_i(ERR_I),
-
+`endif
     // pci interface - system pins
     .pci_clk_i    (CLK),
     .pci_rst_i    ( RST_in ),
