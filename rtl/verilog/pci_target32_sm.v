@@ -302,6 +302,8 @@ module pci_target32_sm (/*AUTOARG*/
      end
    
    reg 	   wr_progress ;
+   reg 	   cfg_ready_reg;
+   
    // Signal used in S_WAIT state to determin next state
    // 1: no conf, write, write progress, no target abort
    // 2: no conf, read, read match, rd progress, no target abort, no fifo error
@@ -333,7 +335,6 @@ module pci_target32_sm (/*AUTOARG*/
    wire state_backoff   = sm_transfere && backoff ;
    wire state_transfere = sm_transfere && !backoff;
 
-   reg 			cfg_ready_reg;
    always@(posedge clk_in or posedge reset_in)
      begin
 	if ( reset_in )
