@@ -626,7 +626,7 @@ begin
 end
 
    assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
-   assign m_data     = sm_data_phases;
+   assign m_data     = sm_data_phases || sm_address;
    assign m_data_vld = transfer;
    
 endmodule
