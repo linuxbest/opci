@@ -158,7 +158,7 @@ module SYSTEM ;
 
 `include "pci_blue_constants.vh"
 `include "pci_blue_options.vh"
-`include "lg_test_pci.vh"
+`include "lg_test_pci.v"
 
 integer tests_successfull ;
 integer tests_failed ;
@@ -1215,8 +1215,7 @@ begin
         `endif
 `else
             $dumpvars(0, SYSTEM.bridge32_top); 
-            lg_test_pci_target ;
-            lg_test_pci_master ;
+            lg_test_pci ;
             $finish;
 `endif
             $display(" ") ;
