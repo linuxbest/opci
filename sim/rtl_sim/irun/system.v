@@ -968,10 +968,6 @@ begin
     end
 
     $fdisplay(pci_mon_log_file_desc, "*********************************** Start PCI Bus Monitor log file ******************************************") ;
-
-    $dumpfile("pci.vcd");
-    //$dumpvars(0, SYSTEM.bridge32_top); 
-
     run_tests ;
 end
 
@@ -1214,7 +1210,6 @@ begin
             target_completion_expiration ;
         `endif
 `else
-            $dumpvars(0, SYSTEM.bridge32_top); 
             lg_test_pci ;
             $finish;
 `endif
