@@ -1,4 +1,4 @@
-task lg_test_pci_configuration;
+task lg_test_initial_all_conf_values;
    reg [11:0] register_offset;
    reg [31:0] expected_value;
    reg 	      failed;
@@ -305,13 +305,85 @@ task lg_test_pci;
       $dumpfile("pci.vcd");
       $dumpvars(0, SYSTEM.bridge32_top);
 
-      /* test the pci configuration */
-      lg_test_pci_configuration;
+      lg_test_initial_all_conf_values;
+
+      next_test_name[79:0] <= "Initing...";
+      test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
+      for ( wb_init_waits = 0 ; 
+	    wb_init_waits <= 4 ; 
+	    wb_init_waits = wb_init_waits + 1 ) begin
+	 for ( wb_subseq_waits = 0 ;
+	       wb_subseq_waits <= 4 ; 
+	       wb_subseq_waits = wb_subseq_waits + 1 ) begin
+	    pci_init_waits   = wb_init_waits ;
+	    pci_subseq_waits = wb_subseq_waits ;
+	    test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = pci_init_waits ;
+	    test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = pci_subseq_waits ;
+	    
+	    for ( tb_target_decode_speed = 0 ; 
+		  tb_target_decode_speed <= 3 ;
+		  tb_target_decode_speed = tb_target_decode_speed + 1 ) begin
+	       test_target_response[`TARGET_ENCODED_DEVSEL_SPEED] = tb_target_decode_speed ;
+	       
+	       @(posedge pci_clock) ;
+	       configure_target(1) ;
+	       @(posedge pci_clock) ;
+	       configure_target(2) ;
+	       
+	       configure_bridge_target ;
+	       next_test_name[79:0] <= "WB_SLAVE..";
+
+	       /* wb */
+
+	       $display("Testing PCI target images' features!") ;
+	       configure_bridge_target_base_addresses;
+
+	       /*test_pci_image(1);
+	       test_pci_image(2);
+	       test_pci_image(3);
+	       test_pci_image(4);
+	       test_pci_image(5);
+	       test_wb_error_rd ;
+	       target_fast_back_to_back ;
+	       target_disconnects ;
+	       test_target_overload ;
+	       if ( target_io_image !== -1 )
+			     test_target_abort( target_io_image ) ;
+	       
+	       $display(" ") ;
+	       $display("PCI target images' tests finished!") ;
+	       transaction_ordering;*/
+		
+	    end // for ( tb_target_decode_speed = 0 ;...
+	 end // for ( wb_subseq_waits = 0 ;...
+      end // for ( wb_init_waits = 0 ;...
       
       /* test the pci target mode */
       //lg_test_pci_target;
 
       /* test the pci master mode */
       //lg_test_pci_master;
+
+      wb_init_waits   = 0 ;
+      pci_init_waits  = 0 ;
+      wb_subseq_waits = 0 ;
+      pci_subseq_waits = 0 ;
+
+      test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
+      test_target_response[`TARGET_ENCODED_INIT_WAITSTATES] = 0 ;
+      test_target_response[`TARGET_ENCODED_SUBS_WAITSTATES] = 0 ;
+      test_target_response[`TARGET_ENCODED_DEVSEL_SPEED] = 0 ;
+
+      @(posedge pci_clock) ;
+      configure_target(1) ;
+      @(posedge pci_clock) ;
+      configure_target(2) ;
+
+      configure_bridge_target ;
+
+      test_summary;
+
+      $fclose(wbu_mon_log_file_desc | pciu_mon_log_file_desc | pci_mon_log_file_desc) ;
+      $finish;
    end
 endtask
