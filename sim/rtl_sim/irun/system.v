@@ -24590,6 +24590,7 @@ task lg_test_pci_target ;
     reg   [PCI_BUS_CBE_RANGE:0]  byte_enables_l; // active LOW
     reg   ok, failed;
 begin
+    SYSTEM.bridge32_top.mem_target.q = 32'h0123_4567;
     $display(" ");
     $display("########################################################################") ;
     $display("########################################################################") ;

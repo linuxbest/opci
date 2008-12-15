@@ -68,7 +68,7 @@ module pci_target32_clk_en (/*AUTOARG*/
    clk_enable,
    // Inputs
    addr_phase, config_access, addr_claim_in, pci_frame_in,
-   state_wait, sm_transfere, state_default, cfg_ready,
+   state_wait, sm_transfere, state_default, cfg_ready_reg,
    cfg_term, s_ready, s_term, s_abort
    );
 
@@ -82,7 +82,7 @@ module pci_target32_clk_en (/*AUTOARG*/
    
    output 	   clk_enable ;			// FSM clock enable output
    
-   input 	   cfg_ready;
+   input 	   cfg_ready_reg;
    input 	   cfg_term;
    input 	   s_ready;
    input 	   s_term;
@@ -91,9 +91,10 @@ module pci_target32_clk_en (/*AUTOARG*/
    // clock enable signal when FSM is in IDLE state
    wire 		s_idle_clk_en = ((addr_phase && config_access) ||
 					 (addr_phase && ~config_access && addr_claim_in)) ;
-   
+
+
    // clock enable signal when FSM is in WAIT state or in DEFAULT state
-   wire 		s_wait_clk_en = (state_wait && cfg_ready) ;
+   wire 		s_wait_clk_en = (state_wait && cfg_ready_reg) ;
    
    // clock enable signal when FSM is in TRANSFERE state
    wire 		s_tran_clk_en = (sm_transfere && pci_frame_in ) ;

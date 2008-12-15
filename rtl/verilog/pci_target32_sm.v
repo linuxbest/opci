@@ -311,7 +311,7 @@ module pci_target32_sm (/*AUTOARG*/
                             (~cnf_progress && rw_cbe0 && wr_progress && ~target_abort_in) ||
                             (~cnf_progress && ~rw_cbe0 && s_ready && ~target_abort_in && ~pcir_fifo_data_err_in) ||
                             (~cnf_progress && ~rw_cbe0 && ~s_ready && norm_access_to_conf_reg && ~target_abort_in) ||
-                            (cnf_progress && ~target_abort_in && cfg_ready)
+                            (cnf_progress && ~target_abort_in && cfg_ready_reg)
                             ) ;
    
    // Signal used in S_TRANSFERE state to determin next state
@@ -333,6 +333,7 @@ module pci_target32_sm (/*AUTOARG*/
    wire state_backoff   = sm_transfere && backoff ;
    wire state_transfere = sm_transfere && !backoff;
 
+   reg 			cfg_ready_reg;
    always@(posedge clk_in or posedge reset_in)
      begin
 	if ( reset_in )
@@ -340,12 +341,25 @@ module pci_target32_sm (/*AUTOARG*/
 	else if ( state_idle )
           backoff <= #`FF_DELAY 1'b0 ;
 	else
-          backoff <= #`FF_DELAY (state_wait && !s_wait_progress) ||
+          backoff <= #`FF_DELAY (state_wait && !s_wait_progress && cfg_ready_reg) ||
                      (sm_transfere && !s_tran_progress && !pci_frame_in && !pci_irdy_in) ||
                      backoff ;
      end // always@ (posedge clk_in or posedge reset_in)
    
    assign config_disconnect = sm_transfere && (norm_access_to_conf_reg || cnf_progress) ;
+
+   always @(posedge clk_in)
+     if (state_wait)
+       cfg_ready_reg <= #1 cfg_ready;
+     else
+       cfg_ready_reg <= #1 1'b0;
+
+   reg s_ready_reg;
+   always @(posedge clk_in)
+     if (state_wait)
+       s_ready_reg <= #1 s_ready;
+     else
+       s_ready_reg <= #1 1'b0;
    
    // Clock enable module used for preserving the architecture because of minimum delay
    //  for critical inputs
@@ -361,7 +375,7 @@ module pci_target32_sm (/*AUTOARG*/
       .state_wait			(state_wait),
       .sm_transfere			(sm_transfere),
       .state_default			(state_default),
-      .cfg_ready			(cfg_ready),
+      .cfg_ready_reg			(cfg_ready_reg),
       .cfg_term				(cfg_term),
       .s_ready				(s_ready),
       .s_term				(s_term),
@@ -369,7 +383,6 @@ module pci_target32_sm (/*AUTOARG*/
    
    reg [2:0]  c_state ; //current state register
    reg [2:0]  n_state ; //next state input to current state register
-   
    // state machine register control
    always@(posedge clk_in or posedge reset_in)
      begin
@@ -445,10 +458,10 @@ module pci_target32_sm (/*AUTOARG*/
    // if not retry and not target abort
    // NO CRITICAL SIGNALS
    wire    trdy_w = (
-		     (state_wait && ~cnf_progress && rw_cbe0 && s_ready && ~target_abort_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready && ~target_abort_in && ~pcir_fifo_data_err_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && norm_access_to_conf_reg && ~target_abort_in) ||
-		     (state_wait && cnf_progress && ~target_abort_in && cfg_ready) 
+		     (state_wait && ~cnf_progress && rw_cbe0 && s_ready_reg && ~target_abort_in) ||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_ready_reg && ~target_abort_in && ~pcir_fifo_data_err_in) ||
+		     //(state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready_reg && norm_access_to_conf_reg && ~target_abort_in) ||
+		     (state_wait && cnf_progress && ~target_abort_in && cfg_ready_reg) 
 		     ) ;
    // if not disconnect without data and not target abort (only during reads)
    // MUST BE ANDED WITH CRITICAL ~FRAME
@@ -483,8 +496,8 @@ module pci_target32_sm (/*AUTOARG*/
 		     (state_wait && target_abort_in) ||
 		     (state_wait && ~cnf_progress && rw_cbe0 && s_abort) ||
 		     (state_wait && ~cnf_progress && ~rw_cbe0 && s_abort) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && pcir_fifo_data_err_in) ||
-		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready && ~norm_access_to_conf_reg)
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && pcir_fifo_data_err_in) /*||
+		     (state_wait && ~cnf_progress && ~rw_cbe0 && ~s_ready_reg && ~norm_access_to_conf_reg)*/
 		     ) ;
    // if asserted, wait for deactivating the frame
    // MUST BE ANDED WITH CRITICAL ~FRAME
@@ -516,7 +529,7 @@ module pci_target32_sm (/*AUTOARG*/
 			     (addr_phase && config_access) ||
 			     (addr_phase && ~config_access && addr_claim_in) || 
 			     (state_wait && ~target_abort_in && 
-			      !(~cnf_progress && ~rw_cbe0 && s_ready && pcir_fifo_data_err_in))
+			      !(~cnf_progress && ~rw_cbe0 && s_ready_reg && pcir_fifo_data_err_in))
                              ) ;
 
    // if not target abort (only during reads) or if asserted, wait for deactivating the frame
@@ -730,10 +743,10 @@ module pci_target32_sm (/*AUTOARG*/
     * read  is 0 */
    assign s_wrdn = rw_cbe0;
    assign idle   = c_state == S_IDLE;
-   /*reg s_data;
+   reg s_data;
    always @(posedge clk_in)
-     s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT);*/
-   assign s_data = (c_state == S_TRANSFERE || c_state == S_WAIT || backoff);
+     s_data <= #1 (c_state == S_TRANSFERE || c_state == S_WAIT || backoff);
+   //assign s_data = (c_state == S_TRANSFERE || c_state == S_WAIT || backoff);
    assign b_busy = 1'bz;
    
    assign s_data_vld = sel_fifo_mreg_out;

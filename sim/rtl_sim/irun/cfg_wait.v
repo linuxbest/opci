@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 五 12月 12 14:18:02 2008 (+0800)
 // Version: 
-// Last-Updated: 五 12月 12 15:44:03 2008 (+0800)
+// Last-Updated: 一 12月 15 18:20:18 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 18
+//     Update #: 19
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -93,7 +93,7 @@ module cfg_wait (/*AUTOARG*/
 	if (reset)
 	  cfg_timer <= #1 4'h0;
 	else if (cfg_vld)
-	  cfg_timer <= #1 4'h0;
+	  cfg_timer <= #1 4'h4;
 	else if (cfg_timer != 4'h0)
 	  cfg_timer <= #1 cfg_timer - 4'h1;
      end

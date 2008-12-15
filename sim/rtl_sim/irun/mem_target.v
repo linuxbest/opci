@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 五 12月 12 14:22:23 2008 (+0800)
 // Version: 
-// Last-Updated: 六 12月 13 13:46:48 2008 (+0800)
+// Last-Updated: 一 12月 15 18:17:03 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 55
+//     Update #: 56
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -64,8 +64,7 @@ module mem_target (/*AUTOARG*/
    reg 		 bar_0_rd;
    reg 		 bar_0_wr;
    wire 	 optional;
-   always @(/*AS*/base_hit or optional or reset or s_data
-	    or s_wrdn)
+   always @(posedge CLK or posedge reset)
      begin
 	if (reset) begin
 	   bar_0_rd <= #1 1'b0;
