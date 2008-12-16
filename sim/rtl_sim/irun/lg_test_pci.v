@@ -109,6 +109,7 @@ task test_pci_master;
 
    reg 	      `WRITE_STIM_TYPE write_data ;
    reg 	      `WB_TRANSFER_FLAGS write_flags ;
+   reg 	      `READ_STIM_TYPE  read_data;
    
    integer    i;
    begin : main
@@ -297,6 +298,12 @@ task test_pci_master;
 	 begin
 	    test_name = "CAB MEMORY WRITE THROUGH WB SLAVE TO PCI" ;
 	    SYSTEM.bridge32_top.master_tb.block_write(write_flags, write_status);
+            if ( write_status`CYC_ACTUAL_TRANSFER !== 6 )
+              begin
+		 $display("Image testing failed! Bridge failed to process CAB memory write! Time %t ", $time) ;
+		 test_fail("WB Slave state machine failed to post CAB memory write") ;
+		 disable main ;
+              end
 	 end
 	 
 	 begin
@@ -304,6 +311,64 @@ task test_pci_master;
 	    if ( ok !== 1 )  begin
 	       test_fail("CAB memory write didn't engage expected transaction on PCI bus") ;
 	    end else
+	      test_ok ;
+	 end
+      join
+
+      // set burst size and latency timer
+      config_write( 12'h00C, {bridge_latency, 8'd4}, 4'b1111, ok ) ;
+      write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+      write_flags`WB_TRANSFER_CAB    = 1 ;
+      write_flags`WB_TRANSFER_SIZE   = 4 ;
+      byte_ofs = ({$random} % 4) ;
+      // prepare read data
+      for ( i = 0 ; i < 4 ; i = i + 1 )
+	begin
+	   read_data`READ_ADDRESS = `BEH_TAR1_MEM_START + 8 + 4*i + byte_ofs ;
+	   read_data`READ_SEL     = 4'hF ;
+	   SYSTEM.bridge32_top.master_tb.blk_read_data[i] = read_data ;
+	end
+
+      fork 
+	 begin
+	    test_name = "CAB MEMORY READ THROUGH WB SLAVE FROM PCI" ;
+	    SYSTEM.bridge32_top.master_tb.block_read(write_flags, read_status);
+	    if ( read_status`CYC_ACTUAL_TRANSFER !== 4 )
+	      begin
+		 $display("Image testing failed! Bridge failed to process CAB memory read! Time %t ", $time) ;
+		 test_fail("PCI Bridge Failed to process delayed CAB read") ;
+		 disable main ;
+	      end
+
+	    // check data read from target
+	    for ( i = 0 ; i < 4 ; i = i + 1 )  begin
+	       read_status = wishbone_master.blk_read_data_out[i] ;
+	       if (read_status`READ_DATA !== wmem_data[2 + i]) begin
+		  display_warning(target_address + 8 + 4 * i, wmem_data[2 + i], read_status`READ_DATA) ;
+		  test_fail("data returned by PCI bridge during completion of Delayed Read didn't have expected value") ;
+	       end
+	    end // for ( i = 0 ; i < 4 ; i = i + 1 )
+	 end
+	 begin
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 8, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
+	    else
+	      test_ok ;
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 12, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
+	    else
+	      test_ok ;
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 26, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
+	    else
+	      test_ok ;
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 20, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
+	    else
 	      test_ok ;
 	 end
       join

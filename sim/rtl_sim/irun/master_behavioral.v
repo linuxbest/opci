@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 16:14:00 2008 (+0800)
+// Last-Updated: 二 12月 16 16:40:58 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 310
+//     Update #: 339
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -342,7 +342,83 @@ module master_behavioral (/*AUTOARG*/
    assign af = almost_full_out;
    
    reg `WRITE_STIM_TYPE blk_write_data [0:(`MAX_BLK_SIZE-1)];
+   reg `READ_STIM_TYPE  blk_read_data  [0:(`MAX_BLK_SIZE-1)];
 
+   task block_read;
+      input `WB_TRANSFER_FLAGS read_flags;
+      inout `READ_RETURN_TYPE  return;
+
+      reg   in_use ;
+      reg   `READ_STIM_TYPE  current_read ;
+      reg    cab ;
+      reg    ok ;
+      integer cyc_count ;
+      integer rty_count ;
+      reg     end_blk ;
+      reg [2:0] use_cti    ;
+      reg [1:0] use_bte    ;
+
+      reg [31:0] t_address;
+
+      integer 	 i;
+      begin: main
+	 return`CYC_ACTUAL_TRANSFER = 0;
+	 rty_count = 0;
+
+	 if (in_use === 1) begin
+	    $display("*E: master: block_read routine re-entered! Time %t ", $time);
+	    return `TB_ERROR_BIT = 1'b1;
+	    disable main;
+	 end
+
+	 if (read_flags`WB_TRANSFER_SIZE > `MAX_BLK_SIZE)
+	   begin
+	      $display("*E, number of transfers passed to wb_block_read routine exceeds defined maximum transaction length! Time %t", $time) ;
+	      
+	      return`TB_ERROR_BIT = 1'b1 ;
+	      disable main ;
+	   end
+	 
+	 in_use = 1;
+	 retry  = 1;
+	 
+	 while (retry === 1) begin
+	    @(posedge CLK)
+	      if (c_state == S_IDLE)
+		retry = 0;
+	 end
+	 
+	 current_read = blk_read_data[0] ;
+	 start   = 1;
+	 dir     = 0;
+	 start_addr = current_read`WRITE_ADDRESS;
+	 
+	 @(posedge CLK);
+	 start = 0;
+	 
+	 @(posedge CLK);
+	 if (c_state == S_REQ) begin
+	    retry = 0;
+	 end else begin
+	    $display("*E: Failed to initialize cycle! Routine master block write, Time %t ", 
+		     $time) ;
+	    return `TB_ERROR_BIT = 1'b1;
+	 end
+
+	 cyc_count = read_flags`WB_TRANSFER_SIZE;
+	 while (cyc_count > 0) begin
+	    @(posedge CLK);
+	    if (m_data_vld)
+	      cyc_count = cyc_count - 1;
+	 end
+	 
+	 @(posedge c_state == S_OOPS);
+	 return `CYC_ACTUAL_TRANSFER = read_flags`WB_TRANSFER_SIZE - cyc_count;
+	 
+	 in_use = 0;	 
+      end
+   endtask // block_read
+   
    task block_write;
       input  `WB_TRANSFER_FLAGS write_flags ;
       inout  `WRITE_RETURN_TYPE return ;
@@ -404,11 +480,9 @@ module master_behavioral (/*AUTOARG*/
 	 end
 	 
 	 current_write = blk_write_data[0] ;
-	 
 	 start   = 1;
 	 dir     = 1;
-	 t_address = current_write`WRITE_ADDRESS;
-	 address[31:2] = t_address[31:2];
+	 start_addr = current_write`WRITE_ADDRESS;
 	 
 	 @(posedge CLK);
 	 start = 0;
@@ -428,8 +502,11 @@ module master_behavioral (/*AUTOARG*/
 	    if (m_data_vld)
 	      cyc_count = cyc_count - 1;
 	 end
-	 //burst_done = 1;
 	 
+	 @(posedge c_state == S_OOPS);
+	 return `CYC_ACTUAL_TRANSFER = write_flags`WB_TRANSFER_SIZE - cyc_count;
+	 
+	 in_use = 0;	 
       end
       
    endtask // block_write
@@ -508,7 +585,7 @@ module master_behavioral (/*AUTOARG*/
 	 src_di = 32'hz;
 	 @(posedge CLK);
 
-	 //burst_length = 1;
+	 burst_length = 1;
 	 in_use = 1;
 	 retry  = 1;
 	 
@@ -534,7 +611,7 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
 	 
-	 //@(posedge c_state == S_OOPS);
+	 @(posedge c_state == S_OOPS);
 	 return `CYC_ACTUAL_TRANSFER = 1;
 	 
 	 in_use = 0;
