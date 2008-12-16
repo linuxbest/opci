@@ -302,7 +302,13 @@ module pci_target32_sm (/*AUTOARG*/
      end
    
    reg 	   wr_progress ;
-   reg 	   cfg_ready_reg;
+
+   reg 	   state_wait_reg;
+   always @(posedge clk_in)
+     state_wait_reg <= #1 state_wait;
+   
+   wire	   cfg_ready_reg = state_wait_reg && cfg_ready;
+   wire    s_ready_reg   = state_wait_reg && s_ready;
    
    // Signal used in S_WAIT state to determin next state
    // 1: no conf, write, write progress, no target abort
@@ -349,19 +355,6 @@ module pci_target32_sm (/*AUTOARG*/
    
    assign config_disconnect = sm_transfere && (norm_access_to_conf_reg || cnf_progress) ;
 
-   always @(posedge clk_in)
-     if (state_wait)
-       cfg_ready_reg <= #1 cfg_ready;
-     else
-       cfg_ready_reg <= #1 1'b0;
-
-   reg s_ready_reg;
-   always @(posedge clk_in)
-     if (state_wait)
-       s_ready_reg <= #1 s_ready;
-     else
-       s_ready_reg <= #1 1'b0;
-   
    // Clock enable module used for preserving the architecture because of minimum delay
    //  for critical inputs
    pci_target32_clk_en pci_target_clock_en
