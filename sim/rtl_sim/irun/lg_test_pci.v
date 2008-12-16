@@ -105,13 +105,14 @@ task test_pci_master;
    reg 	      `WRITE_RETURN_TYPE write_status;
    reg 	      `READ_RETURN_TYPE read_status;
    reg 	      ok;
-   reg [31:0] read_data;
+   
+   integer    i;
    begin : main
       target_address = `BEH_TAR1_MEM_START ;
 
       fork
 	 begin
-	    SYSTEM.bridge32_top.master_tb.single_write(target_address,
+	    SYSTEM.bridge32_top.master_tb.single_write(target_address + ({$random}%4),
 						       wmem_data[0],
 						       write_status,
 						       wb_init_waits);
@@ -123,7 +124,7 @@ task test_pci_master;
 	       test_fail("LBUS Slave state machine failed to post single memory write");
 	    end
 
-	    SYSTEM.bridge32_top.master_tb.single_read(target_address,
+	    SYSTEM.bridge32_top.master_tb.single_read(target_address + ({$random}%4),
 						      read_status,
 						      wb_init_waits);
 	    if (read_status`CYC_ACTUAL_TRANSFER !== 1) begin
@@ -154,6 +155,48 @@ task test_pci_master;
 	 end
       join
 
+      test_name = "MULTIPLE NORMAL SINGLE MEMORY READS, SAME ADDRESS, CHANGE DATA" ;
+      i = 32'hFFFF_FFFF;
+
+      target_address = `BEH_TAR1_MEM_START + ({$random}%4) + 72;
+      
+      fork
+	 begin
+	    repeat(5) begin
+	       pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[72 >> 2] = $random ;
+	       SYSTEM.bridge32_top.master_tb.single_read(target_address,
+							 read_status,
+							 wb_init_waits);
+	       if (read_status`CYC_ACTUAL_TRANSFER !== 1) begin
+		  $display("Image testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+		  test_fail("PCI bridge didn't process the read as expected");
+		  i[0] = 1'b0;
+	       end
+	       if (read_status`READ_DATA !==
+		   pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[72 >> 2]) begin
+		  display_warning(target_address, 
+				  pci_behaviorial_device1.pci_behaviorial_target.Test_Device_Mem[72 >> 2], 
+				  read_status`READ_DATA) ;
+		  test_fail("PCI bridge returned unexpected Read Data");
+		  i[0] = 1'b0 ;
+	       end
+	       //FAST_B2B TODO
+	       //write_flags`WB_FAST_B2B = 1'b1 ;
+	    end // repeat (5)
+	    if (i === 32'hFFFF_FFFF)
+	      test_ok;
+	 end // fork begin
+	 begin
+	    repeat(5) begin
+	       pci_transaction_progress_monitor(target_address & 32'hffff_fffc, `BC_MEM_READ, 1, 0, 1, 0, 0, ok ) ;
+	       if ( ok !== 1 ) begin
+		  i[1] = 1'b0 ;
+		  test_fail("because single memory read from WB to PCI didn't engage expected transaction on PCI bus") ;
+	       end
+	    end
+	 end
+      join
+      
       $stop;
       
    end

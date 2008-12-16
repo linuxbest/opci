@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 10:24:45 2008 (+0800)
+// Last-Updated: 二 12月 16 10:52:14 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 111
+//     Update #: 118
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -81,7 +81,7 @@ module master_behavioral (/*AUTOARG*/
 
    reg dir = 1'b0;
    reg start = 1'b0;
-   reg [31:0] address;
+   reg [31:2] address;
    
    parameter [2:0] 
 		S_IDLE = 3'h0,
@@ -184,17 +184,17 @@ module master_behavioral (/*AUTOARG*/
 	  q <= #1 adio_out;
      end
    
-   assign adio_in = ~addr_oe ? 32'hC000_0000 : 
+   assign adio_in = ~addr_oe ? {address, 2'b00} : 
 		    oe ? q : 32'hz;
 
    task single_read;
       input [31:0] target_address;
-      inout 	    `READ_RETURN_TYPE return;
-      input [2:0]   init_wait;
-
-      reg 	    in_use;
-      reg 	    ok;
-      reg 	    retry;
+      inout 	   `READ_RETURN_TYPE return;
+      input [2:0]  init_wait;
+      
+      reg 	   in_use;
+      reg 	   ok;
+      reg 	   retry;
       
       begin : main
 	 if (in_use === 1) begin
@@ -202,22 +202,22 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	    disable main;
 	 end
-
+	 
 	 in_use = 1;
 	 retry  = 1;
 	 return `CYC_ACTUAL_TRANSFER = 0;
 	 while (retry === 1) begin
 	    @(posedge CLK)
-	    if (c_state == S_IDLE)
-	      retry = 0;
+	      if (c_state == S_IDLE)
+		retry = 0;
 	 end
 	 
 	 start   = 1;
 	 dir     = 0;
-	 address = target_address;
+	 address[31:2] = target_address[31:2];
 	 @(posedge CLK);
 	 start = 0;
-
+	 
 	 @(posedge CLK);
 	 if (c_state == S_REQ) begin
 	    retry = 0;
@@ -265,7 +265,7 @@ module master_behavioral (/*AUTOARG*/
 	 
 	 start   = 1;
 	 dir     = 1;
-	 address = target_address;
+	 address[31:2] = target_address[31:2];
 	 @(posedge CLK);
 	 start = 0;
 
