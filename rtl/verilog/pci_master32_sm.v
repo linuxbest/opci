@@ -614,8 +614,23 @@ begin
     if ( change_state )
         rdata_selector <= #`FF_DELAY wdata_selector ;
 end
-
-   assign pci_ad_out = adio_in;
+   reg [1:0] rdata_cnt;
+   always @(posedge clk_in)
+     begin
+	if (sm_idle)
+	  rdata_cnt <= #1 2'b00;
+	else case ({m_src_en, transfer_input})
+	       2'b00,2'b11: ;
+	       2'b01: rdata_cnt <= #1 rdata_cnt - 1;
+	       2'b10: rdata_cnt <= #1 rdata_cnt + 1;
+	     endcase
+     end
+   reg [31:0] adio_in_reg;
+   always @(posedge clk_in)
+     if (m_src_en)
+       adio_in_reg <= #1 adio_in;
+   
+   assign pci_ad_out  = rdata_cnt == 2'b10 ? adio_in_reg : adio_in;
    assign pci_cbe_out = m_cbe;
    
 // data output mux for reads
@@ -630,6 +645,6 @@ end
    assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
    assign m_data     = sm_data_phases || sm_address;
    assign m_data_vld = transfer;
-   assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE;
+   assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE && rdata_cnt < 2'b10;
    
 endmodule
