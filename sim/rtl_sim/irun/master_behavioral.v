@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 10:52:14 2008 (+0800)
+// Last-Updated: 二 12月 16 11:50:54 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 118
+//     Update #: 175
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -35,7 +35,8 @@ module master_behavioral (/*AUTOARG*/
    adio_in, complete, m_ready, m_cbe, m_wrdn, request,
    requesthold,
    // Inputs
-   CLK, reset, adio_out, m_data, m_data_vld, m_addr_n, csr
+   CLK, reset, adio_out, m_data, m_data_vld, m_addr_n,
+   m_src_en, csr
    );
    input CLK;
    input reset;
@@ -45,6 +46,7 @@ module master_behavioral (/*AUTOARG*/
    input 	m_data;
    input 	m_data_vld;
    input 	m_addr_n;
+   input 	m_src_en;
    input [39:0] csr;
    
    output 	complete;
@@ -54,7 +56,7 @@ module master_behavioral (/*AUTOARG*/
    output 	request;
    output 	requesthold;
 
-      reg 		m_dataq;
+   reg 		m_dataq;
    always @(posedge CLK or posedge reset)
      begin
 	if (reset)
@@ -119,8 +121,10 @@ module master_behavioral (/*AUTOARG*/
 	       n_state = S_DEAD;
 	     else if (retry)
 	       n_state = S_RTY;
-	     else
+	     else if (burst_done)
 	       n_state = S_DONE;
+	     else
+	       n_state = S_WRITE;
 	  end else
 	    n_state = S_WRITE;
 
@@ -129,8 +133,10 @@ module master_behavioral (/*AUTOARG*/
 	       n_state = S_DEAD;
 	     else if (retry)
 	       n_state = S_RTY;
-	     else
+	     else if (burst_done)
 	       n_state = S_DONE;
+	     else
+	       n_state = S_READ;
 	  end else
 	    n_state = S_READ;
 	  
@@ -159,15 +165,16 @@ module master_behavioral (/*AUTOARG*/
    assign m_cbe   = ~addr_oe ? command       : byte_enable;
    assign m_wrdn  = dir;
 
+   reg 	      burst_done = 1;
    reg 	      complete;
    always @(posedge CLK or posedge reset)
      begin
 	if (reset)
 	  complete <= #1 1'b0;
 	else case (c_state)
-	       S_REQ:   complete <= #1 1'b1;
-	       S_READ:  complete <= #1 1'b1;
-	       S_WRITE: complete <= #1 1'b1;
+	       S_REQ:   complete <= #1 burst_done;
+	       S_READ:  complete <= #1 burst_done;
+	       S_WRITE: complete <= #1 burst_done;
 	       default: complete <= #1 1'b0;
 	     endcase
      end // always @ (posedge CLK or posedge reset)
@@ -187,6 +194,83 @@ module master_behavioral (/*AUTOARG*/
    assign adio_in = ~addr_oe ? {address, 2'b00} : 
 		    oe ? q : 32'hz;
 
+   reg `WRITE_STIM_TYPE blk_write_data [0:(`MAX_BLK_SIZE-1)];
+
+   task block_write;
+      input  `WB_TRANSFER_FLAGS write_flags ;
+      inout  `WRITE_RETURN_TYPE return ;
+      
+      reg    in_use ;
+      reg    `WRITE_STIM_TYPE  current_write ;
+      reg    cab ;
+      reg    ok ;
+      integer cyc_count ;
+      integer rty_count ;
+      reg     end_blk ;
+      reg [2:0] use_cti    ;
+      reg [1:0] use_bte    ;
+
+      reg [31:0] t_address;
+      
+      begin: main
+	 return`CYC_ACTUAL_TRANSFER = 0;
+	 rty_count = 0;
+
+	 if (in_use === 1) begin
+	    $display("*E: master: block_write routine re-entered! Time %t ", $time);
+	    return `TB_ERROR_BIT = 1'b1;
+	    disable main;
+	 end
+
+	 if (write_flags`WB_TRANSFER_SIZE > `MAX_BLK_SIZE)
+	   begin
+	      $display("*E, number of transfers passed to wb_block_write routine exceeds defined maximum transaction length! Time %t", $time) ;
+	      
+	      return`TB_ERROR_BIT = 1'b1 ;
+	      disable main ;
+	   end
+
+	 in_use = 1;
+	 retry  = 1;
+	 burst_done = 0;
+	 
+	 while (retry === 1) begin
+	    @(posedge CLK)
+	      if (c_state == S_IDLE)
+		retry = 0;
+	 end
+	 
+	 current_write = blk_write_data[0] ;
+	 
+	 start   = 1;
+	 dir     = 1;
+	 t_address = current_write`WRITE_ADDRESS;
+	 address[31:2] = t_address[31:2];
+	 
+	 @(posedge CLK);
+	 start = 0;
+	 
+	 @(posedge CLK);
+	 if (c_state == S_REQ) begin
+	    retry = 0;
+	 end else begin
+	    $display("*E: Failed to initialize cycle! Routine master block write, Time %t ", 
+		     $time) ;
+	    return `TB_ERROR_BIT = 1'b1;
+	 end
+
+	 cyc_count = write_flags`WB_TRANSFER_SIZE;
+	 while (cyc_count > 0) begin
+	    @(posedge CLK);
+	    if (m_data_vld)
+	      cyc_count = cyc_count - 1;
+	 end
+	 burst_done = 1;
+	 
+      end
+      
+   endtask // block_write
+   
    task single_read;
       input [31:0] target_address;
       inout 	   `READ_RETURN_TYPE return;

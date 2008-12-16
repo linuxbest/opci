@@ -224,7 +224,7 @@ output       ad_load_out,
    output    m_data;
    output    m_data_vld;
    output    m_addr_n;
-   
+
 // parameters - states - one hot
 // idle state
 parameter S_IDLE            = 4'h1 ;

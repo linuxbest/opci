@@ -105,6 +105,10 @@ task test_pci_master;
    reg 	      `WRITE_RETURN_TYPE write_status;
    reg 	      `READ_RETURN_TYPE read_status;
    reg 	      ok;
+   reg 	      byte_ofs;
+
+   reg 	      `WRITE_STIM_TYPE write_data ;
+   reg 	      `WB_TRANSFER_FLAGS write_flags ;
    
    integer    i;
    begin : main
@@ -277,6 +281,32 @@ task test_pci_master;
       end // block: non_consecutive_single_writes_test_blk
 
       // now do one burst write
+      byte_ofs = ({$random}%4);
+      for (i = 0; i < 6; i = i + 1) begin
+         write_data`WRITE_DATA    = wmem_data[2 + i] ;
+	 write_data`WRITE_ADDRESS = `BEH_TAR1_MEM_START + 8 + 4*i + byte_ofs ;
+	 write_data`WRITE_SEL     = 4'hF ;
+	 SYSTEM.bridge32_top.master_tb.blk_write_data[i] = write_data;
+      end
+      
+      write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+      write_flags`WB_TRANSFER_CAB    = 1 ;
+      write_flags`WB_TRANSFER_SIZE   = 6 ;
+
+      fork
+	 begin
+	    test_name = "CAB MEMORY WRITE THROUGH WB SLAVE TO PCI" ;
+	    SYSTEM.bridge32_top.master_tb.block_write(write_flags, write_status);
+	 end
+	 
+	 begin
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 8, `BC_MEM_WRITE, 6, 0, 1'b1, 0, 0, ok ) ;
+	    if ( ok !== 1 )  begin
+	       test_fail("CAB memory write didn't engage expected transaction on PCI bus") ;
+	    end else
+	      test_ok ;
+	 end
+      join
       
       $stop;
       

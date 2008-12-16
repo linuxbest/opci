@@ -786,6 +786,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 				.m_data		(m_data),
 				.m_data_vld	(m_data_vld),
 				.m_addr_n	(m_addr_n),
+				.m_src_en	(m_src_en),
 				.csr		(csr[39:0]));
    
 endmodule // TOP
