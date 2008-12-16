@@ -180,7 +180,7 @@ task test_pci_master;
 		  test_fail("PCI bridge returned unexpected Read Data");
 		  i[0] = 1'b0 ;
 	       end
-	       //FAST_B2B TODO
+	       //FAST_B2B TODO, we not support it.
 	       //write_flags`WB_FAST_B2B = 1'b1 ;
 	    end // repeat (5)
 	    if (i === 32'hFFFF_FFFF)
@@ -196,6 +196,87 @@ task test_pci_master;
 	    end
 	 end
       join
+
+      test_name = "MULTIPLE NON-CONSECUTIVE SINGLE MEMORY WRITES THROUGH WISHBONE SLAVE UNIT" ;
+      begin: non_consecutive_single_writes_test_blk
+	 integer pause_between_writes;
+	 integer rnd_seed;
+
+	 reg [31:0] cur_wb_adr;
+	 reg 	    generate_pci_traffic;
+	 reg [31:0] target2_address;
+
+	 rnd_seed = 32'h12fe_dc34;
+
+	 fork
+	  begin: wb_write_gen_blk
+	    for (pause_between_writes = 128;
+		 pause_between_writes > 0;
+		 pause_between_writes = pause_between_writes - 1) begin
+	       cur_wb_adr = `BEH_TAR1_MEM_START + pause_between_writes * 4;
+	       
+	       SYSTEM.bridge32_top.master_tb.single_write(cur_wb_adr + ({$random}%4),
+							  $random(rnd_seed),
+							  write_status,
+							  wb_init_waits);
+	       if ( write_status`CYC_ACTUAL_TRANSFER !== 1 ) begin
+		  $display("Image testing failed! Bridge failed to process single memory write! Time %t ", $time) ;
+		  test_fail("WB Slave state machine failed to post single memory write");
+		  ok = 0 ;
+		  disable non_consecutive_single_writes_test_blk ;
+	       end // if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+	       repeat(pause_between_writes)
+		 @(posedge pci_clock) ;
+	    end
+	 end // block: wb_write_gen_blk
+	 begin:pci_write_chk_blk
+	    integer cur_wriete;
+	    reg [31:0] cur_pci_adr;
+	    for (cur_wriete = 128;
+		 cur_wriete > 0;
+		 cur_wriete =  cur_wriete - 1) begin
+	       cur_pci_adr = `BEH_TAR1_MEM_START + cur_wriete * 4;
+	       pci_transaction_progress_monitor( cur_pci_adr, `BC_MEM_WRITE, 1, 0, 1, 0, 0, ok ) ;
+	       if ( ok !== 1 ) begin
+		  test_fail("single memory write from WB to PCI didn't engage expected transaction on PCI bus") ;
+		  disable non_consecutive_single_writes_test_blk ;
+	       end
+	    end
+	 end // block: pci_write_chk_blk
+	 join
+
+	 // check write data
+	 rnd_seed = 32'h12fe_dc34;
+	 for (pause_between_writes = 128;
+	      pause_between_writes > 0;
+	      pause_between_writes =  pause_between_writes -1) begin
+	    cur_wb_adr = `BEH_TAR1_MEM_START + pause_between_writes * 4;
+	    
+	    SYSTEM.bridge32_top.master_tb.single_read(cur_wb_adr + ({$random}%4),
+						      read_status,
+						      wb_init_waits);
+	    if (read_status`CYC_ACTUAL_TRANSFER !== 1) begin
+	       $display("Image testing failed! Bridge failed to process single memory read! Time %t ", $time) ;
+	       test_fail("PCI bridge didn't process the read as expected");
+	       ok = 0;
+	       disable non_consecutive_single_writes_test_blk ;
+	    end
+	    if (read_status`READ_DATA !== $random(rnd_seed)) begin
+               $display("Time %t", $time) ;
+	       $display("Single memory read through WB Slave unit returned unexpected data value!") ;
+	       test_fail("Single memory read through WB Slave unit returned unexpected data value") ;
+	       ok = 1'b0 ;
+	       disable non_consecutive_single_writes_test_blk ;
+	    end
+	    /* B2B TODO */
+	 end
+
+	 if (ok == 1)
+	   test_ok;
+	 
+      end // block: non_consecutive_single_writes_test_blk
+
+      // now do one burst write
       
       $stop;
       
