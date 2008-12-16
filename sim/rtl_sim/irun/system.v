@@ -805,8 +805,8 @@ integer   target_io_image ;
 
 initial
 begin
-    //$dumpfile("pci.vcd");
-    //$dumpvars(0, SYSTEM.bridge32_top);
+    $dumpfile("pci.vcd");
+    $dumpvars(0, SYSTEM.bridge32_top);
 
 `ifdef PCI_BIST
     mbist_si_i    = 0 ;
