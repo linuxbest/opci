@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 11:50:54 2008 (+0800)
+// Last-Updated: 二 12月 16 16:14:00 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 175
+//     Update #: 310
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -81,9 +81,25 @@ module master_behavioral (/*AUTOARG*/
 	end
      end
 
+   reg [3:0] burst_length = 1;
+   reg [3:0] xfer_cnt;
+   always @(posedge CLK or posedge reset)
+     begin
+	if (reset)
+	  xfer_cnt <= #1 4'h0;
+	else if (start)
+	  xfer_cnt <= #1 burst_length;
+	else if (m_data_vld)
+	  xfer_cnt <= #1 xfer_cnt - 1;
+     end
+
+   wire done = (xfer_cnt == 4'h0);
+   
    reg dir = 1'b0;
    reg start = 1'b0;
    reg [31:2] address;
+   reg [31:0] start_addr;
+   wire       back_up;
    
    parameter [2:0] 
 		S_IDLE = 3'h0,
@@ -91,8 +107,8 @@ module master_behavioral (/*AUTOARG*/
 		S_READ = 3'h2,
 		S_WRITE= 3'h3,
 		S_DEAD = 3'h4,
-		S_DONE = 3'h5,
-		S_RTY  = 3'h6;
+		S_OOPS = 3'h5;
+   
    reg [2:0] c_state, n_state;
    always @(posedge CLK or posedge reset)
      begin
@@ -102,8 +118,8 @@ module master_behavioral (/*AUTOARG*/
 	  c_state <= #1 n_state;
      end
 
-   always @(/*AS*/c_state or dir or fatal or m_data_fell
-	    or retry or start)
+   always @(/*AS*/back_up or c_state or dir or done or fatal
+	    or m_data_fell or start)
      begin
 	n_state = S_IDLE;
 	
@@ -119,30 +135,27 @@ module master_behavioral (/*AUTOARG*/
 	  S_WRITE: if (m_data_fell) begin
 	     if (fatal)
 	       n_state = S_DEAD;
-	     else if (retry)
-	       n_state = S_RTY;
-	     else if (burst_done)
-	       n_state = S_DONE;
 	     else
-	       n_state = S_WRITE;
+	       n_state = S_OOPS;
 	  end else
 	    n_state = S_WRITE;
 
 	  S_READ:  if (m_data_fell) begin
 	     if (fatal)
 	       n_state = S_DEAD;
-	     else if (retry)
-	       n_state = S_RTY;
-	     else if (burst_done)
-	       n_state = S_DONE;
 	     else
-	       n_state = S_READ;
+	       n_state = S_OOPS;
 	  end else
 	    n_state = S_READ;
 	  
-	  S_RTY:  n_state = S_REQ;
-	  S_DONE: n_state = S_IDLE;
 	  S_DEAD: n_state = S_DEAD;
+
+	  S_OOPS: if (back_up)
+	    n_state = S_OOPS;
+	  else if (done)
+	    n_state = S_IDLE;
+	  else
+	    n_state = S_IDLE;
 	endcase
      end
    
@@ -157,43 +170,177 @@ module master_behavioral (/*AUTOARG*/
    assign request = c_state == S_REQ;
    assign requesthold = 1'b0;
 
+   always @(posedge CLK or posedge reset)
+     begin
+	if (reset)
+	  address <= #1 32'h0;
+	else if (start)
+	  address <= #1 start_addr[31:2];
+	else if (m_data_vld)
+	  address <= #1 address + 30'h1;
+     end
+   
    wire [3:0] command = {3'b011, dir};
    wire [3:0] byte_enable = 4'b0000;
    
    wire       addr_oe = m_addr_n;
 
+   wire       oe;
+   wire [31:0] src_do;
+   
    assign m_cbe   = ~addr_oe ? command       : byte_enable;
    assign m_wrdn  = dir;
-
-   reg 	      burst_done = 1;
-   reg 	      complete;
-   always @(posedge CLK or posedge reset)
-     begin
-	if (reset)
-	  complete <= #1 1'b0;
-	else case (c_state)
-	       S_REQ:   complete <= #1 burst_done;
-	       S_READ:  complete <= #1 burst_done;
-	       S_WRITE: complete <= #1 burst_done;
-	       default: complete <= #1 1'b0;
-	     endcase
-     end // always @ (posedge CLK or posedge reset)
-
-   wire load = c_state == S_READ & m_data_vld;
-   wire oe   = c_state == S_WRITE & m_data;
-
-   reg [31:0] q;
-   always @(posedge CLK or posedge reset)
-     begin
-	if (reset)
-	  q <= #1 32'h0;
-	else if (load)
-	  q <= #1 adio_out;
-     end
-   
    assign adio_in = ~addr_oe ? {address, 2'b00} : 
-		    oe ? q : 32'hz;
+		    oe ? src_do : 32'hz;
 
+   wire        cnt3 = xfer_cnt == 4'h3;
+   wire        cnt2 = xfer_cnt == 4'h2;
+   wire        cnt1 = xfer_cnt == 4'h1;
+   
+   wire        fin1 = cnt1 & request;
+   wire        fin2 = cnt2 & m_dataq;
+   wire        fin3 = cnt3 & m_data_vld;
+   wire        assert_complete = fin1 | fin2 | fin3;
+
+   reg 	       hold_complete;
+   always @(posedge CLK or posedge reset)
+     begin
+	if (reset)
+	  hold_complete <= #1 1'b0;
+	else if (m_data_fell)
+	  hold_complete <= #1 1'b0;
+	else if (assert_complete)
+	  hold_complete <= #1 1'b1;
+     end
+   assign complete = assert_complete | hold_complete;
+
+   wire te;			// total empty
+   wire tf;			// total full
+   wire ae;
+   wire af;
+   
+   wire anticipated = m_src_en && (!te);
+   reg [2:0] oops;
+   always @(posedge CLK or posedge reset)
+     begin
+	if (reset)
+	  oops <= #1 2'b00;
+	else case({anticipated, m_data_vld, back_up, oops})
+	       5'b00000: oops <= #1 2'b00;
+	       5'b00001: oops <= #1 2'b01;
+	       5'b00010: oops <= #1 2'b10;
+	       5'b00011: oops <= #1 2'b11;
+	       5'b00100: oops <= #1 2'b00;
+	       5'b00101: oops <= #1 2'b00;
+	       5'b00110: oops <= #1 2'b01;
+	       5'b00111: oops <= #1 2'b10;
+	       
+	       5'b01000: oops <= #1 2'b00;
+	       5'b01001: oops <= #1 2'b00;
+	       5'b01010: oops <= #1 2'b01;
+	       5'b01011: oops <= #1 2'b10;
+	       5'b01100: oops <= #1 2'b00;
+	       5'b01101: oops <= #1 2'b00;
+	       5'b01110: oops <= #1 2'b00;
+	       5'b01111: oops <= #1 2'b01;
+
+	       5'b10000: oops <= #1 2'b01;
+	       5'b10001: oops <= #1 2'b10;
+	       5'b10010: oops <= #1 2'b11;
+	       5'b10011: oops <= #1 2'b11;
+	       5'b10100: oops <= #1 2'b00;
+	       5'b10101: oops <= #1 2'b01;
+	       5'b10110: oops <= #1 2'b10;
+	       5'b10111: oops <= #1 2'b11;
+	       
+	       5'b11000: oops <= #1 2'b00;
+	       5'b11001: oops <= #1 2'b01;
+	       5'b11010: oops <= #1 2'b10;
+	       5'b11011: oops <= #1 2'b11;
+	       5'b11100: oops <= #1 2'b00;
+	       5'b11101: oops <= #1 2'b00;
+	       5'b11110: oops <= #1 2'b01;
+	       5'b11111: oops <= #1 2'b10;
+
+	       default:  oops <= #1 2'b00;
+	     endcase // case ({anticipated, m_data_vld, back_up, oops})
+     end
+   assign back_up = (|oops) & (c_state == S_OOPS);
+
+   parameter ADDR_LENGTH = 5;
+
+   reg [31:0] src_di;
+   reg 	      wenable_in = 0;
+   
+   wire [ADDR_LENGTH-1:0] waddr_out;
+   wire [ADDR_LENGTH-1:0] raddr_out;
+   wire almost_full_out;
+   wire almost_empty_out;
+   wire full_out;
+   wire empty_out;
+   wire rallow_out;
+   wire wallow_out;
+   wire three_left_out;
+   wire two_left_out;
+   wire renable_in;
+   //wire wenable_in;
+   wire reset_in = reset;
+   wire rclock_in = CLK;
+   wire wclock_in = CLK;
+   wire clear_in = reset_in;
+   
+   fifo_control fifo_control (/*AUTOINST*/
+			      // Outputs
+			      .almost_full_out	(almost_full_out),
+			      .almost_empty_out	(almost_empty_out),
+			      .full_out		(full_out),
+			      .empty_out	(empty_out),
+			      .waddr_out	(waddr_out[(ADDR_LENGTH-1):0]),
+			      .raddr_out	(raddr_out[(ADDR_LENGTH-1):0]),
+			      .rallow_out	(rallow_out),
+			      .wallow_out	(wallow_out),
+			      .three_left_out	(three_left_out),
+			      .two_left_out	(two_left_out),
+			      .half_full_out	(half_full_out),
+			      // Inputs
+			      .rclock_in	(rclock_in),
+			      .wclock_in	(wclock_in),
+			      .renable_in	(renable_in),
+			      .wenable_in	(wenable_in),
+			      .reset_in		(reset_in),
+			      .clear_in		(clear_in));
+
+   tpram tpram (.clk_a(CLK),
+		.rst_a(reset),
+		.ce_a(1'b1),
+		.oe_a(1'b1),
+		.we_a(wallow_out),
+		.addr_a(waddr_out),
+		.di_a(src_di),
+		.do_a(),
+		
+		.clk_b(CLK),
+		.rst_b(reset),
+		.ce_b(1'b1),
+		.oe_b(1'b1),
+		.we_b(1'b0),
+		.addr_b(raddr_out),
+		.di_b(),
+		.do_b(src_do));
+   
+   defparam fifo_control.ADDR_LENGTH = ADDR_LENGTH;
+   defparam tpram.aw                 = ADDR_LENGTH;
+   defparam tpram.dw                 = 32;
+
+   //assign wenable_in = (c_state == S_READ) & m_data_vld;
+   assign renable_in = (c_state == S_WRITE) & m_src_en;
+   assign oe         = (c_state == S_WRITE) & m_data;
+
+   assign te = empty_out;
+   assign ae = almost_empty_out;
+   assign tf = full_out;
+   assign af = almost_full_out;
+   
    reg `WRITE_STIM_TYPE blk_write_data [0:(`MAX_BLK_SIZE-1)];
 
    task block_write;
@@ -211,7 +358,8 @@ module master_behavioral (/*AUTOARG*/
       reg [1:0] use_bte    ;
 
       reg [31:0] t_address;
-      
+
+      integer 	 i;
       begin: main
 	 return`CYC_ACTUAL_TRANSFER = 0;
 	 rty_count = 0;
@@ -230,9 +378,24 @@ module master_behavioral (/*AUTOARG*/
 	      disable main ;
 	   end
 
+	 
 	 in_use = 1;
 	 retry  = 1;
-	 burst_done = 0;
+	 //burst_done = 0;
+	 cyc_count = write_flags`WB_TRANSFER_SIZE;
+	 burst_length = cyc_count;
+	 i = 0;
+	 while (cyc_count > 0) begin
+	    @(posedge CLK);
+	    wenable_in = 1'b1;
+	    current_write = blk_write_data[i];
+	    src_di = current_write`WRITE_DATA;
+	    cyc_count = cyc_count - 1;
+	    i = i + 1;
+	    @(posedge CLK);
+	    wenable_in = 1'b0;
+	    src_di = 32'hz;
+	 end
 	 
 	 while (retry === 1) begin
 	    @(posedge CLK)
@@ -265,7 +428,7 @@ module master_behavioral (/*AUTOARG*/
 	    if (m_data_vld)
 	      cyc_count = cyc_count - 1;
 	 end
-	 burst_done = 1;
+	 //burst_done = 1;
 	 
       end
       
@@ -286,7 +449,7 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	    disable main;
 	 end
-	 
+	 burst_length = 1;
 	 in_use = 1;
 	 retry  = 1;
 	 return `CYC_ACTUAL_TRANSFER = 0;
@@ -298,7 +461,7 @@ module master_behavioral (/*AUTOARG*/
 	 
 	 start   = 1;
 	 dir     = 0;
-	 address[31:2] = target_address[31:2];
+	 start_addr = target_address;
 	 @(posedge CLK);
 	 start = 0;
 	 
@@ -311,9 +474,9 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
 	 
-	 @(posedge load);
+	 @(posedge m_data_vld);
 	 return `READ_DATA = adio_out;
-	 @(posedge c_state == S_DONE);
+	 @(posedge c_state == S_OOPS);
 	 return `CYC_ACTUAL_TRANSFER = 1;
 	 
 	 in_use = 0;
@@ -336,10 +499,19 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	    disable main;
 	 end
+	 
+	 @(posedge CLK);
+	 wenable_in = 1'b1;
+	 src_di = write_data;
+	 @(posedge CLK);
+	 wenable_in = 1'b0;
+	 src_di = 32'hz;
+	 @(posedge CLK);
 
+	 //burst_length = 1;
 	 in_use = 1;
 	 retry  = 1;
-	 q = write_data;
+	 
 	 return `CYC_ACTUAL_TRANSFER = 0;
 	 while (retry === 1) begin
 	    @(posedge CLK)
@@ -349,7 +521,7 @@ module master_behavioral (/*AUTOARG*/
 	 
 	 start   = 1;
 	 dir     = 1;
-	 address[31:2] = target_address[31:2];
+	 start_addr = target_address;
 	 @(posedge CLK);
 	 start = 0;
 
@@ -362,14 +534,14 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
 	 
-	 @(posedge c_state == S_DONE);
+	 //@(posedge c_state == S_OOPS);
 	 return `CYC_ACTUAL_TRANSFER = 1;
 	 
 	 in_use = 0;
       end
       
    endtask // single_write
-
+   
 endmodule // master_behavioral
 
 // 

@@ -15,3 +15,6 @@ top.v
 cfg_wait.v
 mem_target.v
 master_behavioral.v
+tpram.v
+fifo_control.v
+synchronizer_flop.v

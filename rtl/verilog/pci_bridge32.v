@@ -964,6 +964,7 @@ pci_wb_slave_unit wishbone_slave_unit
  .m_addr_n				(m_addr_n),
  .m_data				(m_data),
  .m_data_vld				(m_data_vld),
+ .m_src_en				(m_src_en),
  // Inputs
  .adio_in				(adio_in[31:0]),
  .complete				(complete),

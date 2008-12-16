@@ -315,9 +315,6 @@ endtask // test_pci_master
 
 task lg_test_pci;
    begin
-      $dumpfile("pci.vcd");
-      $dumpvars(0, SYSTEM.bridge32_top);
-
       lg_test_initial_all_conf_values;
 
       next_test_name[79:0] <= "Initing...";

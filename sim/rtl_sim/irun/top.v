@@ -734,7 +734,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 `endif
 `endif
 
-   wire 		reset = RST_O;
+   wire 		reset = ~RST_in;
    
    cfg_wait cfg_wait (/*AUTOINST*/
 		      // Outputs

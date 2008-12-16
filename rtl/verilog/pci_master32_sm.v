@@ -124,7 +124,7 @@ module pci_master32_sm
     latency_tim_val_in,
  /*AUTOARG*/
    // Outputs
-   m_data, m_data_vld, m_addr_n,
+   m_data, m_data_vld, m_addr_n, m_src_en,
    // Inputs
    adio_in, m_cbe, m_ready, request, complete
    ) ;
@@ -224,7 +224,8 @@ output       ad_load_out,
    output    m_data;
    output    m_data_vld;
    output    m_addr_n;
-
+   output    m_src_en;
+   
 // parameters - states - one hot
 // idle state
 parameter S_IDLE            = 4'h1 ;
@@ -362,7 +363,7 @@ wire timeout_termination = sm_turn_arround && timeout && pci_stop_reg_in ;
    // slow signal for frame calculated from various registers in the core
    wire slow_frame  = complete || 
 	(latency_time_out && pci_gnt_in) || 
-	(next_last_in && sm_data_phases) || 
+	//(next_last_in && sm_data_phases) || 
 	mabort1 ;
 // critical timing frame logic in separate module - some combinations of target signals force frame to inactive state immediately after sampled asserted
 // (STOP)
@@ -568,7 +569,7 @@ begin
                         // indicate the state
                         sm_address  = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_ADDR_BC;
+                        wdata_selector = SEL_NEXT_DATA_BE;
 	   
                         // only possible next state is transfer state
                         next_state = S_TRANSFER ;
@@ -580,7 +581,7 @@ begin
                         // indicate the state
                         sm_data_phases         = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_DATA_BE ;
+                        wdata_selector = SEL_NEXT_DATA_BE ;
                         if ( pci_frame_out_in )
                         begin
                             // when frame is inactive next state will be turn arround
@@ -629,5 +630,6 @@ end
    assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
    assign m_data     = sm_data_phases || sm_address;
    assign m_data_vld = transfer;
+   assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE;
    
 endmodule

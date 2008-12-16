@@ -187,7 +187,7 @@ module pci_wb_slave_unit
  ,
  /*AUTOARG*/
    // Outputs
-   m_data_vld, m_data, m_addr_n,
+   m_src_en, m_data_vld, m_data, m_addr_n,
    // Inputs
    request, m_ready, m_cbe, complete, adio_in
    );
@@ -315,6 +315,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    // Beginning of automatic outputs (from unused autoinst outputs)
    output		m_data;			// From pci_initiator_sm of pci_master32_sm.v
    output		m_data_vld;		// From pci_initiator_sm of pci_master32_sm.v
+   output		m_src_en;		// From pci_initiator_sm of pci_master32_sm.v
    // End of automatics
    /*AUTOWIRE*/
    
@@ -911,6 +912,7 @@ pci_master32_sm pci_initiator_sm
  .m_data				(m_data),
  .m_data_vld				(m_data_vld),
  .m_addr_n				(m_addr_n),
+ .m_src_en				(m_src_en),
  // Inputs
  .adio_in				(adio_in[31:0]),
  .m_cbe					(m_cbe[3:0]),
