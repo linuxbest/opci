@@ -361,7 +361,7 @@ task test_pci_master;
       /*TODO 
        IO SPACE TEST
        */
-      $stop;
+      //$stop;
    end
 endtask // test_pci_master
 

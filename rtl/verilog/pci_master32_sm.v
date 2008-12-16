@@ -619,7 +619,7 @@ end
      begin
 	if (sm_idle)
 	  rdata_cnt <= #1 2'b00;
-	else case ({m_src_en, transfer_input})
+	else case ({m_src_en, ~pci_trdy_in && sm_transfer})
 	       2'b00,2'b11: ;
 	       2'b01: rdata_cnt <= #1 rdata_cnt - 1;
 	       2'b10: rdata_cnt <= #1 rdata_cnt + 1;
@@ -644,7 +644,10 @@ end
 
    assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
    assign m_data     = sm_data_phases || sm_address;
-   assign m_data_vld = transfer;
+   reg m_data_vld;
+   always @(posedge clk_in)
+     m_data_vld <= #1 ~pci_trdy_in && sm_transfer;
+   
    assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE && rdata_cnt < 2'b10;
    
 endmodule
