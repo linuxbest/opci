@@ -372,6 +372,8 @@ endtask // test_pci_master_error_handling
 
 task lg_test_pci;
    begin
+      do_reset;
+
       lg_test_initial_all_conf_values;
 
       next_test_name[79:0] <= "Initing...";

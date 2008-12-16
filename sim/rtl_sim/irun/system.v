@@ -970,7 +970,8 @@ begin
     end
 
     $fdisplay(pci_mon_log_file_desc, "*********************************** Start PCI Bus Monitor log file ******************************************") ;
-    run_tests ;
+    lg_test_pci ;
+    //run_tests ;
 end
 
 task fill_memory ; //wb_b3_ok
@@ -1141,7 +1142,6 @@ begin
             $display("Testing PCI target images' features!") ;
             //configure_bridge_target_base_addresses ;
 
-`ifdef WB_ENABLE
             `ifdef TEST_CONF_CYCLE_TYPE1_REFERENCE
                 test_conf_cycle_type1_reference ;
             `endif
@@ -1211,10 +1211,7 @@ begin
         `else
             target_completion_expiration ;
         `endif
-`else
-            lg_test_pci ;
-            $finish;
-`endif
+
             $display(" ") ;
             $display("PCI transaction ordering tests finished!") ;
         end
