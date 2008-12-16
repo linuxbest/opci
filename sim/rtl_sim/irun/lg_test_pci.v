@@ -358,10 +358,16 @@ task test_pci_master;
 	 end
       join
       
-      $stop;
-      
+      /*TODO 
+       IO SPACE TEST
+       */
    end
 endtask // test_pci_master
+
+task test_pci_master_error_handling;
+   begin
+   end
+endtask // test_pci_master_error_handling
 
 task lg_test_pci;
    begin
@@ -395,6 +401,9 @@ task lg_test_pci;
 
 	       /* wb */
 	       test_pci_master;
+	       test_pci_master_error_handling; 
+	       //test_pci_master_transcations;
+	       //test_pci_master_overload;
 	       
 	       $display("Testing PCI target images' features!") ;
 	       configure_bridge_target_base_addresses;
