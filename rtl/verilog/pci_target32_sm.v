@@ -304,8 +304,6 @@ module pci_target32_sm (/*AUTOARG*/
    reg 	   wr_progress ;
 
    reg 	   state_wait_reg;
-   always @(posedge clk_in)
-     state_wait_reg <= #1 state_wait;
    
    wire	   cfg_ready_reg = state_wait_reg && cfg_ready;
    wire    s_ready_reg   = state_wait_reg && s_ready;
@@ -340,6 +338,9 @@ module pci_target32_sm (/*AUTOARG*/
    reg 	state_default ;
    wire state_backoff   = sm_transfere && backoff ;
    wire state_transfere = sm_transfere && !backoff;
+
+   always @(posedge clk_in)
+     state_wait_reg <= #1 state_wait;
 
    always@(posedge clk_in or posedge reset_in)
      begin
