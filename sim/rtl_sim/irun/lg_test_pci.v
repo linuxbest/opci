@@ -342,30 +342,15 @@ task test_pci_master;
 
 	    // check data read from target
 	    for ( i = 0 ; i < 4 ; i = i + 1 )  begin
-	       read_status = wishbone_master.blk_read_data_out[i] ;
+	       read_status = SYSTEM.bridge32_top.master_tb.blk_read_data_out[i] ;
 	       if (read_status`READ_DATA !== wmem_data[2 + i]) begin
-		  display_warning(target_address + 8 + 4 * i, wmem_data[2 + i], read_status`READ_DATA) ;
+		  display_warning(`BEH_TAR1_MEM_START + 8 + 4 * i, wmem_data[2 + i], read_status`READ_DATA) ;
 		  test_fail("data returned by PCI bridge during completion of Delayed Read didn't have expected value") ;
 	       end
 	    end // for ( i = 0 ; i < 4 ; i = i + 1 )
 	 end
 	 begin
-	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 8, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
-	    if ( ok !== 1 )
-	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
-	    else
-	      test_ok ;
-	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 12, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
-	    if ( ok !== 1 )
-	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
-	    else
-	      test_ok ;
-	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 26, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
-	    if ( ok !== 1 )
-	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
-	    else
-	      test_ok ;
-	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 20, `BC_MEM_READ, 1, 0, 1'b1, 0, 0, ok ) ;
+	    pci_transaction_progress_monitor(`BEH_TAR1_MEM_START + 8, `BC_MEM_READ, 4, 0, 1'b1, 0, 0, ok ) ;
 	    if ( ok !== 1 )
 	      test_fail("CAB memory read divided into single transactions didn't engage expected transaction on PCI bus") ;
 	    else

@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 16:40:58 2008 (+0800)
+// Last-Updated: 二 12月 16 17:08:00 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 339
+//     Update #: 364
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -284,6 +284,7 @@ module master_behavioral (/*AUTOARG*/
    wire two_left_out;
    wire renable_in;
    //wire wenable_in;
+   
    wire reset_in = reset;
    wire rclock_in = CLK;
    wire wclock_in = CLK;
@@ -343,7 +344,8 @@ module master_behavioral (/*AUTOARG*/
    
    reg `WRITE_STIM_TYPE blk_write_data [0:(`MAX_BLK_SIZE-1)];
    reg `READ_STIM_TYPE  blk_read_data  [0:(`MAX_BLK_SIZE-1)];
-
+   reg `READ_RETURN_TYPE blk_read_data_out [0:(`MAX_BLK_SIZE-1)];
+   
    task block_read;
       input `WB_TRANSFER_FLAGS read_flags;
       inout `READ_RETURN_TYPE  return;
@@ -359,7 +361,8 @@ module master_behavioral (/*AUTOARG*/
       reg [1:0] use_bte    ;
 
       reg [31:0] t_address;
-
+      reg 	 `READ_RETURN_TYPE t_data;
+      
       integer 	 i;
       begin: main
 	 return`CYC_ACTUAL_TRANSFER = 0;
@@ -387,6 +390,9 @@ module master_behavioral (/*AUTOARG*/
 	      if (c_state == S_IDLE)
 		retry = 0;
 	 end
+
+	 cyc_count = read_flags`WB_TRANSFER_SIZE;
+	 burst_length = cyc_count;
 	 
 	 current_read = blk_read_data[0] ;
 	 start   = 1;
@@ -406,10 +412,16 @@ module master_behavioral (/*AUTOARG*/
 	 end
 
 	 cyc_count = read_flags`WB_TRANSFER_SIZE;
+	 i = 0;
 	 while (cyc_count > 0) begin
 	    @(posedge CLK);
-	    if (m_data_vld)
-	      cyc_count = cyc_count - 1;
+	    if (m_data_vld) begin
+	       cyc_count = cyc_count - 1;
+	       t_data`READ_DATA = adio_out;
+	       blk_read_data_out[i] = t_data;
+	       i = i + 1;
+	       /*$write("%h, %h\n", adio_out, i);*/
+	    end
 	 end
 	 
 	 @(posedge c_state == S_OOPS);
@@ -453,7 +465,6 @@ module master_behavioral (/*AUTOARG*/
 	      return`TB_ERROR_BIT = 1'b1 ;
 	      disable main ;
 	   end
-
 	 
 	 in_use = 1;
 	 retry  = 1;
