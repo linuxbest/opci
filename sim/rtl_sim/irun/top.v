@@ -379,7 +379,7 @@ wire            SERR_en ;
    wire			c_term;			// From cfg_wait of cfg_wait.v
    wire			cfg_hit;		// From bridge of pci_bridge32.v
    wire			cfg_vld;		// From bridge of pci_bridge32.v
-   wire			complete;		// From master_tb of master_tb.v
+   wire			complete;		// From master_tb of master_behavioral.v
    wire [39:0]		csr;			// From bridge of pci_bridge32.v
    wire			devselq_n;		// From bridge of pci_bridge32.v
    wire			dr_bus;			// From bridge of pci_bridge32.v
@@ -388,16 +388,16 @@ wire            SERR_en ;
    wire			idle;			// From bridge of pci_bridge32.v
    wire			irdyq_n;		// From bridge of pci_bridge32.v
    wire			m_addr_n;		// From bridge of pci_bridge32.v
-   wire [3:0]		m_cbe;			// From master_tb of master_tb.v
+   wire [3:0]		m_cbe;			// From master_tb of master_behavioral.v
    wire			m_data;			// From bridge of pci_bridge32.v
    wire			m_data_vld;		// From bridge of pci_bridge32.v
-   wire			m_ready;		// From master_tb of master_tb.v
+   wire			m_ready;		// From master_tb of master_behavioral.v
    wire			m_src_en;		// From bridge of pci_bridge32.v
-   wire			m_wrdn;			// From master_tb of master_tb.v
+   wire			m_wrdn;			// From master_tb of master_behavioral.v
    wire [15:0]		pci_cmd;		// From bridge of pci_bridge32.v
    wire			perrq_n;		// From bridge of pci_bridge32.v
-   wire			request;		// From master_tb of master_tb.v
-   wire			requesthold;		// From master_tb of master_tb.v
+   wire			request;		// From master_tb of master_behavioral.v
+   wire			requesthold;		// From master_tb of master_behavioral.v
    wire			s_abort;		// From mem_target of mem_target.v
    wire [3:0]		s_cbe;			// From bridge of pci_bridge32.v
    wire			s_data;			// From bridge of pci_bridge32.v
@@ -770,23 +770,23 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 			  .addr_vld		(addr_vld),
 			  .adio_out		(adio_out[31:0]));
 
-   master_tb master_tb (/*AUTOINST*/
-			// Outputs
-			.adio_in	(adio_in[32:0]),
-			.complete	(complete),
-			.m_ready	(m_ready),
-			.m_cbe		(m_cbe[3:0]),
-			.m_wrdn		(m_wrdn),
-			.request	(request),
-			.requesthold	(requesthold),
-			// Inputs
-			.CLK		(CLK),
-			.reset		(reset),
-			.adio_out	(adio_out[31:0]),
-			.m_data		(m_data),
-			.m_data_vld	(m_data_vld),
-			.m_addr_n	(m_addr_n),
-			.csr		(csr[39:0]));
+   master_behavioral master_tb (/*AUTOINST*/
+				// Outputs
+				.adio_in	(adio_in[32:0]),
+				.complete	(complete),
+				.m_ready	(m_ready),
+				.m_cbe		(m_cbe[3:0]),
+				.m_wrdn		(m_wrdn),
+				.request	(request),
+				.requesthold	(requesthold),
+				// Inputs
+				.CLK		(CLK),
+				.reset		(reset),
+				.adio_out	(adio_out[31:0]),
+				.m_data		(m_data),
+				.m_data_vld	(m_data_vld),
+				.m_addr_n	(m_addr_n),
+				.csr		(csr[39:0]));
    
 endmodule // TOP
 

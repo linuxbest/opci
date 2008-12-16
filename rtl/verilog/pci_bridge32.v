@@ -966,6 +966,7 @@ pci_wb_slave_unit wishbone_slave_unit
  .m_data_vld				(m_data_vld),
  // Inputs
  .adio_in				(adio_in[31:0]),
+ .complete				(complete),
  .m_cbe					(m_cbe[3:0]),
  .m_ready				(m_ready),
  .request				(request));

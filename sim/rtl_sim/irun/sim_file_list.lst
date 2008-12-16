@@ -14,4 +14,4 @@ system.v
 top.v
 cfg_wait.v
 mem_target.v
-master_tb.v
+master_behavioral.v

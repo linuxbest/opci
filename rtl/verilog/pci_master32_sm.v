@@ -126,7 +126,7 @@ module pci_master32_sm
    // Outputs
    m_data, m_data_vld, m_addr_n,
    // Inputs
-   adio_in, m_cbe, m_ready, request
+   adio_in, m_cbe, m_ready, request, complete
    ) ;
 
 // system inputs
@@ -219,7 +219,8 @@ output       ad_load_out,
    input [3:0] 	m_cbe;
    input     m_ready;
    input     request;
-
+   input     complete;
+   
    output    m_data;
    output    m_data_vld;
    output    m_addr_n;
@@ -359,7 +360,7 @@ wire timeout_termination = sm_turn_arround && timeout && pci_stop_reg_in ;
    // possible next state is address state which always drives frame active
    wire force_frame = ~sm_idle ;
    // slow signal for frame calculated from various registers in the core
-   wire slow_frame  = /*last_in*/1'b1 || 
+   wire slow_frame  = complete || 
 	(latency_time_out && pci_gnt_in) || 
 	(next_last_in && sm_data_phases) || 
 	mabort1 ;

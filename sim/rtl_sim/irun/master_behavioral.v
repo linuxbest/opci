@@ -1,14 +1,14 @@
-// master_tb.v --- 
+// master_behavioral.v --- 
 // 
-// Filename: master_tb.v
+// Filename: master_behavioral.v
 // Description: 
 // Author: Hu Gang
 // Maintainer: 
-// Created: 六 12月 13 15:51:09 2008 (+0800)
+// Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 09:33:33 2008 (+0800)
+// Last-Updated: 二 12月 16 10:24:45 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 94
+//     Update #: 111
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -30,7 +30,7 @@
 
 // Code:
 
-module master_tb (/*AUTOARG*/
+module master_behavioral (/*AUTOARG*/
    // Outputs
    adio_in, complete, m_ready, m_cbe, m_wrdn, request,
    requesthold,
@@ -54,7 +54,7 @@ module master_tb (/*AUTOARG*/
    output 	request;
    output 	requesthold;
 
-   reg 		m_dataq;
+      reg 		m_dataq;
    always @(posedge CLK or posedge reset)
      begin
 	if (reset)
@@ -82,16 +82,6 @@ module master_tb (/*AUTOARG*/
    reg dir = 1'b0;
    reg start = 1'b0;
    reg [31:0] address;
-   
-   task start_enable;
-      input cmd_dir;
-      input [31:0] cmd_address;
-      begin
-	 start = 1;
-	 dir   = cmd_dir;
-	 address = cmd_address;
-      end
-   endtask // start
    
    parameter [2:0] 
 		S_IDLE = 3'h0,
@@ -195,9 +185,108 @@ module master_tb (/*AUTOARG*/
      end
    
    assign adio_in = ~addr_oe ? 32'hC000_0000 : 
-		    oe ? q : 32'hz;   
-endmodule // master_tb
+		    oe ? q : 32'hz;
 
+   task single_read;
+      input [31:0] target_address;
+      inout 	    `READ_RETURN_TYPE return;
+      input [2:0]   init_wait;
+
+      reg 	    in_use;
+      reg 	    ok;
+      reg 	    retry;
+      
+      begin : main
+	 if (in_use === 1) begin
+	    $display("*E: master: single_read routine re-entered! Time %t ", $time);
+	    return `TB_ERROR_BIT = 1'b1;
+	    disable main;
+	 end
+
+	 in_use = 1;
+	 retry  = 1;
+	 return `CYC_ACTUAL_TRANSFER = 0;
+	 while (retry === 1) begin
+	    @(posedge CLK)
+	    if (c_state == S_IDLE)
+	      retry = 0;
+	 end
+	 
+	 start   = 1;
+	 dir     = 0;
+	 address = target_address;
+	 @(posedge CLK);
+	 start = 0;
+
+	 @(posedge CLK);
+	 if (c_state == S_REQ) begin
+	    retry = 0;
+	 end else begin
+	    $display("*E: Failed to initialize cycle! Routine master single read, Time %t ", 
+		     $time) ;
+	    return `TB_ERROR_BIT = 1'b1;
+	 end
+	 
+	 @(posedge load);
+	 return `READ_DATA = adio_out;
+	 @(posedge c_state == S_DONE);
+	 return `CYC_ACTUAL_TRANSFER = 1;
+	 
+	 in_use = 0;
+      end
+   endtask // single_read
+   
+   task single_write;
+      input [31:0] target_address;
+      input [31:0] write_data;
+      inout	   `WRITE_RETURN_TYPE return;
+      input [2:0]  init_wait;
+      
+      reg 	   in_use;
+      reg 	   ok;
+      reg 	   retry;
+      
+      begin: main
+	 if (in_use === 1) begin
+	    $display("*E: master: single_write routine re-entered! Time %t ", $time);
+	    return `TB_ERROR_BIT = 1'b1;
+	    disable main;
+	 end
+
+	 in_use = 1;
+	 retry  = 1;
+	 q = write_data;
+	 return `CYC_ACTUAL_TRANSFER = 0;
+	 while (retry === 1) begin
+	    @(posedge CLK)
+	    if (c_state == S_IDLE)
+	      retry = 0;
+	 end
+	 
+	 start   = 1;
+	 dir     = 1;
+	 address = target_address;
+	 @(posedge CLK);
+	 start = 0;
+
+	 @(posedge CLK);
+	 if (c_state == S_REQ) begin
+	    retry = 0;
+	 end else begin
+	    $display("*E: Failed to initialize cycle! Routine master single write, Time %t ", 
+		     $time) ;
+	    return `TB_ERROR_BIT = 1'b1;
+	 end
+	 
+	 @(posedge c_state == S_DONE);
+	 return `CYC_ACTUAL_TRANSFER = 1;
+	 
+	 in_use = 0;
+      end
+      
+   endtask // single_write
+
+endmodule // master_behavioral
 
 // 
-// master_tb.v ends here
+// master_behavioral.v ends here

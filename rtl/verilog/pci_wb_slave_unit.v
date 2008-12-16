@@ -189,7 +189,7 @@ module pci_wb_slave_unit
    // Outputs
    m_data_vld, m_data, m_addr_n,
    // Inputs
-   request, m_ready, m_cbe, adio_in
+   request, m_ready, m_cbe, complete, adio_in
    );
 
 input reset_in,
@@ -306,6 +306,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    /*AUTOINPUT*/
    // Beginning of automatic inputs (from unused autoinst inputs)
    input [31:0]		adio_in;		// To pci_initiator_sm of pci_master32_sm.v
+   input		complete;		// To pci_initiator_sm of pci_master32_sm.v
    input [3:0]		m_cbe;			// To pci_initiator_if of pci_master32_sm_if.v, ...
    input		m_ready;		// To pci_initiator_sm of pci_master32_sm.v
    input		request;		// To pci_initiator_sm of pci_master32_sm.v
@@ -914,6 +915,7 @@ pci_master32_sm pci_initiator_sm
  .adio_in				(adio_in[31:0]),
  .m_cbe					(m_cbe[3:0]),
  .m_ready				(m_ready),
- .request				(request)); 
+ .request				(request),
+ .complete				(complete)); 
 
 endmodule
