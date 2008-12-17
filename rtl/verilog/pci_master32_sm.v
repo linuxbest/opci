@@ -129,9 +129,11 @@ module pci_master32_sm
     latency_tim_val_in,
  /*AUTOARG*/
    // Outputs
-   m_data, m_data_vld, m_addr_n, m_src_en, csr2,
+   pci_cbe64_out, m_data, m_data_vld, m_addr_n, m_src_en,
+   csr2,
    // Inputs
-   adio_in, m_cbe, m_ready, request, complete
+   adio_in, adio64_in, m_cbe, m_cbe64, m_ready, request,
+   request64, complete
    ) ;
 
 // system inputs
@@ -181,7 +183,8 @@ wire    [31:0]  pci_ad64_out ;
 output          pci_ad_en_out ;
 
 output  [3:0]   pci_cbe_out ;
-
+   output [3:0] pci_cbe64_out;
+   
 output          pci_cbe_en_out ;
 
 input   [31:0]  address_in ; // current request address input
@@ -230,9 +233,13 @@ output       ad_load_out,
              ad_load_on_transfer_out ;
 
    input [31:0] adio_in;
+   input [31:0] adio64_in;
    input [3:0] 	m_cbe;
+   input [3:0] 	m_cbe64;
+   
    input     m_ready;
    input     request;
+   input     request64;
    input     complete;
    
    output    m_data;
@@ -641,13 +648,23 @@ end
 	     endcase
      end
    reg [31:0] adio_in_reg;
+   reg [31:0] adio64_in_reg;
+   reg [3:0]  m_cbe_reg;
+   reg [3:0]  m_cbe64_reg;
+   
    always @(posedge clk_in)
-     if (m_src_en)
-       adio_in_reg <= #1 adio_in;
+     if (m_src_en) begin
+	adio_in_reg    <= #1 adio_in;
+	adio64_in_reg  <= #1 adio64_in;
+	m_cbe_reg      <= #1 m_cbe;
+	m_cbe64_reg    <= #1 m_cbe64;
+     end
    
    assign pci_ad_out  = rdata_cnt == 2'b10 ? adio_in_reg : adio_in;
-   assign pci_cbe_out = m_cbe;
-   /* TODO */
+   assign pci_cbe_out = rdata_cnt == 2'b10 ? m_cbe_reg   : m_cbe;
+
+   assign pci_ad64_out  = rdata_cnt == 2'b10 ? adio64_in_reg : adio64_in;
+   assign pci_cbe64_out = rdata_cnt == 2'b10 ? m_cbe64_reg   : m_cbe64;
    
 // data output mux for reads
 always@(mabort_out or pci_ad_reg_in or pci_ad64_reg_in)

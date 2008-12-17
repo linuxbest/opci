@@ -133,19 +133,21 @@ module pci_bridge32
    pci_stop_o, pci_ad_o, pci_ad64_o, pci_cbe_o, pci_cbe64_o,
    pci_par_o, pci_par_oe_o, pci_par64_o, pci_par64_oe_o,
    pci_perr_o, pci_perr_oe_o, pci_serr_o, pci_serr_oe_o,
-   addr, adio_out, addr_vld, cfg_vld, s_data_vld, s_src_en,
-   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit, m_data_vld,
-   m_src_en, time_out, m_data, dr_bus, m_addr_n, i_idle,
-   idle, b_busy, s_data, backoff, frameq_n, devselq_n,
-   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n, csr,
+   addr, adio_out, adio64_out, addr_vld, cfg_vld,
+   s_data_vld, s_src_en, s_wrdn, pci_cmd, s_cbe, s_cbe64,
+   base_hit, cfg_hit, m_data_vld, m_src_en, time_out,
+   m_data, dr_bus, m_addr_n, i_idle, idle, b_busy, s_data,
+   backoff, frameq_n, devselq_n, irdyq_n, trdyq_n, stopq_n,
+   perrq_n, serrq_n, csr,
    // Inputs
    pci_clk_i, pci_rst_i, pci_inta_i, pci_gnt_i, pci_frame_i,
    pci_req64_i, pci_ack64_i, pci_irdy_i, pci_idsel_i,
    pci_devsel_i, pci_trdy_i, pci_stop_i, pci_ad_i,
    pci_ad64_i, pci_cbe_i, pci_cbe64_i, pci_par_i,
-   pci_par64_i, pci_perr_i, adio_in, c_ready, c_term,
-   s_ready, s_term, s_abort, request, requesthold, m_cbe,
-   m_wrdn, complete, m_ready, cfg_self, int_n
+   pci_par64_i, pci_perr_i, adio_in, adio64_in, c_ready,
+   c_term, s_ready, s_term, s_abort, request, request64,
+   requesthold, m_cbe, m_cbe64, m_wrdn, complete, m_ready,
+   cfg_self, int_n
    );
 
 `ifdef HOST
@@ -311,8 +313,10 @@ assign  spoci_sda_o = 1'b0  ;
 
    /* Address and Data Path */   
    output [31:0] addr;		// C1 
-   input [31:0]  adio_in;	// TODO 
+   input [31:0]  adio_in;	// TODO
+   input [31:0]  adio64_in;	// TODO
    output [31:0] adio_out;	// C1 
+   output [31:0] adio64_out;	// TODO
    
    /* target control */
    output 	 addr_vld;	// C1 
@@ -321,7 +325,8 @@ assign  spoci_sda_o = 1'b0  ;
    output 	 s_src_en;	// TODO 
    output 	 s_wrdn;	// C1 
    output [15:0] pci_cmd;	// C1 
-   output [3:0]  s_cbe;		// C1 
+   output [3:0]  s_cbe;		// C1
+   output [3:0]  s_cbe64;	// TODO
    output [7:0]  base_hit;	// S1 XXX 
    output 	 cfg_hit;	// C1 
    input 	 c_ready;	// TODO 
@@ -332,8 +337,10 @@ assign  spoci_sda_o = 1'b0  ;
 
    /* initiator control */
    input 	 request;	// TODO
+   input 	 request64;	// TODO
    input 	 requesthold;	// TODO
    input [3:0] 	 m_cbe;		// TODO
+   input [3:0] 	 m_cbe64;	// TODO
    input 	 m_wrdn;	// TODO
    input 	 complete;	// TODO
    input 	 m_ready;	// TODO
@@ -837,7 +844,9 @@ wire    [7:0]   wbu_latency_tim_val_in                  = conf_latency_tim_out ;
 wire            wbu_pciif_frame_en_in                   = out_bckp_frame_en_out ;
 wire            wbu_pciif_frame_out_in                  = out_bckp_frame_out ;
 wire            wbu_wb_init_complete_in                 = conf_wb_init_complete_out ;
-
+   
+   wire [3:0] 	pci_cbe64_out;	// TODO
+   
 pci_wb_slave_unit wishbone_slave_unit
 (
     .reset_in                      (reset),
@@ -943,12 +952,16 @@ pci_wb_slave_unit wishbone_slave_unit
  .m_data				(m_data),
  .m_data_vld				(m_data_vld),
  .m_src_en				(m_src_en),
+ .pci_cbe64_out				(pci_cbe64_out[3:0]),
  // Inputs
+ .adio64_in				(adio64_in[31:0]),
  .adio_in				(adio_in[31:0]),
  .complete				(complete),
  .m_cbe					(m_cbe[3:0]),
+ .m_cbe64				(m_cbe64[3:0]),
  .m_ready				(m_ready),
- .request				(request));
+ .request				(request),
+ .request64				(request64));
 
 // PCI TARGET UNIT INPUTS
 wire    [31:0]  pciu_mdata_in                   =   wbm_dat_i ;
@@ -1654,6 +1667,8 @@ pci_in_reg input_register
 );
 
    assign adio_out = in_reg_ad_out;
+   assign adio64_out = in_reg_ad64_out;
+   
    reg [31:0] 	addr;
    always @(posedge pci_clk)
      begin

@@ -192,9 +192,11 @@ module pci_wb_slave_unit
  ,
  /*AUTOARG*/
    // Outputs
-   m_src_en, m_data_vld, m_data, csr2, m_addr_n,
+   pci_cbe64_out, m_src_en, m_data_vld, m_data, csr2,
+   m_addr_n,
    // Inputs
-   request, m_ready, m_cbe, complete, adio_in
+   request64, request, m_ready, m_cbe64, m_cbe, complete,
+   adio_in, adio64_in
    );
 
 input reset_in,
@@ -315,11 +317,14 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    
    /*AUTOINPUT*/
    // Beginning of automatic inputs (from unused autoinst inputs)
+   input [31:0]		adio64_in;		// To pci_initiator_sm of pci_master32_sm.v
    input [31:0]		adio_in;		// To pci_initiator_sm of pci_master32_sm.v
    input		complete;		// To pci_initiator_sm of pci_master32_sm.v
    input [3:0]		m_cbe;			// To pci_initiator_if of pci_master32_sm_if.v, ...
+   input [3:0]		m_cbe64;		// To pci_initiator_sm of pci_master32_sm.v
    input		m_ready;		// To pci_initiator_sm of pci_master32_sm.v
    input		request;		// To pci_initiator_sm of pci_master32_sm.v
+   input		request64;		// To pci_initiator_sm of pci_master32_sm.v
    // End of automatics
    /*AUTOOUTPUT*/
    // Beginning of automatic outputs (from unused autoinst outputs)
@@ -327,6 +332,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
    output		m_data;			// From pci_initiator_sm of pci_master32_sm.v
    output		m_data_vld;		// From pci_initiator_sm of pci_master32_sm.v
    output		m_src_en;		// From pci_initiator_sm of pci_master32_sm.v
+   output [3:0]		pci_cbe64_out;		// From pci_initiator_sm of pci_master32_sm.v
    // End of automatics
    /*AUTOWIRE*/
    
@@ -967,6 +973,7 @@ pci_master32_sm pci_initiator_sm
     .mabort_out                 (pcim_sm_mabort_out),
  /*AUTOINST*/
  // Outputs
+ .pci_cbe64_out				(pci_cbe64_out[3:0]),
  .m_data				(m_data),
  .m_data_vld				(m_data_vld),
  .m_addr_n				(m_addr_n),
@@ -974,9 +981,12 @@ pci_master32_sm pci_initiator_sm
  .csr2					(csr2[7:0]),
  // Inputs
  .adio_in				(adio_in[31:0]),
+ .adio64_in				(adio64_in[31:0]),
  .m_cbe					(m_cbe[3:0]),
+ .m_cbe64				(m_cbe64[3:0]),
  .m_ready				(m_ready),
  .request				(request),
+ .request64				(request64),
  .complete				(complete)); 
 
 endmodule
