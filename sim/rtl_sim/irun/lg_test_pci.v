@@ -978,9 +978,95 @@ task test_pci_master_error_handling;
 endtask // test_pci_master_error_handling
 
 task lg_test_pci_image;
-   input [3:0] image;
+   input [2:0]  image_num ;
+
+   reg [11:0] 	pci_ctrl_offset ;
+   reg [11:0] 	ctrl_offset ;
+   reg [11:0] 	ba_offset ;
+   reg [11:0] 	am_offset ;
+   reg [11:0] 	ta_offset ;
+   reg [7:0] 	cache_lsize ;
+   reg          ok ;
+   reg          test_io ;
+   reg          test_mem ;
+   
    begin
-      /* XXXX */
+      pci_ctrl_offset = 12'h4 ;
+
+      $display(" ");
+      $display("########################################################################") ;
+      test_name = "PCI IMAGE SETTINGS" ;
+
+      /* XXX */
+      cache_lsize = 8'h4 ;
+
+      /* XXX: how can I testing the pci target device 
+       *      burst
+       *      error handling
+       */
+      $display(" ");
+      $display("Setting the Cache Line Size register to %d word(s)", cache_lsize);
+      config_write( pci_ctrl_offset + 12'h8, {24'h0000_00, cache_lsize}, 4'h1, ok) ;
+      if ( ok !== 1 )
+	begin
+	   $display("Image testing failed! Failed to write Cache Line Size register! Time %t ",$time);
+	   test_fail("PCI Device Control and Status register could not be written") ;
+	end
+      test_mem = 0;
+
+      if (test_mem) begin
+	 // Task test_normal_wr_rd has the following parameters:
+	 //  [2:0]Master_ID, [31:0]Address, [31:0]Data, [3:0]Be, [2:0]Image_num,
+	 //  [3:0]Set_size, Set_addr_translation, Set_prefetch_enable, [7:0]Cache_lsize, 
+	 //       Set_wb_wait_states,
+	 //  MemRdLn_or_MemRd_when_cache_lsize_read.
+	 test_normal_wr_rd( `Test_Master_2, Target_Base_Addr_R[image_num], 32'h1234_5678, 
+			    `Test_All_Bytes, image_num,
+			    `Test_One_Word, 1'b0, 1'b0, cache_lsize, 1'b0, 1'b0 );
+         // Set Cache Line Size
+	 cache_lsize = 8'h4 ;
+	 $display(" ");
+
+	 $display("Setting the Cache Line Size register to %d word(s)", cache_lsize);
+	 config_write( pci_ctrl_offset + 12'h8, {24'h0000_00, cache_lsize}, 4'h1, ok) ;
+	 if ( ok !== 1 )
+	   begin
+	      $display("Image testing failed! Failed to write Cache Line Size register! Time %t ",$time);
+	      test_fail("Cache Line Size register could not be written" ) ;
+	   end
+	 $display("Do burst (2 words) WR / RD test through the IMAGE %d !",image_num);
+	 test_normal_wr_rd( `Test_Master_2, Target_Base_Addr_R[image_num] + 32'h4, 32'h5a5a_5a5a,
+			    `Test_Half_0, image_num,
+			    `Test_Two_Words, 1'b0, 1'b1, cache_lsize, 1'b1, 1'b0 );
+	 
+	 cache_lsize = 8'h8 ;
+         $display(" ");
+         $display("Setting the Cache Line Size register to %d word(s)", cache_lsize);
+         config_write( pci_ctrl_offset + 12'h8, {24'h0000_00, cache_lsize}, 4'h1, ok) ;
+         if ( ok !== 1 )
+           begin
+              $display("Image testing failed! Failed to write Cache Line Size register! Time %t ",$time);
+              test_fail("Cache Line Size register could not be written" ) ;
+           end
+         $display("Do burst (3 words) WR / RD test through the IMAGE %d !",image_num);
+	 test_normal_wr_rd( `Test_Master_2, Target_Base_Addr_R[image_num] + 32'h10, 32'h3c3c_3c3c, 
+			    `Test_Half_1, image_num,
+			    `Test_Three_Words, 1'b1, 1'b1, cache_lsize, 1'b1, 1'b1 );
+	 cache_lsize = 8'h4 ;
+	 $display(" ");
+	 $display("Setting the Cache Line Size register to %d word(s)", cache_lsize);
+	 config_write( pci_ctrl_offset + 12'h8, {24'h0000_00, cache_lsize}, 4'h1, ok) ;
+	 if ( ok !== 1 )
+	   begin
+	      $display("Image testing failed! Failed to write Cache Line Size register! Time %t ",$time);
+	      test_fail("Cache Line Size register could not be written" ) ;
+	   end
+	 
+	 $display("Do burst (full fifo depth words) WR / RD test through the IMAGE %d !",image_num);
+	 
+      end
+      
+      $stop;
    end
 endtask // test_pci_image
 
