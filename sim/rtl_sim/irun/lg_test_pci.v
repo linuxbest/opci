@@ -975,6 +975,11 @@ task test_pci_master_error_handling;
    end // block: main
 endtask // test_pci_master_error_handling
 
+task test_pci_image;
+   begin
+   end
+endtask // test_pci_image
+
 task lg_test_pci;
    begin
       do_reset;
@@ -1009,16 +1014,26 @@ task lg_test_pci;
 
 	       /* pci master test */
 	       test_pci_master;
-	       test_pci_master_error_handling; 
+	       test_pci_master_error_handling;
+	       //test_pci_parity_checking;
 	       //test_pci_master_transcations;
 	       //test_pci_master_overload;
+
+	       $display(" ") ;
+	       $display("WB slave images' tests finished!") ;
+	       $display("########################################################################") ;
+	       $display("########################################################################") ;
+	       $display("||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||") ;
+	       $display("########################################################################") ;
+	       $display("########################################################################") ;
 	       
 	       $display("Testing PCI target images' features!") ;
 	       configure_bridge_target_base_addresses;
 
 	       /* pci target test */
-	       /*test_pci_image(1);
-	       test_pci_image(2);
+	       test_pci_image(1);
+	       
+	       /*test_pci_image(2);
 	       test_pci_image(3);
 	       test_pci_image(4);
 	       test_pci_image(5);
