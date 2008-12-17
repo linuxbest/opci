@@ -98,7 +98,9 @@ module pci_wb_slave_unit
     pci_clock_in,
     ADDR_I,
     SDATA_I,
+    SDATA64_I,
     SDATA_O,
+    SDATA64_O,
     CYC_I,
     STB_I,
     WE_I,
@@ -107,6 +109,7 @@ module pci_wb_slave_unit
     RTY_O,
     ERR_O,
     CAB_I,
+    PREF_I,
     wbu_map_in,
     wbu_pref_en_in,
     wbu_mrl_en_in,
@@ -147,6 +150,7 @@ module pci_wb_slave_unit
     wbu_pciif_devsel_in,
     wbu_pciif_devsel_reg_in,
     wbu_pciif_ad_reg_in,
+    wbu_pciif_ad64_reg_in,
     wbu_pciif_req_out,
     wbu_pciif_frame_out,
     wbu_pciif_frame_en_out,
@@ -156,6 +160,7 @@ module pci_wb_slave_unit
     wbu_pciif_irdy_out,
     wbu_pciif_irdy_en_out,
     wbu_pciif_ad_out,
+    wbu_pciif_ad64_out,
     wbu_pciif_ad_en_out,
     wbu_pciif_cbe_out,
     wbu_pciif_cbe_en_out,
@@ -192,7 +197,9 @@ input reset_in,
 
 input   [31:0]  ADDR_I   ;
 input   [31:0]  SDATA_I  ;
+input   [31:0]  SDATA64_I  ;
 output  [31:0]  SDATA_O  ;
+output  [31:0]  SDATA64_O  ;
 input           CYC_I    ;
 input           STB_I    ;
 input           WE_I     ;
@@ -201,6 +208,7 @@ output          ACK_O    ;
 output          RTY_O    ;
 output          ERR_O    ;
 input           CAB_I    ;
+input           PREF_I    ;
 
 input   [5:0]   wbu_map_in ;
 input   [5:0]   wbu_pref_en_in ;
@@ -251,6 +259,7 @@ input           wbu_pciif_stop_reg_in ;
 input           wbu_pciif_devsel_in ;
 input           wbu_pciif_devsel_reg_in ;
 input [31:0]    wbu_pciif_ad_reg_in ;
+input [31:0]    wbu_pciif_ad64_reg_in ;
 
 output          wbu_pciif_req_out ;
 output          wbu_pciif_frame_out ;
@@ -260,6 +269,7 @@ output          wbu_pciif_frame_load_out ;
 output          wbu_pciif_irdy_out ;
 output          wbu_pciif_irdy_en_out ;
 output  [31:0]  wbu_pciif_ad_out ;
+output  [31:0]  wbu_pciif_ad64_out ;
 output          wbu_pciif_ad_en_out ;
 output  [3:0]   wbu_pciif_cbe_out ;
 output          wbu_pciif_cbe_en_out ;
@@ -299,6 +309,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
 wire [31:0] pcim_if_address_out ;
 wire [3:0]  pcim_if_bc_out ;
 wire [31:0] pcim_if_data_out ;
+wire [31:0] pcim_if_data64_out ;
 wire [3:0]  pcim_if_be_out ;
 wire        pcim_if_req_out ;
 wire        pcim_if_rdy_out ;
@@ -306,6 +317,7 @@ wire        pcim_if_last_out ;
 wire        pcim_if_wbw_renable_out ;
 wire        pcim_if_wbr_wenable_out ;
 wire [31:0] pcim_if_wbr_data_out ;
+wire [31:0] pcim_if_wbr_data64_out ;
 wire [3:0]  pcim_if_wbr_be_out ;
 wire [3:0]  pcim_if_wbr_control_out ;
 wire        pcim_if_del_complete_out ;
@@ -319,6 +331,7 @@ wire        pcim_if_err_rty_exp_out ;
 wire        pcim_if_tabort_out ;
 wire        pcim_if_mabort_out ;
 wire [31:0] pcim_if_next_data_out ;
+wire [31:0] pcim_if_next_data64_out ;
 wire [3:0]  pcim_if_next_be_out ;
 wire        pcim_if_next_last_out ;
 wire        pcim_if_posted_write_not_present_out ;
@@ -331,6 +344,7 @@ wire        pcim_sm_frame_en_out ;
 wire        pcim_sm_irdy_out ;
 wire        pcim_sm_irdy_en_out ;
 wire [31:0] pcim_sm_ad_out ;
+wire [31:0] pcim_sm_ad64_out ;
 wire        pcim_sm_ad_en_out ;
 wire [3:0]  pcim_sm_cbe_out ;
 wire        pcim_sm_cbe_en_out ;
@@ -366,6 +380,7 @@ assign  wbu_pciif_frame_en_out      =           pcim_sm_frame_en_out ;
 assign  wbu_pciif_irdy_out          =           pcim_sm_irdy_out ;
 assign  wbu_pciif_irdy_en_out       =           pcim_sm_irdy_en_out ;
 assign  wbu_pciif_ad_out            =           pcim_sm_ad_out ;
+assign  wbu_pciif_ad64_out          =           pcim_sm_ad64_out ;
 assign  wbu_pciif_ad_en_out         =           pcim_sm_ad_en_out ;
 assign  wbu_pciif_cbe_out           =           pcim_sm_cbe_out ;
 assign  wbu_pciif_cbe_en_out        =           pcim_sm_cbe_en_out ;
@@ -374,6 +389,7 @@ assign  wbu_ad_load_on_transfer_out =           pcim_sm_ad_load_on_transfer_out 
 
 // signals to internal of the core
 wire [31:0] pcim_sm_data_out ;
+wire [31:0] pcim_sm_data64_out ;
 
 // wishbone slave state machine outputs
 wire [3:0]  wbs_sm_del_bc_out ;
@@ -386,7 +402,9 @@ wire        wbs_sm_conf_renable_out ;
 wire        wbs_sm_conf_wenable_out ;
 wire [3:0]  wbs_sm_conf_be_out ;
 wire [31:0] wbs_sm_conf_data_out ;
+wire [31:0] wbs_sm_conf_data64_out ;
 wire [31:0] wbs_sm_data_out ;
+wire [31:0] wbs_sm_data64_out ;
 wire [3:0]  wbs_sm_cbe_out ;
 wire        wbs_sm_wbw_wenable_out ;
 wire [3:0]  wbs_sm_wbw_control_out ;
@@ -394,6 +412,7 @@ wire        wbs_sm_wbr_renable_out ;
 wire        wbs_sm_wbr_flush_out ;
 wire        wbs_sm_del_in_progress_out ;
 wire [31:0] wbs_sm_sdata_out ;
+wire [31:0] wbs_sm_sdata64_out ;
 wire        wbs_sm_ack_out ;
 wire        wbs_sm_rty_out ;
 wire        wbs_sm_err_out ;
@@ -406,6 +425,7 @@ assign wbu_conf_be_out      = ~wbs_sm_conf_be_out ;
 assign wbu_conf_data_out    = wbs_sm_conf_data_out ;
 
 assign SDATA_O = wbs_sm_sdata_out ;
+assign SDATA64_O = wbs_sm_sdata64_out ;
 assign ACK_O   = wbs_sm_ack_out ;
 assign RTY_O   = wbs_sm_rty_out ;
 assign ERR_O   = wbs_sm_err_out ;
@@ -415,6 +435,7 @@ assign ERR_O   = wbs_sm_err_out ;
 
 // wbw_fifo_outputs:
 wire [31:0] fifos_wbw_addr_data_out ;
+wire [31:0] fifos_wbw_addr_data64_out ;
 wire [3:0]  fifos_wbw_cbe_out ;
 wire [3:0]  fifos_wbw_control_out ;
 wire        fifos_wbw_almost_full_out ;
@@ -425,6 +446,7 @@ wire        fifos_wbw_transaction_ready_out ;
 
 // wbr_fifo_outputs
 wire [31:0] fifos_wbr_data_out ;
+wire [31:0] fifos_wbr_data64_out ;
 wire [3:0]  fifos_wbr_be_out ;
 wire [3:0]  fifos_wbr_control_out ;
 wire        fifos_wbr_empty_out ;
@@ -450,6 +472,7 @@ assign wbu_del_read_comp_pending_out = del_sync_comp_comp_pending_out ;
 
 // delayed write storage output
 wire [31:0] del_write_data_out ;
+wire [31:0] del_write_data64_out ;
 
 // config. cycle address decoder output
 wire [31:0] ccyc_addr_out ;
@@ -476,6 +499,7 @@ wire        wbs_sm_wbw_full_in              =       fifos_wbw_full_out ;
 wire        wbs_sm_wbw_half_full_in         =       fifos_wbw_half_full_out; ////Robert, burst issue
 wire [3:0]  wbs_sm_wbr_be_in                =       fifos_wbr_be_out ;
 wire [31:0] wbs_sm_wbr_data_in              =       fifos_wbr_data_out ;
+wire [31:0] wbs_sm_wbr_data64_in            =       fifos_wbr_data64_out ;
 wire [3:0]  wbs_sm_wbr_control_in           =       fifos_wbr_control_out ;
 wire        wbs_sm_wbr_empty_in             =       fifos_wbr_empty_out ;
 wire        wbs_sm_pciw_empty_in            =       wbu_pciw_empty_in ;
@@ -486,7 +510,9 @@ wire        wbs_sm_stb_in                   =       STB_I ;
 wire        wbs_sm_we_in                    =       WE_I  ;
 wire [3:0]  wbs_sm_sel_in                   =       SEL_I ;
 wire [31:0] wbs_sm_sdata_in                 =       SDATA_I ;
+wire [31:0] wbs_sm_sdata64_in                 =       SDATA64_I ;
 wire        wbs_sm_cab_in                   =       CAB_I ;
+wire        wbs_sm_pref_in                   =       PREF_I ;
 wire [31:0] wbs_sm_ccyc_addr_in             =       ccyc_addr_out ;
 wire        wbs_sm_init_complete_in         =       wb_init_complete_in ;
 
@@ -520,6 +546,7 @@ pci_wb_slave wishbone_slave(
                         .wb_conf_data_in          (wbs_sm_conf_data_in),
                         .wb_conf_data_out         (wbs_sm_conf_data_out),
                         .wb_data_out              (wbs_sm_data_out),
+                        .wb_data64_out            (wbs_sm_data64_out),
                         .wb_cbe_out               (wbs_sm_cbe_out),
                         .wbw_fifo_wenable_out     (wbs_sm_wbw_wenable_out),
                         .wbw_fifo_control_out     (wbs_sm_wbw_control_out),
@@ -529,6 +556,7 @@ pci_wb_slave wishbone_slave(
                         .wbr_fifo_renable_out     (wbs_sm_wbr_renable_out),
                         .wbr_fifo_be_in           (wbs_sm_wbr_be_in),
                         .wbr_fifo_data_in         (wbs_sm_wbr_data_in),
+                        .wbr_fifo_data64_in       (wbs_sm_wbr_data64_in),
                         .wbr_fifo_control_in      (wbs_sm_wbr_control_in),
                         .wbr_fifo_flush_out       (wbs_sm_wbr_flush_out),
                         .wbr_fifo_empty_in        (wbs_sm_wbr_empty_in),
@@ -544,17 +572,21 @@ pci_wb_slave wishbone_slave(
                         .WE_I                     (wbs_sm_we_in),
                         .SEL_I                    (wbs_sm_sel_in),
                         .SDATA_I                  (wbs_sm_sdata_in),
+                        .SDATA64_I                (wbs_sm_sdata64_in),
                         .SDATA_O                  (wbs_sm_sdata_out),
+                        .SDATA64_O                (wbs_sm_sdata64_out),
                         .ACK_O                    (wbs_sm_ack_out),
                         .RTY_O                    (wbs_sm_rty_out),
                         .ERR_O                    (wbs_sm_err_out),
-                        .CAB_I                    (wbs_sm_cab_in)
+                        .CAB_I                    (wbs_sm_cab_in),
+                        .PREF_I                    (wbs_sm_pref_in)
                        );
 
 // wbw_wbr_fifos inputs
 // WBW_FIFO inputs
 wire        fifos_wbw_wenable_in        =       wbs_sm_wbw_wenable_out;
 wire [31:0] fifos_wbw_addr_data_in      =       wbs_sm_data_out ;
+wire [31:0] fifos_wbw_addr_data64_in    =       wbs_sm_data64_out ;
 wire [3:0]  fifos_wbw_cbe_in            =       wbs_sm_cbe_out ;
 wire [3:0]  fifos_wbw_control_in        =       wbs_sm_wbw_control_out ;
 wire        fifos_wbw_renable_in        =       pcim_if_wbw_renable_out ;
@@ -564,6 +596,7 @@ wire        fifos_wbw_renable_in        =       pcim_if_wbw_renable_out ;
 // WBR_FIFO inputs
 wire        fifos_wbr_wenable_in        =       pcim_if_wbr_wenable_out ;
 wire [31:0] fifos_wbr_data_in           =       pcim_if_wbr_data_out ;
+wire [31:0] fifos_wbr_data64_in         =       pcim_if_wbr_data64_out ;
 wire [3:0]  fifos_wbr_be_in             =       pcim_if_wbr_be_out ;
 wire [3:0]  fifos_wbr_control_in        =       pcim_if_wbr_control_out ;
 wire        fifos_wbr_renable_in        =       wbs_sm_wbr_renable_out ;
@@ -577,10 +610,12 @@ pci_wbw_wbr_fifos fifos
     .reset_in                  (reset_in),
     .wbw_wenable_in            (fifos_wbw_wenable_in),
     .wbw_addr_data_in          (fifos_wbw_addr_data_in),
+    .wbw_addr_data64_in        (fifos_wbw_addr_data64_in),
     .wbw_cbe_in                (fifos_wbw_cbe_in),
     .wbw_control_in            (fifos_wbw_control_in),
     .wbw_renable_in            (fifos_wbw_renable_in),
     .wbw_addr_data_out         (fifos_wbw_addr_data_out),
+    .wbw_addr_data64_out       (fifos_wbw_addr_data64_out),
     .wbw_cbe_out               (fifos_wbw_cbe_out),
     .wbw_control_out           (fifos_wbw_control_out),
 //    .wbw_flush_in              (fifos_wbw_flush_in),        // flush for write fifo not used
@@ -591,10 +626,12 @@ pci_wbw_wbr_fifos fifos
 	 .wbw_half_full_out        (fifos_wbw_half_full_out),////Robert, burst issue
     .wbr_wenable_in            (fifos_wbr_wenable_in),
     .wbr_data_in               (fifos_wbr_data_in),
+    .wbr_data64_in             (fifos_wbr_data64_in),
     .wbr_be_in                 (fifos_wbr_be_in),
     .wbr_control_in            (fifos_wbr_control_in),
     .wbr_renable_in            (fifos_wbr_renable_in),
     .wbr_data_out              (fifos_wbr_data_out),
+    .wbr_data64_out            (fifos_wbr_data64_out),
     .wbr_be_out                (fifos_wbr_be_out),
     .wbr_control_out           (fifos_wbr_control_out),
     .wbr_flush_in              (fifos_wbr_flush_in),
@@ -707,14 +744,17 @@ pci_delayed_sync del_sync  (
 // delayed write storage inputs
 wire        del_write_we_in         =       wbs_sm_del_req_out && wbs_sm_del_write_out ;
 wire [31:0] del_write_data_in       =       wbs_sm_conf_data_out ;
+wire [31:0] del_write_data64_in     =       wbs_sm_conf_data64_out ;
 
 pci_delayed_write_reg delayed_write_data
 (
 	.reset_in       (reset_in),
 	.req_clk_in     (wb_clock_in),
 	.comp_wdata_out (del_write_data_out),
+	.comp_wdata64_out (del_write_data64_out),
 	.req_we_in      (del_write_we_in),
-	.req_wdata_in   (del_write_data_in)
+	.req_wdata_in   (del_write_data_in),
+	.req_wdata64_in   (del_write_data64_in)
 );
 
 `ifdef HOST
@@ -734,12 +774,15 @@ pci_delayed_write_reg delayed_write_data
 
 // pci master interface inputs
 wire [31:0] pcim_if_wbw_addr_data_in            =           fifos_wbw_addr_data_out ;
+wire [31:0] pcim_if_wbw_addr_data64_in          =           fifos_wbw_addr_data64_out ;
 wire [3:0]  pcim_if_wbw_cbe_in                  =           fifos_wbw_cbe_out ;
 wire [3:0]  pcim_if_wbw_control_in              =           fifos_wbw_control_out ;
 wire        pcim_if_wbw_empty_in                =           fifos_wbw_empty_out ;
 wire        pcim_if_wbw_transaction_ready_in    =           fifos_wbw_transaction_ready_out ;
 wire [31:0] pcim_if_data_in                     =           pcim_sm_data_out ;
+wire [31:0] pcim_if_data64_in                   =           pcim_sm_data64_out ;
 wire [31:0] pcim_if_del_wdata_in                =           del_write_data_out ;
+wire [31:0] pcim_if_del_wdata64_in              =           del_write_data64_out ;
 wire        pcim_if_del_req_in                  =           del_sync_comp_req_pending_out ;
 wire [31:0] pcim_if_del_addr_in                 =           del_sync_addr_out ;
 wire [3:0]  pcim_if_del_bc_in                   =           del_sync_bc_out ;
@@ -762,22 +805,27 @@ pci_master32_sm_if pci_initiator_if
     .address_out                   (pcim_if_address_out),
     .bc_out                        (pcim_if_bc_out),
     .data_out                      (pcim_if_data_out),
+    .data64_out                    (pcim_if_data64_out),
     .data_in                       (pcim_if_data_in),
+    .data64_in                     (pcim_if_data64_in),
     .be_out                        (pcim_if_be_out),
     .req_out                       (pcim_if_req_out),
     .rdy_out                       (pcim_if_rdy_out),
     .last_out                      (pcim_if_last_out),
     .wbw_renable_out               (pcim_if_wbw_renable_out),
     .wbw_fifo_addr_data_in         (pcim_if_wbw_addr_data_in),
+    .wbw_fifo_addr_data64_in       (pcim_if_wbw_addr_data64_in),
     .wbw_fifo_cbe_in               (pcim_if_wbw_cbe_in),
     .wbw_fifo_control_in           (pcim_if_wbw_control_in),
     .wbw_fifo_empty_in             (pcim_if_wbw_empty_in),
     .wbw_fifo_transaction_ready_in (pcim_if_wbw_transaction_ready_in),
     .wbr_fifo_wenable_out          (pcim_if_wbr_wenable_out),
     .wbr_fifo_data_out             (pcim_if_wbr_data_out),
+    .wbr_fifo_data64_out           (pcim_if_wbr_data64_out),
     .wbr_fifo_be_out               (pcim_if_wbr_be_out),
     .wbr_fifo_control_out          (pcim_if_wbr_control_out),
     .del_wdata_in                  (pcim_if_del_wdata_in),
+    .del_wdata64_in                (pcim_if_del_wdata64_in),
     .del_complete_out              (pcim_if_del_complete_out),
     .del_req_in                    (pcim_if_del_req_in),
     .del_addr_in                   (pcim_if_del_addr_in),
@@ -796,6 +844,7 @@ pci_master32_sm_if pci_initiator_if
     .mabort_received_out           (pcim_if_mabort_out),
     .tabort_received_out           (pcim_if_tabort_out),
     .next_data_out                 (pcim_if_next_data_out),
+    .next_data64_out               (pcim_if_next_data64_out),
     .next_be_out                   (pcim_if_next_be_out),
     .next_last_out                 (pcim_if_next_last_out),
     .wait_in                       (pcim_if_wait_in),
@@ -816,15 +865,18 @@ wire        pcim_sm_trdy_in                 =       wbu_pciif_trdy_in;
 wire        pcim_sm_stop_in                 =       wbu_pciif_stop_in ;
 wire        pcim_sm_devsel_in               =       wbu_pciif_devsel_in ;
 wire [31:0] pcim_sm_ad_reg_in               =       wbu_pciif_ad_reg_in ;
+wire [31:0] pcim_sm_ad64_reg_in             =       wbu_pciif_ad64_reg_in ;
 wire [31:0] pcim_sm_address_in              =       pcim_if_address_out ;
 wire [3:0]  pcim_sm_bc_in                   =       pcim_if_bc_out ;
 wire [31:0] pcim_sm_data_in                 =       pcim_if_data_out ;
+wire [31:0] pcim_sm_data64_in               =       pcim_if_data64_out ;
 wire [3:0]  pcim_sm_be_in                   =       pcim_if_be_out ;
 wire        pcim_sm_req_in                  =       pcim_if_req_out ;
 wire        pcim_sm_rdy_in                  =       pcim_if_rdy_out ;
 wire        pcim_sm_last_in                 =       pcim_if_last_out ;
 wire [7:0]  pcim_sm_latency_tim_val_in      =       wbu_latency_tim_val_in ;
 wire [31:0] pcim_sm_next_data_in            =       pcim_if_next_data_out ;
+wire [31:0] pcim_sm_next_data64_in          =       pcim_if_next_data64_out ;
 wire [3:0]  pcim_sm_next_be_in              =       pcim_if_next_be_out ;
 wire        pcim_sm_next_last_in            =       pcim_if_next_last_out ;
 wire        pcim_sm_trdy_reg_in             =       wbu_pciif_trdy_reg_in ;
@@ -855,20 +907,25 @@ pci_master32_sm pci_initiator_sm
     .pci_devsel_in              (pcim_sm_devsel_in),
     .pci_devsel_reg_in          (pcim_sm_devsel_reg_in),
     .pci_ad_reg_in              (pcim_sm_ad_reg_in),
+    .pci_ad64_reg_in            (pcim_sm_ad64_reg_in),
     .pci_ad_out                 (pcim_sm_ad_out),
+    .pci_ad64_out               (pcim_sm_ad64_out),
     .pci_ad_en_out              (pcim_sm_ad_en_out),
     .pci_cbe_out                (pcim_sm_cbe_out),
     .pci_cbe_en_out             (pcim_sm_cbe_en_out),
     .address_in                 (pcim_sm_address_in),
     .bc_in                      (pcim_sm_bc_in),
     .data_in                    (pcim_sm_data_in),
+    .data64_in                  (pcim_sm_data64_in),
     .data_out                   (pcim_sm_data_out),
+    .data64_out                 (pcim_sm_data64_out),
     .be_in                      (pcim_sm_be_in),
     .req_in                     (pcim_sm_req_in),
     .rdy_in                     (pcim_sm_rdy_in),
     .last_in                    (pcim_sm_last_in),
     .latency_tim_val_in         (pcim_sm_latency_tim_val_in),
     .next_data_in               (pcim_sm_next_data_in),
+    .next_data64_in             (pcim_sm_next_data64_in),
     .next_be_in                 (pcim_sm_next_be_in),
     .next_last_in               (pcim_sm_next_last_in),
     .ad_load_out                (pcim_sm_ad_load_out),

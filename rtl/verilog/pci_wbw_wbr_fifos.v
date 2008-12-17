@@ -114,10 +114,12 @@ module pci_wbw_wbr_fifos
     reset_in,
     wbw_wenable_in,
     wbw_addr_data_in,
+    wbw_addr_data64_in,
     wbw_cbe_in,
     wbw_control_in,
     wbw_renable_in,
     wbw_addr_data_out,
+    wbw_addr_data64_out,
     wbw_cbe_out,
     wbw_control_out,
 //    wbw_flush_in,         write fifo flush not used
@@ -128,10 +130,12 @@ module pci_wbw_wbr_fifos
 	 wbw_half_full_out, ////Robert, burst issue
     wbr_wenable_in,
     wbr_data_in,
+    wbr_data64_in,
     wbr_be_in,
     wbr_control_in,
     wbr_renable_in,
     wbr_data_out,
+    wbr_data64_out,
     wbr_be_out,
     wbr_control_out,
     wbr_flush_in,
@@ -185,12 +189,14 @@ wbw_transaction_ready_out = output indicating that one complete transaction is w
 // input control and data
 input        wbw_wenable_in ;
 input [31:0] wbw_addr_data_in ;
+input [31:0] wbw_addr_data64_in ;
 input [3:0]  wbw_cbe_in ;
 input [3:0]  wbw_control_in ;
 
 // output control and data
 input         wbw_renable_in ;
 output [31:0] wbw_addr_data_out ;
+output [31:0] wbw_addr_data64_out ;
 output [3:0]  wbw_cbe_out ;
 output [3:0]  wbw_control_out ;
 
@@ -232,12 +238,14 @@ wbr_empty_out = empty output from WBR_FIFO
 // input control and data
 input        wbr_wenable_in ;
 input [31:0] wbr_data_in ;
+input [31:0] wbr_data64_in ;
 input [3:0]  wbr_be_in ;
 input [3:0]  wbr_control_in ;
 
 // output control and data
 input         wbr_renable_in ;
 output [31:0] wbr_data_out ;
+output [31:0] wbr_data64_out ;
 output [3:0]  wbr_be_out ;
 output [3:0]  wbr_control_out ;
 
@@ -322,11 +330,11 @@ wire wbr_clear = reset_in /*|| wbr_flush_in*/ ; // WBR_FIFO clear - flush change
 /*-----------------------------------------------------------------------------------------------------------
 Definitions of wires for connecting RAM instances
 -----------------------------------------------------------------------------------------------------------*/
-wire [39:0] dpram_portA_output ;
-wire [39:0] dpram_portB_output ;
+wire [71:0] dpram_portA_output ;
+wire [71:0] dpram_portB_output ;
 
-wire [39:0] dpram_portA_input = {wbw_control_in, wbw_cbe_in, wbw_addr_data_in} ;
-wire [39:0] dpram_portB_input = {wbr_control_in, wbr_be_in, wbr_data_in} ;
+wire [71:0] dpram_portA_input = {wbw_addr_data64_in, wbw_control_in, wbw_cbe_in, wbw_addr_data_in} ;
+wire [71:0] dpram_portB_input = {wbr_data64_in, wbr_control_in, wbr_be_in, wbr_data_in} ;
 
 /*-----------------------------------------------------------------------------------------------------------
 Fifo output assignments - each ram port provides data for different fifo
@@ -338,7 +346,9 @@ assign wbw_cbe_out     = dpram_portB_output[35:32] ;
 assign wbr_be_out      = dpram_portA_output[35:32] ;
 
 assign wbw_addr_data_out = dpram_portB_output[31:0] ;
+assign wbw_addr_data64_out = dpram_portB_output[71:40] ;
 assign wbr_data_out      = dpram_portA_output[31:0] ;
+assign wbr_data64_out      = dpram_portA_output[71:40] ;
 
 `ifdef WB_RAM_DONT_SHARE
 
@@ -373,7 +383,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     `endif
 
     // instantiate and connect two generic rams - one for wishbone write fifo and one for wishbone read fifo
-    pci_wb_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbw_fifo_storage
+    pci_pci_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 72) wbw_fifo_storage
     (
         /////////////////Generic synchronous two-port RAM interface
         .clk_a(wb_clock_in),
@@ -402,7 +412,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     `endif
     );
 	 
-    pci_wb_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbr_fifo_storage
+    pci_pci_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 72) wbr_fifo_storage
     (
         // Generic synchronous two-port RAM interface
         .clk_a(pci_clock_in),
@@ -465,7 +475,7 @@ assign wbr_data_out      = dpram_portA_output[31:0] ;
     wire portB_enable      = 1'b1 ;
 
     // instantiate RAM for these two fifos
-    pci_wb_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 40) wbu_fifo_storage
+    pci_pci_tpram #(`WB_FIFO_RAM_ADDR_LENGTH, 72) wbu_fifo_storage
     (
         // Generic synchronous two-port RAM interface
         .clk_a(wb_clock_in),

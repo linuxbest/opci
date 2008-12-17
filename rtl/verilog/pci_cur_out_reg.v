@@ -80,7 +80,9 @@ module pci_cur_out_reg
     cbe_in,
     cbe_en_in,
     mas_ad_in,
+    mas_ad64_in,
     tar_ad_in,
+    tar_ad64_in,
     frame_en_in,
     irdy_en_in,
 
@@ -89,7 +91,9 @@ module pci_cur_out_reg
     ad_en_unregistered_in,
 
     par_in,
+    par64_in,
     par_en_in,
+    par64_en_in,
     perr_in,
     perr_en_in,
     serr_in,
@@ -103,6 +107,7 @@ module pci_cur_out_reg
     cbe_out,
     cbe_en_out,
     ad_out,
+    ad64_out,
     frame_en_out,
     irdy_en_out,
     ad_en_out,
@@ -111,7 +116,9 @@ module pci_cur_out_reg
     trdy_en_out,
 
     par_out,
+    par64_out,
     par_en_out,
+    par64_en_out,
     perr_out,
     perr_en_out,
     serr_out,
@@ -131,7 +138,9 @@ input           ad_load_in ;
 input [3:0]     cbe_in ;
 input           cbe_en_in ;
 input [31:0]    mas_ad_in ;
+input [31:0]    mas_ad64_in ;
 input [31:0]    tar_ad_in ;
+input [31:0]    tar_ad64_in ;
 
 input           mas_ad_en_in ;
 input           tar_ad_en_in ;
@@ -143,7 +152,9 @@ input           frame_en_in,
 input           trdy_en_in ;
 
 input par_in ;
+input par64_in ;
 input par_en_in ;
+input par64_en_in ;
 input perr_in ;
 input perr_en_in ;
 input serr_in ;
@@ -162,7 +173,9 @@ reg             stop_out ;
 output [3:0]    cbe_out ;
 reg    [3:0]    cbe_out ;
 output [31:0]   ad_out ;
+output [31:0]   ad64_out ;
 reg    [31:0]   ad_out ;
+reg    [31:0]   ad64_out ;
 
 output          frame_en_out,
                 irdy_en_out,
@@ -180,14 +193,18 @@ reg             frame_en_out,
                 trdy_en_out;
 
 output          par_out ;
+output          par64_out ;
 output          par_en_out ;
+output          par64_en_out ;
 output          perr_out ;
 output          perr_en_out ;
 output          serr_out ;
 output          serr_en_out ;
 
 reg             par_out ;
+reg             par64_out ;
 reg             par_en_out ;
+reg             par64_en_out ;
 reg             perr_out ;
 reg             perr_en_out ;
 reg             serr_out ;
@@ -209,7 +226,9 @@ begin
         tar_ad_en_out<= #`FF_DELAY 1'b0 ;
         trdy_en_out  <= #`FF_DELAY 1'b0 ;
         par_out      <= #`FF_DELAY 1'b0 ;
+        par64_out    <= #`FF_DELAY 1'b0 ;
         par_en_out   <= #`FF_DELAY 1'b0 ;
+        par64_en_out <= #`FF_DELAY 1'b0 ;
         perr_out     <= #`FF_DELAY 1'b1 ;
         perr_en_out  <= #`FF_DELAY 1'b0 ;
         serr_out     <= #`FF_DELAY 1'b1 ;
@@ -229,8 +248,10 @@ begin
         tar_ad_en_out<= #`FF_DELAY tar_ad_en_in && ad_en_unregistered_in ;
         trdy_en_out  <= #`FF_DELAY trdy_en_in ;
 
-        par_out      <= #`FF_DELAY par_in ;
-        par_en_out   <= #`FF_DELAY par_en_in ;
+        par64_out    <= #`FF_DELAY par_in ;
+        par_out      <= #`FF_DELAY par64_in ;
+        par64_en_out <= #`FF_DELAY par_en_in ;
+        par_en_out   <= #`FF_DELAY par64_en_in ;
         perr_out     <= #`FF_DELAY perr_in ;
         perr_en_out  <= #`FF_DELAY perr_en_in ;
         serr_out     <= #`FF_DELAY serr_in ;
@@ -249,14 +270,17 @@ begin
 end
 
 wire [31:0] ad_source = tar_ad_en_out ? tar_ad_in : mas_ad_in ;
+wire [31:0] ad64_source = tar_ad_en_out ? tar_ad64_in : mas_ad64_in ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
-    if ( reset_in )
+    if ( reset_in ) begin
         ad_out <= #`FF_DELAY 32'h0000_0000 ;
-    else if ( ad_load_in )
+        ad64_out <= #`FF_DELAY 32'h0000_0000 ;
+    end else if ( ad_load_in ) begin
         ad_out <= #`FF_DELAY ad_source ;
-
+        ad64_out <= #`FF_DELAY ad64_source ;
+    end
 end
 
 always@(posedge reset_in or posedge clk_in)

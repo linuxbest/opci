@@ -411,33 +411,40 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
     // Generic RAM's registers and wires
     //
     reg	[dw-1:0]	mem [(1<<aw)-1:0];	// RAM content
-    reg	[dw-1:0]	do_reg_b;		// RAM data output register
+    reg [dw-1:0] 	do_reg_b, do_reg_a;     // RAM data output register
 
     //
     // Data output drivers
     //
-    assign do_a = {dw{1'b0}} ;
+    assign do_a = do_reg_a   ;
     assign do_b = do_reg_b   ;
 
     //
     // RAM read and write
     //
-    always @(posedge clk_a)
-    	if (ce_a && we_a)
-    		mem[addr_a] <= #1 di_a;
-
-    //
-    // RAM read and write
-    //
-    always @(posedge clk_b)
-    	if (ce_b)
-    		do_reg_b <= #1 mem[addr_b];
+    always @(posedge clk_a) begin
+       if (ce_a)
+	 begin
+	    if (we_a)
+	       mem[addr_a] <= #1 di_a;
+	    do_reg_a <= #1 mem[addr_a];
+	 end
+    end
+   
+   always @(posedge clk_b) begin
+      if (ce_b)
+	begin
+	   if (we_b) 
+	      mem[addr_b] <= #1 di_b;
+	   do_reg_b <= #1 mem[addr_b];
+	end
+   end
 `endif
 
 // synopsys translate_off
 initial
 begin
-    if (dw !== 40)
+    if (dw !== 40 && dw != 72)
     begin
         $display("RAM instantiation error! Expected RAM width %d, actual %h!", 40, dw) ;
         $finish ;

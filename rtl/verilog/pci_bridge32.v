@@ -114,6 +114,9 @@
 `include "timescale.v"
 // synopsys translate_on
 
+// why can not auto found it?
+//`include "pci_wbs_wbb3_2_wbb2.v"
+
 // this is top level module of pci bridge core
 // it instantiates and connects other lower level modules
 // check polarity of PCI output enables in file out_reg.v and change it according to IO interface specification
@@ -130,7 +133,9 @@ module pci_bridge32
     // WISHBONE slave interface
     wbs_adr_i,
     wbs_dat_i,
+    wbs_dat64_i,
     wbs_dat_o,
+    wbs_dat64_o,
     wbs_sel_i,
     wbs_cyc_i,
     wbs_stb_i,
@@ -144,10 +149,12 @@ module pci_bridge32
 `else
 
     wbs_cab_i,
+    wbs_pref_i,
 
 `endif
 
     wbs_ack_o,
+    wbs_ack64_o,
     wbs_rty_o,
     wbs_err_o,
 
@@ -183,14 +190,24 @@ module pci_bridge32
     // protocol pins
     pci_frame_i,
     pci_frame_o,
-
     pci_frame_oe_o,
+    
+    pci_req64_i,
+    pci_req64_o,
+    pci_req64_oe_o,
+    
+    pci_ack64_i,
+    pci_ack64_o,
+    pci_ack64_oe_o,
+
     pci_irdy_oe_o,
     pci_devsel_oe_o,
     pci_trdy_oe_o,
     pci_stop_oe_o,
     pci_ad_oe_o,
+    pci_ad64_oe_o,
     pci_cbe_oe_o,
+    pci_cbe64_oe_o,
 
     pci_irdy_i,
     pci_irdy_o,
@@ -209,14 +226,22 @@ module pci_bridge32
     // data transfer pins
     pci_ad_i,
     pci_ad_o,
+    pci_ad64_i,
+    pci_ad64_o,
 
     pci_cbe_i,
     pci_cbe_o,
+    pci_cbe64_i,
+    pci_cbe64_o,
 
     // parity generation and checking pins
     pci_par_i,
     pci_par_o,
     pci_par_oe_o,
+    
+    pci_par64_i,
+    pci_par64_o,
+    pci_par64_oe_o,
 
     pci_perr_i,
     pci_perr_o,
@@ -280,7 +305,9 @@ output  wb_int_o ;
 // WISHBONE slave interface
 input   [31:0]  wbs_adr_i ;
 input   [31:0]  wbs_dat_i ;
+input   [31:0]  wbs_dat64_i ;
 output  [31:0]  wbs_dat_o ;
+output  [31:0]  wbs_dat64_o ;
 input   [3:0]   wbs_sel_i ;
 input           wbs_cyc_i ;
 input           wbs_stb_i ;
@@ -294,10 +321,12 @@ input [1:0] wbs_bte_i ;
 `else
 
 input wbs_cab_i ;
+input wbs_pref_i ;
 
 `endif
 
 output          wbs_ack_o ;
+output          wbs_ack64_o ;
 output          wbs_rty_o ;
 output          wbs_err_o ;
 
@@ -335,12 +364,23 @@ input   pci_gnt_i ;
 input   pci_frame_i ;
 output  pci_frame_o ;
 output  pci_frame_oe_o ;
+
+input   pci_req64_i ;
+output  pci_req64_o ;
+output  pci_req64_oe_o ;
+
+input   pci_ack64_i ;
+output  pci_ack64_o ;
+output  pci_ack64_oe_o ;
+
 output  pci_irdy_oe_o ;
 output  pci_devsel_oe_o ;
 output  pci_trdy_oe_o ;
 output  pci_stop_oe_o ;
 output  [31:0] pci_ad_oe_o ;
 output  [3:0]  pci_cbe_oe_o ;
+output  [3:0]  pci_cbe64_oe_o ;
+output  [31:0] pci_ad64_oe_o ;
 
 input   pci_irdy_i ;
 output  pci_irdy_o ;
@@ -359,14 +399,22 @@ output  pci_stop_o ;
 // data transfer pins
 input   [31:0]  pci_ad_i ;
 output  [31:0]  pci_ad_o ;
+input   [31:0]  pci_ad64_i ;
+output  [31:0]  pci_ad64_o ;
 
 input   [3:0]   pci_cbe_i ;
 output  [3:0]   pci_cbe_o ;
+input   [3:0]   pci_cbe64_i ;
+output  [3:0]   pci_cbe64_o ;
 
 // parity generation and checking pins
 input   pci_par_i ;
 output  pci_par_o ;
 output  pci_par_oe_o ;
+
+input   pci_par64_i ;
+output  pci_par64_o ;
+output  pci_par64_oe_o ;
 
 input   pci_perr_i ;
 output  pci_perr_o ;
@@ -438,6 +486,7 @@ assign wb_int_o         = pci_into_int_o ;
 
 // WISHBONE SLAVE UNIT OUTPUTS
 wire    [31:0]  wbu_sdata_out ;
+wire    [31:0]  wbu_sdata64_out ;
 wire            wbu_ack_out ;
 wire            wbu_rty_out ;
 wire            wbu_err_out ;
@@ -447,6 +496,7 @@ wire            wbu_pciif_frame_en_out ;
 wire            wbu_pciif_irdy_out ;
 wire            wbu_pciif_irdy_en_out ;
 wire    [31:0]  wbu_pciif_ad_out ;
+wire    [31:0]  wbu_pciif_ad64_out ;
 wire            wbu_pciif_ad_en_out ;
 wire    [3:0]   wbu_pciif_cbe_out ;
 wire            wbu_pciif_cbe_en_out ;
@@ -486,6 +536,7 @@ wire            pciu_pciif_devsel_en_out ;
 wire            pciu_ad_load_out ;
 wire            pciu_ad_load_on_transfer_out ;
 wire   [31:0]   pciu_pciif_ad_out ;
+wire   [31:0]   pciu_pciif_ad64_out ;
 wire            pciu_pciif_ad_en_out ;
 wire            pciu_pciif_tabort_set_out ;
 wire    [31:0]  pciu_err_addr_out ;
@@ -604,10 +655,13 @@ wire        pci_mux_devsel_out ;
 wire        pci_mux_trdy_out ;
 wire        pci_mux_stop_out ;
 wire [3:0]  pci_mux_cbe_out ;
+wire [3:0]  pci_mux_cbe64_out ;
 wire [31:0] pci_mux_ad_out ;
+wire [31:0] pci_mux_ad64_out ;
 wire        pci_mux_ad_load_out ;
 
 wire [31:0] pci_mux_ad_en_out ;
+wire [31:0] pci_mux_ad64_en_out ;
 wire        pci_mux_ad_en_unregistered_out ;
 wire        pci_mux_frame_en_out ;
 wire        pci_mux_irdy_en_out ;
@@ -615,9 +669,12 @@ wire        pci_mux_devsel_en_out ;
 wire        pci_mux_trdy_en_out ;
 wire        pci_mux_stop_en_out ;
 wire [3:0]  pci_mux_cbe_en_out ;
+wire [3:0]  pci_mux_cbe64_en_out ;
 
 wire        pci_mux_par_out ;
+wire        pci_mux_par64_out ;
 wire        pci_mux_par_en_out ;
+wire        pci_mux_par64_en_out ;
 wire        pci_mux_perr_out ;
 wire        pci_mux_perr_en_out ;
 wire        pci_mux_serr_out ;
@@ -629,12 +686,18 @@ wire        pci_mux_req_en_out ;
 // assign outputs to top level outputs
 
 assign pci_ad_oe_o       = pci_mux_ad_en_out ;
+assign pci_ad64_oe_o     = pci_mux_ad64_en_out ;
+
 assign pci_frame_oe_o   = pci_mux_frame_en_out ;
+
 assign pci_irdy_oe_o    = pci_mux_irdy_en_out ;
 assign pci_cbe_oe_o     = pci_mux_cbe_en_out ;
+assign pci_cbe64_oe_o   = pci_mux_cbe64_en_out ;
 
-assign pci_par_o         =   pci_mux_par_out ;
-assign pci_par_oe_o      =   pci_mux_par_en_out ;
+assign pci_par_o        =   pci_mux_par_out ;
+assign pci_par64_o      =   pci_mux_par64_out ;
+assign pci_par_oe_o     =   pci_mux_par_en_out ;
+assign pci_par64_oe_o   =   pci_mux_par64_en_out ;
 assign pci_perr_o       =   pci_mux_perr_out ;
 assign pci_perr_oe_o    =   pci_mux_perr_en_out ;
 assign pci_serr_o       =   pci_mux_serr_out ;
@@ -651,9 +714,11 @@ assign pci_devsel_o     = pci_mux_devsel_out ;
 assign pci_stop_o       = pci_mux_stop_out ;
 
 assign pci_ad_o          = pci_mux_ad_out ;
+assign pci_ad64_o        = pci_mux_ad64_out ;
 assign pci_frame_o      = pci_mux_frame_out ;
 assign pci_irdy_o       = pci_mux_irdy_out ;
 assign pci_cbe_o        = pci_mux_cbe_out ;
+assign pci_cbe64_o      = pci_mux_cbe64_out ;
 
 // duplicate output register's outputs
 wire            out_bckp_frame_out ;
@@ -664,6 +729,7 @@ wire            out_bckp_stop_out ;
 wire    [3:0]   out_bckp_cbe_out ;
 wire            out_bckp_cbe_en_out ;
 wire    [31:0]  out_bckp_ad_out ;
+wire    [31:0]  out_bckp_ad64_out ;
 wire            out_bckp_ad_en_out ;
 wire            out_bckp_irdy_en_out ;
 wire            out_bckp_frame_en_out ;
@@ -672,7 +738,9 @@ wire            out_bckp_mas_ad_en_out ;
 wire            out_bckp_trdy_en_out ;
 
 wire            out_bckp_par_out ;
+wire            out_bckp_par64_out ;
 wire            out_bckp_par_en_out ;
+wire            out_bckp_par64_en_out ;
 wire            out_bckp_perr_out ;
 wire            out_bckp_perr_en_out ;
 wire            out_bckp_serr_out ;
@@ -685,10 +753,13 @@ wire            int_pci_trdy    = out_bckp_trdy_en_out  ? out_bckp_trdy_out   : 
 wire            int_pci_stop    = out_bckp_trdy_en_out  ? out_bckp_stop_out   : pci_stop_i      ;
 wire    [ 3: 0] int_pci_cbe     = out_bckp_cbe_en_out   ? out_bckp_cbe_out    : pci_cbe_i       ;
 wire            int_pci_par     = out_bckp_par_en_out   ? out_bckp_par_out    : pci_par_i       ;
+//wire            int_pci_par64   = out_bckp_par_en_out   ? out_bckp_par64_out  : pci_par64_i     ;
 wire            int_pci_perr    = out_bckp_perr_en_out  ? out_bckp_perr_out   : pci_perr_i      ;
 // PARITY CHECKER OUTPUTS
 wire    parchk_pci_par_out ;
+wire    parchk_pci_par64_out ;
 wire    parchk_pci_par_en_out ;
+wire    parchk_pci_par64_en_out ;
 wire    parchk_pci_perr_out ;
 wire    parchk_pci_perr_en_out ;
 wire    parchk_pci_serr_out ;
@@ -706,6 +777,7 @@ wire            in_reg_stop_out ;
 wire            in_reg_devsel_out ;
 wire            in_reg_idsel_out ;
 wire    [31:0]  in_reg_ad_out ;
+wire    [31:0]  in_reg_ad64_out ;
 wire    [3:0]   in_reg_cbe_out ;
 
 /*=========================================================================================================
@@ -774,6 +846,8 @@ wire    [31:0]  wbs_wbb3_2_wbb2_dat_o_i =   wbu_sdata_out   ;
 wire    [ 2:0]  wbs_wbb3_2_wbb2_cti_i   =   wbs_cti_i       ;
 wire    [ 1:0]  wbs_wbb3_2_wbb2_bte_i   =   wbs_bte_i       ;
 
+
+   
 pci_wbs_wbb3_2_wbb2 i_pci_wbs_wbb3_2_wbb2
 (
     .wb_clk_i           (   wb_clk_i    )   ,
@@ -819,14 +893,17 @@ wire            wbu_cab_in      =   wbs_wbb3_2_wbb2_cab_o   ;
 // WISHBONE SLAVE UNIT INPUTS
 wire    [31:0]  wbu_addr_in                     =   wbs_adr_i ;
 wire    [31:0]  wbu_sdata_in                    =   wbs_dat_i ;
+wire    [31:0]  wbu_sdata64_in                  =   wbs_dat64_i ;
 wire            wbu_cyc_in                      =   wbs_cyc_i ;
 wire            wbu_stb_in                      =   wbs_stb_i ;
 wire            wbu_we_in                       =   wbs_we_i ;
 wire    [3:0]   wbu_sel_in                      =   wbs_sel_i ;
 wire            wbu_cab_in                      =   wbs_cab_i ;
+wire            wbu_pref_in                      =   wbs_pref_i ;
 
 // assign wishbone slave unit's outputs to top outputs where possible
 assign wbs_dat_o    =   wbu_sdata_out   ;
+assign wbs_dat64_o  =   wbu_sdata64_out ;
 assign wbs_ack_o    =   wbu_ack_out     ;
 assign wbs_rty_o    =   wbu_rty_out     ;
 assign wbs_err_o    =   wbu_err_out     ;
@@ -910,6 +987,7 @@ wire            wbu_pciif_trdy_in                       = int_pci_trdy  ;
 wire            wbu_pciif_stop_in                       = int_pci_stop  ;
 wire            wbu_pciif_devsel_in                     = int_pci_devsel ;
 wire    [31:0]  wbu_pciif_ad_reg_in                     = in_reg_ad_out ;
+wire    [31:0]  wbu_pciif_ad64_reg_in                   = in_reg_ad64_out ;
 wire            wbu_pciif_trdy_reg_in                   = in_reg_trdy_out ;
 wire            wbu_pciif_stop_reg_in                   = in_reg_stop_out ;
 wire            wbu_pciif_devsel_reg_in                 = in_reg_devsel_out ;
@@ -928,7 +1006,9 @@ pci_wb_slave_unit wishbone_slave_unit
     .pci_clock_in                  (pci_clk),
     .ADDR_I                        (wbu_addr_in),
     .SDATA_I                       (wbu_sdata_in),
+    .SDATA64_I                     (wbu_sdata64_in),
     .SDATA_O                       (wbu_sdata_out),
+    .SDATA64_O                     (wbu_sdata64_out),
     .CYC_I                         (wbu_cyc_in),
     .STB_I                         (wbu_stb_in),
     .WE_I                          (wbu_we_in),
@@ -937,6 +1017,7 @@ pci_wb_slave_unit wishbone_slave_unit
     .RTY_O                         (wbu_rty_out),
     .ERR_O                         (wbu_err_out),
     .CAB_I                         (wbu_cab_in),
+    .PREF_I                         (wbu_pref_in),
     .wbu_map_in                    (wbu_map_in),
     .wbu_pref_en_in                (wbu_pref_en_in),
     .wbu_mrl_en_in                 (wbu_mrl_en_in),
@@ -976,6 +1057,7 @@ pci_wb_slave_unit wishbone_slave_unit
     .wbu_pciif_stop_in             (wbu_pciif_stop_in),
     .wbu_pciif_devsel_in           (wbu_pciif_devsel_in),
     .wbu_pciif_ad_reg_in           (wbu_pciif_ad_reg_in),
+    .wbu_pciif_ad64_reg_in         (wbu_pciif_ad64_reg_in),
     .wbu_pciif_req_out             (wbu_pciif_req_out),
     .wbu_pciif_frame_out           (wbu_pciif_frame_out),
     .wbu_pciif_frame_en_out        (wbu_pciif_frame_en_out),
@@ -983,6 +1065,7 @@ pci_wb_slave_unit wishbone_slave_unit
     .wbu_pciif_irdy_out            (wbu_pciif_irdy_out),
     .wbu_pciif_irdy_en_out         (wbu_pciif_irdy_en_out),
     .wbu_pciif_ad_out              (wbu_pciif_ad_out),
+    .wbu_pciif_ad64_out            (wbu_pciif_ad64_out),
     .wbu_pciif_ad_en_out           (wbu_pciif_ad_en_out),
     .wbu_pciif_cbe_out             (wbu_pciif_cbe_out),
     .wbu_pciif_cbe_en_out          (wbu_pciif_cbe_en_out),
@@ -1092,6 +1175,7 @@ wire            pciu_pciif_frame_reg_in                 =   in_reg_frame_out ;
 wire            pciu_pciif_irdy_reg_in                  =   in_reg_irdy_out ;
 wire            pciu_pciif_idsel_reg_in                 =   in_reg_idsel_out ;
 wire    [31:0]  pciu_pciif_ad_reg_in                    =   in_reg_ad_out ;
+wire    [31:0]  pciu_pciif_ad64_reg_in                  =   in_reg_ad64_out ;
 wire    [3:0]   pciu_pciif_cbe_reg_in                   =   in_reg_cbe_out ;
 wire    [3:0]   pciu_pciif_cbe_in                       =   int_pci_cbe ;
 
@@ -1155,6 +1239,7 @@ pci_target_unit pci_target_unit
     .pciu_pciif_irdy_reg_in         (pciu_pciif_irdy_reg_in),
     .pciu_pciif_idsel_reg_in        (pciu_pciif_idsel_reg_in),
     .pciu_pciif_ad_reg_in           (pciu_pciif_ad_reg_in),
+    //.pciu_pciif_ad64_reg_in         (pciu_pciif_ad64_reg_in),
     .pciu_pciif_cbe_reg_in          (pciu_pciif_cbe_reg_in),
     .pciu_pciif_cbe_in              (pciu_pciif_cbe_in),
     .pciu_pciif_bckp_trdy_en_in     (pciu_pciif_bckp_trdy_en_in),
@@ -1197,6 +1282,13 @@ pci_target_unit pci_target_unit
 `endif
 );
 
+// 64BIT PCI BUS 
+reg wbs_ack64_o;
+always @(posedge pci_clk or posedge reset)
+  if (reset)
+        wbs_ack64_o <= #1 0;
+  else if (~pci_ack64_i)
+        wbs_ack64_o <= #1 1;
 
 // CONFIGURATION SPACE INPUTS
 `ifdef HOST
@@ -1249,6 +1341,7 @@ wire            conf_wb_err_es_in       =   wbu_err_source_out ;
 wire            conf_wb_err_sig_in      =   wbu_err_signal_out ;
 wire    [31:0]  conf_wb_err_addr_in     =   wbu_err_addr_out ;
 wire    [31:0]  conf_wb_err_data_in     =   out_bckp_ad_out ;
+wire    [31:0]  conf_wb_err_data64_in   =   out_bckp_ad64_out ;
 
 wire            conf_isr_int_prop_in    =   pci_into_conf_isr_int_prop_out ;
 wire            conf_par_err_int_in     =   parchk_perr_mas_detect_out ;
@@ -1387,6 +1480,7 @@ pci_conf_space configuration(
 wire            pci_mux_tar_ad_en_in            = pciu_pciif_ad_en_out ;
 wire            pci_mux_tar_ad_en_reg_in        = out_bckp_tar_ad_en_out ;
 wire    [31:0]  pci_mux_tar_ad_in               = pciu_pciif_ad_out ;
+wire    [31:0]  pci_mux_tar_ad64_in             = pciu_pciif_ad64_out ;
 wire            pci_mux_devsel_in               = pciu_pciif_devsel_out ;
 wire            pci_mux_devsel_en_in            = pciu_pciif_devsel_en_out ;
 wire            pci_mux_trdy_in                 = pciu_pciif_trdy_out ;
@@ -1398,6 +1492,7 @@ wire            pci_mux_tar_load_on_transfer_in = pciu_ad_load_on_transfer_out ;
 
 wire            pci_mux_mas_ad_en_in    = wbu_pciif_ad_en_out ;
 wire    [31:0]  pci_mux_mas_ad_in       = wbu_pciif_ad_out ;
+wire    [31:0]  pci_mux_mas_ad64_in     = wbu_pciif_ad64_out ;
 
 wire            pci_mux_frame_in                = wbu_pciif_frame_out ;
 wire            pci_mux_frame_en_in             = wbu_pciif_frame_en_out ;
@@ -1409,7 +1504,9 @@ wire [3:0]      pci_mux_cbe_in                  = wbu_pciif_cbe_out ;
 wire            pci_mux_cbe_en_in               = wbu_pciif_cbe_en_out ;
 
 wire            pci_mux_par_in              = parchk_pci_par_out ;
+wire            pci_mux_par64_in            = parchk_pci_par64_out ;
 wire            pci_mux_par_en_in           = parchk_pci_par_en_out ;
+wire            pci_mux_par64_en_in         = parchk_pci_par64_en_out ;
 wire            pci_mux_perr_in             = parchk_pci_perr_out ;
 wire            pci_mux_perr_en_in          = parchk_pci_perr_en_out ;
 wire            pci_mux_serr_in             = parchk_pci_serr_out ;
@@ -1445,16 +1542,22 @@ pci_io_mux pci_io_mux
     .target_load_in             (pci_mux_tar_load_in),
     .target_load_on_transfer_in (pci_mux_tar_load_on_transfer_in),
     .cbe_in                     (pci_mux_cbe_in),
+    .cbe64_in                   (pci_mux_cbe_in), /* TODO */
     .cbe_en_in                  (pci_mux_cbe_en_in),
+    .cbe64_en_in                (pci_mux_cbe_en_in), /* TODO */
     .mas_ad_in                  (pci_mux_mas_ad_in),
+    .mas_ad64_in                (pci_mux_mas_ad64_in),
     .tar_ad_in                  (pci_mux_tar_ad_in),
+    .tar_ad64_in                (pci_mux_tar_ad64_in),
 
     .mas_ad_en_in               (pci_mux_mas_ad_en_in),
     .tar_ad_en_in               (pci_mux_tar_ad_en_in),
     .tar_ad_en_reg_in           (pci_mux_tar_ad_en_reg_in),
 
     .par_in                     (pci_mux_par_in),
+    .par64_in                   (pci_mux_par64_in),
     .par_en_in                  (pci_mux_par_en_in),
+    .par64_en_in                (pci_mux_par64_en_in),
     .perr_in                    (pci_mux_perr_in),
     .perr_en_in                 (pci_mux_perr_en_in),
     .serr_in                    (pci_mux_serr_in),
@@ -1466,7 +1569,9 @@ pci_io_mux pci_io_mux
     .trdy_en_out                (pci_mux_trdy_en_out),
     .stop_en_out                (pci_mux_stop_en_out),
     .cbe_en_out                 (pci_mux_cbe_en_out),
+    .cbe64_en_out               (pci_mux_cbe64_en_out),
     .ad_en_out                  (pci_mux_ad_en_out),
+    .ad64_en_out                (pci_mux_ad64_en_out),
 
     .frame_out                  (pci_mux_frame_out),
     .irdy_out                   (pci_mux_irdy_out),
@@ -1474,11 +1579,15 @@ pci_io_mux pci_io_mux
     .trdy_out                   (pci_mux_trdy_out),
     .stop_out                   (pci_mux_stop_out),
     .cbe_out                    (pci_mux_cbe_out),
+    .cbe64_out                  (pci_mux_cbe64_out),
     .ad_out                     (pci_mux_ad_out),
+    .ad64_out                   (pci_mux_ad64_out),
     .ad_load_out                (pci_mux_ad_load_out),
 
     .par_out                    (pci_mux_par_out),
+    .par64_out                  (pci_mux_par64_out),
     .par_en_out                 (pci_mux_par_en_out),
+    .par64_en_out               (pci_mux_par64_en_out),
     .perr_out                   (pci_mux_perr_out),
     .perr_en_out                (pci_mux_perr_en_out),
     .serr_out                   (pci_mux_serr_out),
@@ -1512,14 +1621,18 @@ pci_cur_out_reg output_backup
     .cbe_in                 (pci_mux_cbe_in),
     .cbe_en_in              (pci_mux_cbe_en_in),
     .mas_ad_in              (pci_mux_mas_ad_in),
+    .mas_ad64_in            (pci_mux_mas_ad64_in),
     .tar_ad_in              (pci_mux_tar_ad_in),
+    .tar_ad64_in            (pci_mux_tar_ad64_in),
 
     .mas_ad_en_in           (pci_mux_mas_ad_en_in),
     .tar_ad_en_in           (pci_mux_tar_ad_en_in),
     .ad_en_unregistered_in  (pci_mux_ad_en_unregistered_out),
 
     .par_in                 (pci_mux_par_in),
+    .par64_in               (pci_mux_par64_in),
     .par_en_in              (pci_mux_par_en_in),
+    .par64_en_in            (pci_mux_par64_en_in),
     .perr_in                (pci_mux_perr_in),
     .perr_en_in             (pci_mux_perr_en_in),
     .serr_in                (pci_mux_serr_in),
@@ -1535,13 +1648,16 @@ pci_cur_out_reg output_backup
     .stop_out               (out_bckp_stop_out),
     .cbe_out                (out_bckp_cbe_out),
     .ad_out                 (out_bckp_ad_out),
+    .ad64_out               (out_bckp_ad64_out),
     .ad_en_out              (out_bckp_ad_en_out),
     .cbe_en_out             (out_bckp_cbe_en_out),
     .tar_ad_en_out          (out_bckp_tar_ad_en_out),
     .mas_ad_en_out          (out_bckp_mas_ad_en_out),
 
     .par_out                (out_bckp_par_out),
+    .par64_out              (out_bckp_par64_out),
     .par_en_out             (out_bckp_par_en_out),
+    .par64_en_out           (out_bckp_par64_en_out),
     .perr_out               (out_bckp_perr_out),
     .perr_en_out            (out_bckp_perr_en_out),
     .serr_out               (out_bckp_serr_out),
@@ -1562,7 +1678,9 @@ wire            parchk_pci_trdy_en_in           =   out_bckp_trdy_en_out ;
 
 
 wire    [31:0]  parchk_pci_ad_out_in            =   out_bckp_ad_out ;
+wire    [31:0]  parchk_pci_ad64_out_in          =   out_bckp_ad64_out ;
 wire    [31:0]  parchk_pci_ad_reg_in            =   in_reg_ad_out ;
+wire    [31:0]  parchk_pci_ad64_reg_in          =   in_reg_ad64_out ;
 wire    [3:0]   parchk_pci_cbe_in_in            =   int_pci_cbe   ;
 wire    [3:0]   parchk_pci_cbe_reg_in           =   in_reg_cbe_out ;
 wire    [3:0]   parchk_pci_cbe_out_in           =   out_bckp_cbe_out ;
@@ -1583,7 +1701,9 @@ pci_parity_check parity_checker
     .clk_in                 (pci_clk),
     .pci_par_in             (parchk_pci_par_in),
     .pci_par_out            (parchk_pci_par_out),
+    .pci_par64_out          (parchk_pci_par64_out),
     .pci_par_en_out         (parchk_pci_par_en_out),
+    .pci_par64_en_out       (parchk_pci_par64_en_out),
     .pci_par_en_in          (parchk_pci_par_en_in),
     .pci_perr_in            (parchk_pci_perr_in),
     .pci_perr_out           (parchk_pci_perr_out),
@@ -1600,6 +1720,7 @@ pci_parity_check parity_checker
     .pci_trdy_reg_in        (parchk_pci_trdy_reg_in),
     .pci_trdy_en_in         (parchk_pci_trdy_en_in),
     .pci_ad_out_in          (parchk_pci_ad_out_in),
+    .pci_ad64_out_in        (parchk_pci_ad64_out_in),
     .pci_ad_reg_in          (parchk_pci_ad_reg_in),
     .pci_cbe_in_in          (parchk_pci_cbe_in_in),
     .pci_cbe_reg_in         (parchk_pci_cbe_reg_in),
@@ -1621,6 +1742,7 @@ wire            in_reg_stop_in   = int_pci_stop  ;
 wire            in_reg_devsel_in = int_pci_devsel ;
 wire            in_reg_idsel_in  = pci_idsel_i ;
 wire    [31:0]  in_reg_ad_in     = pci_ad_i ;
+wire    [31:0]  in_reg_ad64_in   = pci_ad64_i ;
 wire    [3:0]   in_reg_cbe_in    = int_pci_cbe ;
 
 pci_in_reg input_register
@@ -1637,6 +1759,7 @@ pci_in_reg input_register
     .pci_devsel_in  (in_reg_devsel_in),
     .pci_idsel_in   (in_reg_idsel_in),
     .pci_ad_in      (in_reg_ad_in),
+    .pci_ad64_in    (in_reg_ad64_in),
     .pci_cbe_in     (in_reg_cbe_in),
 
     .pci_gnt_reg_out    (in_reg_gnt_out),
@@ -1647,6 +1770,7 @@ pci_in_reg input_register
     .pci_devsel_reg_out (in_reg_devsel_out),
     .pci_idsel_reg_out  (in_reg_idsel_out),
     .pci_ad_reg_out     (in_reg_ad_out),
+    .pci_ad64_reg_out   (in_reg_ad64_out),
     .pci_cbe_reg_out    (in_reg_cbe_out)
 );
 

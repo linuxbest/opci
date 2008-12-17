@@ -82,6 +82,7 @@ module pci_in_reg
     pci_devsel_in,
     pci_idsel_in,
     pci_ad_in,
+    pci_ad64_in,
     pci_cbe_in,
 
     pci_gnt_reg_out,
@@ -92,6 +93,7 @@ module pci_in_reg
     pci_devsel_reg_out,
     pci_idsel_reg_out,
     pci_ad_reg_out,
+    pci_ad64_reg_out,
     pci_cbe_reg_out
 
 );
@@ -106,6 +108,7 @@ input           pci_stop_in ;
 input           pci_devsel_in ;
 input			pci_idsel_in ;
 input [31:0]    pci_ad_in ;
+input [31:0]    pci_ad64_in ;
 input [3:0]     pci_cbe_in ;
 
 output          pci_gnt_reg_out ;
@@ -116,6 +119,7 @@ output          pci_stop_reg_out ;
 output          pci_devsel_reg_out ;
 output			pci_idsel_reg_out ;
 output [31:0]   pci_ad_reg_out ;
+output [31:0]   pci_ad64_reg_out ;
 output [3:0]    pci_cbe_reg_out ;
 
 
@@ -127,6 +131,7 @@ reg             pci_stop_reg_out ;
 reg             pci_devsel_reg_out ;
 reg				pci_idsel_reg_out ;
 reg    [31:0]   pci_ad_reg_out ;
+reg    [31:0]   pci_ad64_reg_out ;
 reg    [3:0]    pci_cbe_reg_out ;
 
 always@(posedge reset_in or posedge clk_in)
@@ -141,6 +146,7 @@ begin
 		pci_devsel_reg_out	<= #`FF_DELAY 1'b1 ;
 		pci_idsel_reg_out	<= #`FF_DELAY 1'b0 ; // active high!
 		pci_ad_reg_out      <= #`FF_DELAY 32'h0000_0000 ;
+		pci_ad64_reg_out      <= #`FF_DELAY 32'h0000_0000 ;
 		pci_cbe_reg_out     <= #`FF_DELAY 4'h0 ;
     end
     else if (init_complete_in)
@@ -153,6 +159,7 @@ begin
 		pci_devsel_reg_out	<= #`FF_DELAY pci_devsel_in ;
 		pci_idsel_reg_out	<= #`FF_DELAY pci_idsel_in ;
 		pci_ad_reg_out      <= #`FF_DELAY pci_ad_in ;
+		pci_ad64_reg_out      <= #`FF_DELAY pci_ad64_in ;
 		pci_cbe_reg_out     <= #`FF_DELAY pci_cbe_in ;
 	end
 end

@@ -98,6 +98,7 @@ module pci_wb_slave
                     wb_pref_en_in,
                     wb_mrl_en_in,
                     wb_addr_in,
+                    wb_addr64_in,
                     del_bc_in,
                     wb_del_req_pending_in,
                     wb_del_comp_pending_in,
@@ -120,6 +121,7 @@ module pci_wb_slave
                     wb_conf_data_in,
                     wb_conf_data_out,
                     wb_data_out,
+                    wb_data64_out,
                     wb_cbe_out,
                     wbw_fifo_wenable_out,
                     wbw_fifo_control_out,
@@ -129,6 +131,7 @@ module pci_wb_slave
                     wbr_fifo_renable_out,
                     wbr_fifo_be_in,
                     wbr_fifo_data_in,
+                    wbr_fifo_data64_in,
                     wbr_fifo_control_in,
                     wbr_fifo_flush_out,
                     wbr_fifo_empty_in,
@@ -142,11 +145,14 @@ module pci_wb_slave
                     WE_I,
                     SEL_I,
                     SDATA_I,
+                    SDATA64_I,
                     SDATA_O,
+                    SDATA64_O,
                     ACK_O,
                     RTY_O,
                     ERR_O,
-                    CAB_I
+                    CAB_I,
+                    PREF_I
                 );
 
 /*----------------------------------------------------------------------------------------------------------------------
@@ -188,6 +194,7 @@ input [4:0]     wb_pref_en_in ;     // prefetch enable from all images
 input [4:0]     wb_mrl_en_in ;      // Memory Read line command enable from images
 input [4:0]     wb_map_in ;         // address space mapping indicators - 1 memory space mapping, 0-IO space mapping
 input [31:0]    wb_addr_in ;        // Translated address input
+input [31:0]    wb_addr64_in ;        // Translated address input
 
 /*----------------------------------------------------------------------------------------------------------------------
 Delayed transaction control inputs and outputs:
@@ -241,6 +248,7 @@ Data from WISHBONE bus output to interiror of the core:
 Data output is used for normal and configuration accesses.
 ---------------------------------------------------------------------------------------------------------------------*/
 output [31:0] wb_data_out ;
+output [31:0] wb_data64_out ;
 
 /*----------------------------------------------------------------------------------------------------------------------
 Bus command - byte enable output - during address phase of image access this bus holds information about PCI
@@ -264,6 +272,7 @@ WBR_FIFO control signals used for fetching data from WBR_FIFO and status monitor
 output          wbr_fifo_renable_out ;      // WBR_FIFO read enable output
 input   [3:0]   wbr_fifo_be_in ;            // byte enable input from WBR_FIFO
 input   [31:0]  wbr_fifo_data_in ;          // data input from WBR_FIFO
+input   [31:0]  wbr_fifo_data64_in ;          // data input from WBR_FIFO
 input   [3:0]   wbr_fifo_control_in ;       // control bus input from WBR_FIFO
 output          wbr_fifo_flush_out ;        // flush signal for WBR_FIFO
 input           wbr_fifo_empty_in ;         // empty status indicator from WBR_FIFO
@@ -295,14 +304,18 @@ input           STB_I ;     // strobe input - input data is valid when strobe an
 input           WE_I  ;     // write enable input - 1 - write operation, 0 - read operation
 input   [3:0]   SEL_I ;     // Byte select inputs
 input   [31:0]  SDATA_I ;   // WISHBONE slave interface input data bus
+input   [31:0]  SDATA64_I ;   // WISHBONE slave interface input data bus
 output  [31:0]  SDATA_O ;   // WISHBONE slave interface output data bus
+output  [31:0]  SDATA64_O ;   // WISHBONE slave interface output data bus
 output          ACK_O ;     // Acknowledge output - qualifies valid data on data output bus or received data on data input bus
 output          RTY_O ;     // retry output - signals to WISHBONE master that cycle should be terminated and retried later
 output          ERR_O ;     // Signals to WISHBONE master that access resulted in an error
 input           CAB_I ;     // consecutive address burst input - indicates that master will do a serial address transfer in current cycle
+input           PREF_I ;
 
 `ifdef REGISTER_WBS_OUTPUTS
 reg [31:0]  SDATA_O ;
+reg [31:0]  SDATA64_O ;
 reg         ACK_O   ;
 reg         RTY_O   ;
 reg         ERR_O   ;
@@ -321,6 +334,7 @@ reg [31:0]   wb_conf_data_out ;    // configuration data output for configuratio
 
 reg [3:0]  wb_conf_be_out ;      // byte enable outputs for configuration space
 reg [31:0] wb_data_out ;
+reg [31:0] wb_data64_out ;
 
 reg [3:0] wb_cbe_out ;
 
@@ -349,6 +363,7 @@ reg [3:0] del_bc ;
 
 //register for intermediate data and select storage
 reg [35:0] d_incoming ;
+reg [31:0] d64_incoming ;
 
 // enable for incoming data register
 reg d_incoming_ena ;
@@ -356,10 +371,13 @@ reg d_incoming_ena ;
 // incoming data register control logic
 always@(posedge wb_clock_in or posedge reset_in)
 begin
-    if (reset_in)
+    if (reset_in) begin
         d_incoming <= #`FF_DELAY {35{1'b0}} ;
-    else if (d_incoming_ena)
+        d64_incoming <= #`FF_DELAY {32{1'b0}} ;
+    end else if (d_incoming_ena) begin
         d_incoming <= #`FF_DELAY {SEL_I, SDATA_I} ;
+        d64_incoming <= #`FF_DELAY SDATA64_I ;
+    end
 end
 
 /*===================================================================================================================================================================================
@@ -441,7 +459,7 @@ begin
         del_addr_hit         <= #`FF_DELAY wdel_addr_hit ;
         del_completion_allow <= #`FF_DELAY wdel_completion_allow ;
         img_hit              <= #`FF_DELAY wb_hit_in ;
-        pref_en              <= #`FF_DELAY wpref_en && cache_line_size_not_zero ;
+        pref_en              <= #`FF_DELAY wpref_en && cache_line_size_not_zero && PREF_I;
         mrl_en               <= #`FF_DELAY wmrl_en  && cache_line_size_not_zero ;
         map                  <= #`FF_DELAY wmap ;
     end
@@ -676,7 +694,8 @@ always@(
         wbw_fifo_full_in            or
         do_del_request              or
         wbr_fifo_empty_in           or
-        init_complete_in
+        init_complete_in            or
+        wb_del_req_pending_in 
        )
 begin
     // default signal values
@@ -791,7 +810,7 @@ begin
                     else
                     // check for retry conditions for image writes or reads
                     if ( (wattempt && ~img_wallow) ||
-                         (rattempt && ~do_dread_completion) // write to image not allowed, no read ready yet - retry
+                         (rattempt && ~do_dread_completion && wbr_fifo_empty_in) // write to image not allowed, no read ready yet - retry
                        )
                     begin
                         n_state = S_IDLE ; // go back to IDLE
@@ -874,7 +893,10 @@ begin
 
                 if ( ~burst_transfer || rattempt && (wbr_fifo_empty_in || wbr_fifo_control_in[`DATA_ERROR_CTRL_BIT] || wbr_fifo_control_in[`LAST_CTRL_BIT]) )
                 begin
-                    n_state = S_IDLE ;
+                    if (wb_del_req_pending_in)
+                    n_state = S_DEC2;
+                    else
+                    n_state = S_IDLE;
                     del_done = 1'b1 ;
                     wbr_fifo_flush = ~wbr_fifo_empty_in ;
                 end
@@ -883,6 +905,16 @@ begin
                     n_state          = S_READ ;
                 end
             end // S_READ
+
+    S_DEC2: begin
+          del_in_progress = 1'b1 ;
+          n_state = S_DEC2;
+          if (!wb_del_req_pending_in) begin
+          n_state = S_IDLE;
+          del_done = 1'b1 ;
+          wbr_fifo_flush = ~wbr_fifo_empty_in ;
+          end
+    end
 
     S_CONF_WRITE:  begin
                         `ifdef HOST
@@ -978,6 +1010,7 @@ assign wb_conf_offset_out = {wb_addr_in[11:2], 2'b00} ; // upper 10 bits of addr
 
 // data output assignment - for image writes, first data is address, subsequent data comes from intermediate register
 reg [31:0] wb_data ;
+reg [31:0] wb_data64 ;
 `ifdef HOST
 reg [1:0] wbw_data_out_sel_reg ;
 always@(posedge wb_clock_in or posedge reset_in)
@@ -988,12 +1021,12 @@ begin
         wbw_data_out_sel_reg <= #`FF_DELAY wbw_data_out_sel ;
 end
 
-always@(wbw_data_out_sel_reg or wb_addr_in or ccyc_addr_in or d_incoming)
+always@(wbw_data_out_sel_reg or wb_addr_in or ccyc_addr_in or d_incoming or d64_incoming)
 begin
     case ( wbw_data_out_sel_reg )
         SEL_CCYC_ADDR:  wb_data = ccyc_addr_in ;
-        SEL_DATA_IN:    wb_data = d_incoming ;
-        default: wb_data        = wb_addr_in ;
+        SEL_DATA_IN:    begin wb_data = d_incoming ; wb_data64 = d64_incoming; end
+        default: begin wb_data        = wb_addr_in ; wb_data64 = wb_addr64_in; end
     endcase
 end
 `else
@@ -1007,12 +1040,15 @@ begin
         wbw_data_out_sel_reg <= #`FF_DELAY wbw_data_out_sel ;
 end
 
-always@(wbw_data_out_sel_reg or wb_addr_in or d_incoming)
+always@(wbw_data_out_sel_reg or wb_addr_in or d_incoming or d64_incoming or wb_addr64_in)
 begin
-    if ( wbw_data_out_sel_reg )
+    if ( wbw_data_out_sel_reg ) begin
         wb_data = wb_addr_in ;
-    else
+        wb_data64 = wb_addr64_in ;
+    end else begin
         wb_data = d_incoming ;
+        wb_data64 = d64_incoming ;
+    end
 end
 `endif
 `endif
@@ -1049,6 +1085,7 @@ end
 
 `ifdef PCI_WB_SLAVE_DO_OUT_MUX
     reg [31:0] sdata_source ;
+    reg [31:0] sdata_source64 ;
 
     // WISHBONE data output select lines for output multiplexor
     wire sdata_o_sel_new = ( wb_conf_hit_in && ~wiack_hit && ~wccyc_hit ) ? CONF_SEL : WBR_SEL ;
@@ -1063,15 +1100,16 @@ end
             sdata_o_sel <= #`FF_DELAY sdata_o_sel_new ;
     end
 
-    always@(sdata_o_sel or wbr_fifo_data_in or wb_conf_data_in)
+    always@(sdata_o_sel or wbr_fifo_data_in or wb_conf_data_in or wbr_fifo_data64_in)
     begin
         case (sdata_o_sel)
-            WBR_SEL :sdata_source = wbr_fifo_data_in ;
+            WBR_SEL :begin sdata_source = wbr_fifo_data_in ; sdata64_source = wbr_fifo_data64_in; end
             CONF_SEL:sdata_source = wb_conf_data_in ;
         endcase
     end
 `else
     wire [31:0] sdata_source = wbr_fifo_data_in ;
+    wire [31:0] sdata64_source = wbr_fifo_data64_in ;
 `endif
 
 `ifdef REGISTER_WBS_OUTPUTS
@@ -1084,6 +1122,7 @@ begin
         RTY_O         <= #`FF_DELAY 1'b0 ;
         ERR_O         <= #`FF_DELAY 1'b0 ;
         SDATA_O       <= #`FF_DELAY 0 ;
+        SDATA64_O       <= #`FF_DELAY 0 ;
         del_write_out <= #`FF_DELAY 1'b0 ;
 
         `ifdef HOST
@@ -1098,6 +1137,7 @@ begin
         del_in_progress_out <= #`FF_DELAY 1'b0 ;
         wb_conf_be_out <= #`FF_DELAY 0 ;
         wb_data_out    <= #`FF_DELAY 0 ;
+        wb_data64_out    <= #`FF_DELAY 0 ;
         wb_cbe_out <= #`FF_DELAY 0 ;
         wbw_fifo_wenable_out <= #`FF_DELAY 0 ;
         wbw_fifo_control_out <= #`FF_DELAY 0 ;
@@ -1109,6 +1149,7 @@ begin
         RTY_O   <= #`FF_DELAY rty && !RTY_O ;
         ERR_O    <= #`FF_DELAY err && !ERR_O ;
         SDATA_O       <= #`FF_DELAY sdata_source ;
+        SDATA64_O       <= #`FF_DELAY sdata64_source ;
         del_write_out <= #`FF_DELAY WE_I ;
 
         `ifdef HOST
@@ -1123,6 +1164,7 @@ begin
         del_in_progress_out <= #`FF_DELAY del_in_progress ;
         wb_conf_be_out <= #`FF_DELAY SEL_I ;
         wb_data_out <= #`FF_DELAY wb_data ;
+        wb_data64_out <= #`FF_DELAY wb_data64 ;
         wb_cbe_out <= #`FF_DELAY wb_cbe ;
         wbw_fifo_wenable_out <= #`FF_DELAY wbw_fifo_wenable ;
         wbw_fifo_control_out <= #`FF_DELAY wbw_fifo_control ;
@@ -1133,6 +1175,7 @@ end
 `else
 
 assign SDATA_O = sdata_source ;
+assign SDATA64_O = sdata64_source ;
 
 assign ACK_O = ack ;
 assign RTY_O = rty ;
@@ -1152,6 +1195,7 @@ assign wb_conf_wenable_out = conf_wenable ;
 // Configuration space byte enables output
 assign wb_conf_be_out = SEL_I ; // just route select lines from WISHBONE to conf space
 assign wb_data_out    = wb_data ;
+assign wb_data64_out  = wb_data64 ;
 assign wb_cbe_out = wb_cbe ;
 assign wbw_fifo_wenable_out = wbw_fifo_wenable ; //write enable for WBW_FIFO
 assign wbw_fifo_control_out = wbw_fifo_control ; //control bus output for WBW_FIFO

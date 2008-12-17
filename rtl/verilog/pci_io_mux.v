@@ -89,12 +89,18 @@ module pci_io_mux
     target_load_in,
     target_load_on_transfer_in,
     cbe_in,
+    cbe64_in,
     cbe_en_in,
+    cbe64_en_in,
     mas_ad_in,
+    mas_ad64_in,
     tar_ad_in,
+    tar_ad64_in,
 
     par_in,
+    par64_in,
     par_en_in,
+    par64_en_in,
     perr_in,
     perr_en_in,
     serr_in,
@@ -107,12 +113,14 @@ module pci_io_mux
     tar_ad_en_reg_in,
 
     ad_en_out,
+    ad64_en_out,
     frame_en_out,
     irdy_en_out,
     devsel_en_out,
     trdy_en_out,
     stop_en_out,
     cbe_en_out,
+    cbe64_en_out,
 
     frame_out,
     irdy_out,
@@ -120,12 +128,16 @@ module pci_io_mux
     trdy_out,
     stop_out,
     cbe_out,
+    cbe64_out,
     ad_out,
+    ad64_out,
     ad_load_out,
     ad_en_unregistered_out,
 
     par_out,
+    par64_out,
     par_en_out,
+    par64_en_out,
     perr_out,
     perr_en_out,
     serr_out,
@@ -158,16 +170,22 @@ input           master_load_in ;
 input           target_load_in ;
 
 input [3:0]     cbe_in ;
+input [3:0]     cbe64_in ;
 input           cbe_en_in ;
+input           cbe64_en_in ;
 input [31:0]    mas_ad_in ;
+input [31:0]    mas_ad64_in ;
 input [31:0]    tar_ad_in ;
+input [31:0]    tar_ad64_in ;
 
 input           mas_ad_en_in ;
 input           tar_ad_en_in ;
 input           tar_ad_en_reg_in ;
 
+input par64_in ;
 input par_in ;
 input par_en_in ;
+input par64_en_in ;
 input perr_in ;
 input perr_en_in ;
 input serr_in ;
@@ -179,7 +197,9 @@ output          devsel_en_out ;
 output          trdy_en_out ;
 output          stop_en_out ;
 output [31:0]   ad_en_out ;
+output [31:0]   ad64_en_out ;
 output [3:0]    cbe_en_out ;
+output [3:0]    cbe64_en_out ;
 
 output          frame_out ;
 output          irdy_out ;
@@ -187,12 +207,16 @@ output          devsel_out ;
 output          trdy_out ;
 output          stop_out ;
 output [3:0]    cbe_out ;
+output [3:0]    cbe64_out ;
 output [31:0]   ad_out ;
+output [31:0]   ad64_out ;
 output          ad_load_out ;
 output          ad_en_unregistered_out ;
 
 output          par_out ;
+output          par64_out ;
 output          par_en_out ;
+output          par64_en_out ;
 output          perr_out ;
 output          perr_en_out ;
 output          serr_out ;
@@ -214,14 +238,16 @@ input           target_load_on_transfer_in ;
 input           init_complete_in    ;
 
 wire   [31:0]   temp_ad = tar_ad_en_reg_in ? tar_ad_in : mas_ad_in ;
+wire   [31:0]   temp_ad64 = tar_ad_en_reg_in ? tar_ad64_in : mas_ad64_in ;
 
 wire ad_en_ctrl_low ;
-
 wire ad_en_ctrl_mlow ;
-
 wire ad_en_ctrl_mhigh ;
-
 wire ad_en_ctrl_high ;
+wire ad64_en_ctrl_low ;
+wire ad64_en_ctrl_mlow ;
+wire ad64_en_ctrl_mhigh ;
+wire ad64_en_ctrl_high ;
 
 wire ad_enable_internal = mas_ad_en_in || tar_ad_en_in ;
 
@@ -261,6 +287,42 @@ pci_io_mux_ad_en_crit ad_en_high_gen
     .ad_en_out      (ad_en_ctrl_high)
 );
 
+pci_io_mux_ad_en_crit ad64_en_low_gen
+(
+    .ad_en_in       (ad_enable_internal),
+    .pci_frame_in   (pci_frame_in),
+    .pci_trdy_in    (pci_trdy_in),
+    .pci_stop_in    (pci_stop_in),
+    .ad_en_out      (ad64_en_ctrl_low)
+);
+
+pci_io_mux_ad_en_crit ad64_en_mlow_gen
+(
+    .ad_en_in       (ad_enable_internal),
+    .pci_frame_in   (pci_frame_in),
+    .pci_trdy_in    (pci_trdy_in),
+    .pci_stop_in    (pci_stop_in),
+    .ad_en_out      (ad64_en_ctrl_mlow)
+);
+
+pci_io_mux_ad_en_crit ad64_en_mhigh_gen
+(
+    .ad_en_in       (ad_enable_internal),
+    .pci_frame_in   (pci_frame_in),
+    .pci_trdy_in    (pci_trdy_in),
+    .pci_stop_in    (pci_stop_in),
+    .ad_en_out      (ad64_en_ctrl_mhigh)
+);
+
+pci_io_mux_ad_en_crit ad64_en_high_gen
+(
+    .ad_en_in       (ad_enable_internal),
+    .pci_frame_in   (pci_frame_in),
+    .pci_trdy_in    (pci_trdy_in),
+    .pci_stop_in    (pci_stop_in),
+    .ad_en_out      (ad64_en_ctrl_high)
+);
+
 assign ad_en_unregistered_out = ad_en_ctrl_high ;
 
 wire load = master_load_in || target_load_in ;
@@ -270,6 +332,10 @@ wire   ad_load_ctrl_low ;
 wire   ad_load_ctrl_mlow ;
 wire   ad_load_ctrl_mhigh ;
 wire   ad_load_ctrl_high ;
+wire   ad64_load_ctrl_low ;
+wire   ad64_load_ctrl_mlow ;
+wire   ad64_load_ctrl_mhigh ;
+wire   ad64_load_ctrl_high ;
 
 assign ad_load_out = ad_load_ctrl_high ;
 
@@ -307,6 +373,42 @@ pci_io_mux_ad_load_crit ad_load_high_gen
     .pci_irdy_in(pci_irdy_in),
     .pci_trdy_in(pci_trdy_in),
     .load_out(ad_load_ctrl_high)
+);
+
+pci_io_mux_ad_load_crit ad64_load_low_gen
+(
+    .load_in(load),
+    .load_on_transfer_in(load_on_transfer),
+    .pci_irdy_in(pci_irdy_in),
+    .pci_trdy_in(pci_trdy_in),
+    .load_out(ad64_load_ctrl_low)
+);
+
+pci_io_mux_ad_load_crit ad64_load_mlow_gen
+(
+    .load_in(load),
+    .load_on_transfer_in(load_on_transfer),
+    .pci_irdy_in(pci_irdy_in),
+    .pci_trdy_in(pci_trdy_in),
+    .load_out(ad64_load_ctrl_mlow)
+);
+
+pci_io_mux_ad_load_crit ad64_load_mhigh_gen
+(
+    .load_in(load),
+    .load_on_transfer_in(load_on_transfer),
+    .pci_irdy_in(pci_irdy_in),
+    .pci_trdy_in(pci_trdy_in),
+    .load_out(ad64_load_ctrl_mhigh)
+);
+
+pci_io_mux_ad_load_crit ad64_load_high_gen
+(
+    .load_in(load),
+    .load_on_transfer_in(load_on_transfer),
+    .pci_irdy_in(pci_irdy_in),
+    .pci_trdy_in(pci_trdy_in),
+    .load_out(ad64_load_ctrl_high)
 );
 
 pci_out_reg ad_iob0
@@ -693,6 +795,390 @@ pci_out_reg ad_iob31
     .dat_out      ( ad_out[31] )
 );
 
+pci_out_reg ad64_iob0
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[0] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[0] ),
+    .dat_out      ( ad64_out[0] )
+);
+
+pci_out_reg ad64_iob1
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[1] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[1] ),
+    .dat_out      ( ad64_out[1] )
+);
+
+pci_out_reg ad64_iob2
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[2] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[2] ),
+    .dat_out      ( ad64_out[2] )
+);
+
+pci_out_reg ad64_iob3
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[3] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[3] ),
+    .dat_out      ( ad64_out[3] )
+);
+
+pci_out_reg ad64_iob4
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[4] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[4] ),
+    .dat_out      ( ad64_out[4] )
+);
+
+pci_out_reg ad64_iob5
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[5] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[5] ),
+    .dat_out      ( ad64_out[5] )
+);
+
+pci_out_reg ad64_iob6
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[6] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[6] ),
+    .dat_out      ( ad64_out[6] )
+);
+
+pci_out_reg ad64_iob7
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_low ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[7] ) ,
+    .en_in        ( ad64_en_ctrl_low ) ,
+    .en_out       ( ad64_en_out[7] ),
+    .dat_out      ( ad64_out[7] )
+);
+
+pci_out_reg ad64_iob8
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[8] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[8] ),
+    .dat_out      ( ad64_out[8] )
+);
+
+pci_out_reg ad64_iob9
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[9] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[9] ),
+    .dat_out      ( ad64_out[9] )
+);
+
+pci_out_reg ad64_iob10
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[10] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[10] ),
+    .dat_out      ( ad64_out[10] )
+);
+
+pci_out_reg ad64_iob11
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[11] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[11] ),
+    .dat_out      ( ad64_out[11] )
+);
+
+pci_out_reg ad64_iob12
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[12] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[12] ),
+    .dat_out      ( ad64_out[12] )
+);
+
+pci_out_reg ad64_iob13
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[13] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[13] ),
+    .dat_out      ( ad64_out[13] )
+);
+
+pci_out_reg ad64_iob14
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[14] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[14] ),
+    .dat_out      ( ad64_out[14] )
+);
+
+pci_out_reg ad64_iob15
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mlow ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[15] ) ,
+    .en_in        ( ad64_en_ctrl_mlow ) ,
+    .en_out       ( ad64_en_out[15] ),
+    .dat_out      ( ad64_out[15] )
+);
+
+pci_out_reg ad64_iob16
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[16] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[16] ),
+    .dat_out      ( ad64_out[16] )
+);
+
+pci_out_reg ad64_iob17
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[17] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[17] ),
+    .dat_out      ( ad64_out[17] )
+);
+
+pci_out_reg ad64_iob18
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[18] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[18] ),
+    .dat_out      ( ad64_out[18] )
+);
+
+pci_out_reg ad64_iob19
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[19] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[19] ),
+    .dat_out      ( ad64_out[19] )
+);
+
+pci_out_reg ad64_iob20
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[20] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[20] ),
+    .dat_out      ( ad64_out[20] )
+);
+
+pci_out_reg ad64_iob21
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[21] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[21] ),
+    .dat_out      ( ad64_out[21] )
+);
+
+pci_out_reg ad64_iob22
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[22] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[22] ),
+    .dat_out      ( ad64_out[22] )
+);
+
+pci_out_reg ad64_iob23
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_mhigh ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[23] ) ,
+    .en_in        ( ad64_en_ctrl_mhigh ) ,
+    .en_out       ( ad64_en_out[23] ),
+    .dat_out      ( ad64_out[23] )
+);
+
+pci_out_reg ad64_iob24
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[24] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[24] ),
+    .dat_out      ( ad64_out[24] )
+);
+
+pci_out_reg ad64_iob25
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[25] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[25] ),
+    .dat_out      ( ad64_out[25] )
+);
+
+pci_out_reg ad64_iob26
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[26] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[26] ),
+    .dat_out      ( ad64_out[26] )
+);
+
+pci_out_reg ad64_iob27
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[27] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[27] ),
+    .dat_out      ( ad64_out[27] )
+);
+
+pci_out_reg ad64_iob28
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[28] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[28] ),
+    .dat_out      ( ad64_out[28] )
+);
+
+pci_out_reg ad64_iob29
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[29] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[29] ),
+    .dat_out      ( ad64_out[29] )
+);
+
+pci_out_reg ad64_iob30
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[30] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[30] ),
+    .dat_out      ( ad64_out[30] )
+);
+
+pci_out_reg ad64_iob31
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( ad64_load_ctrl_high ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( temp_ad64[31] ) ,
+    .en_in        ( ad64_en_ctrl_high ) ,
+    .en_out       ( ad64_en_out[31] ),
+    .dat_out      ( ad64_out[31] )
+);
+
 wire [3:0] cbe_load_ctrl = {4{ master_load_in }} ;
 wire [3:0] cbe_en_ctrl   = {4{ cbe_en_in }} ;
 
@@ -742,6 +1228,57 @@ pci_out_reg cbe_iob3
     .en_in        ( cbe_en_ctrl[3] ) ,
     .en_out       ( cbe_en_out[3] ),
     .dat_out      ( cbe_out[3] )
+);
+
+wire [3:0] cbe64_load_ctrl = {4{ master_load_in }} ;
+wire [3:0] cbe64_en_ctrl   = {4{ cbe_en_in }} ;
+
+pci_out_reg cbe64_iob0
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( cbe64_load_ctrl[0] ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( cbe64_in[0] ) ,
+    .en_in        ( cbe64_en_ctrl[0] ) ,
+    .en_out       ( cbe64_en_out[0] ),
+    .dat_out      ( cbe64_out[0] )
+);
+
+pci_out_reg cbe64_iob1
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( cbe64_load_ctrl[1] ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( cbe64_in[1] ) ,
+    .en_in        ( cbe64_en_ctrl[1] ) ,
+    .en_out       ( cbe64_en_out[1] ),
+    .dat_out      ( cbe64_out[1] )
+);
+
+pci_out_reg cbe64_iob2
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( cbe64_load_ctrl[2] ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( cbe64_in[2] ) ,
+    .en_in        ( cbe64_en_ctrl[2] ) ,
+    .en_out       ( cbe64_en_out[2] ),
+    .dat_out      ( cbe64_out[2] )
+);
+
+pci_out_reg cbe64_iob3
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( cbe64_load_ctrl[3] ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( cbe64_in[3] ) ,
+    .en_in        ( cbe64_en_ctrl[3] ) ,
+    .en_out       ( cbe64_en_out[3] ),
+    .dat_out      ( cbe64_out[3] )
 );
 
 pci_out_reg frame_iob
@@ -815,6 +1352,19 @@ pci_out_reg par_iob
     .en_out       ( par_en_out ),
     .dat_out      ( par_out )
 );
+
+pci_out_reg par_iob64
+(
+    .reset_in     ( reset_in ),
+    .clk_in       ( clk_in) ,
+    .dat_en_in    ( 1'b1 ),
+    .en_en_in     ( 1'b1 ),
+    .dat_in       ( par64_in ) ,
+    .en_in        ( par64_en_in ) ,
+    .en_out       ( par64_en_out ),
+    .dat_out      ( par64_out )
+);
+
 
 pci_out_reg perr_iob
 (

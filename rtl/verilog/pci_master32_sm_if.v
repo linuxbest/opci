@@ -88,13 +88,16 @@ module pci_master32_sm_if
     address_out,
     bc_out,
     data_out,
+    data64_out,
     data_in,
+    data64_in,
     be_out,
     req_out,
     rdy_out,
     last_out,
 
     next_data_out,
+    next_data64_out,
     next_be_out,
     next_last_out,
 
@@ -111,6 +114,7 @@ module pci_master32_sm_if
     // WISHBONE WRITE fifo inputs and outputs
     wbw_renable_out,
     wbw_fifo_addr_data_in,
+    wbw_fifo_addr_data64_in,
     wbw_fifo_cbe_in,
     wbw_fifo_control_in,
     wbw_fifo_empty_in,
@@ -119,11 +123,13 @@ module pci_master32_sm_if
     // WISHBONE READ fifo inputs and outputs
     wbr_fifo_wenable_out,
     wbr_fifo_data_out,
+    wbr_fifo_data64_out,
     wbr_fifo_be_out,
     wbr_fifo_control_out,
 
     // delayed transaction control logic inputs and outputs
     del_wdata_in,
+    del_wdata64_in,
     del_complete_out,
     del_req_in,
     del_addr_in,
@@ -163,8 +169,11 @@ reg     [3:0]   bc_out ;
 
 output  [31:0]  data_out ;      // data output for writes
 reg     [31:0]  data_out ;
+output  [31:0]  data64_out ;      // data output for writes
+reg     [31:0]  data64_out ;
 
 input   [31:0]  data_in ;       // data input for reads
+input   [31:0]  data64_in ;       // data input for reads
 output  [3:0]   be_out  ;       // byte enable output
 reg     [3:0]   be_out  ;
 
@@ -176,6 +185,7 @@ reg             rdy_out ;
 output          last_out ;      // last data indicator output
 
 output  [31:0]  next_data_out ; // next data output
+output  [31:0]  next_data64_out ; // next data output
 output  [3:0]   next_be_out ;   // next byte enable output
 output          next_last_out ; // next transfer last indicator
 
@@ -191,6 +201,7 @@ input           wait_in,
 output          wbw_renable_out ;          // WBW_FIFO read enable signal
 
 input   [31:0]  wbw_fifo_addr_data_in ;         // WBW_FIFO address/data bus
+input   [31:0]  wbw_fifo_addr_data64_in ;         // WBW_FIFO address/data bus
 input   [3:0]   wbw_fifo_cbe_in ;               // WBW_FIFO command/byte enable bus
 input   [3:0]   wbw_fifo_control_in ;           // WBW_FIFO control bus
 input           wbw_fifo_empty_in ;             // WBW_FIFO's empty status indicator
@@ -200,6 +211,7 @@ input           wbw_fifo_transaction_ready_in ; // WBW_FIFO transaction ready in
 output          wbr_fifo_wenable_out ;          // write enable for WBR_FIFO
 
 output  [31:0]  wbr_fifo_data_out ;             // data output to WBR_FIFO
+output  [31:0]  wbr_fifo_data64_out ;             // data output to WBR_FIFO
 
 output  [3:0]   wbr_fifo_be_out ;               // byte enable output for WBR_FIFO
 
@@ -207,6 +219,7 @@ output  [3:0]   wbr_fifo_control_out ;          // WBR_FIFO control output
 
 // delayed transaction control logic inputs and outputs
 input   [31:0]  del_wdata_in ;                  // delayed write data input
+input   [31:0]  del_wdata64_in ;                // delayed write data input
 output          del_complete_out ;              // delayed transaction completed output
 
 input           del_req_in ;                    // delayed transaction request
@@ -244,6 +257,7 @@ assign err_bc_out   = bc_out ;
 WISHBONE read FIFO data outputs - just link them to SM data outputs and delayed BE input
 ==================================================================================================================*/
 assign wbr_fifo_data_out = data_in ;
+assign wbr_fifo_data64_out = data64_in ;
 assign wbr_fifo_be_out   = del_be_in ;
 
 // decode if current bus command is configuration command
@@ -342,16 +356,19 @@ end
 
 // multiplexer for data output to PCI MASTER state machine
 reg [31:0] source_data ;
+reg [31:0] source_data64 ;
 reg [3:0]  source_be ;
-always@(data_source or wbw_fifo_addr_data_in or wbw_fifo_cbe_in or del_wdata_in or del_be_in or del_burst_in)
+always@(data_source or source_data64 or wbw_fifo_addr_data_in or wbw_fifo_cbe_in or del_wdata_in or del_be_in or del_burst_in or del_wdata64_in or wbw_fifo_addr_data64_in)
 begin
     case (data_source)
         POSTED_WRITE:   begin
                             source_data = wbw_fifo_addr_data_in ;
+                            source_data64 = wbw_fifo_addr_data64_in ;
                             source_be   = wbw_fifo_cbe_in ;
                         end
         DELAYED_WRITE:  begin
                             source_data = del_wdata_in ;
+                            source_data64 = del_wdata64_in ;
                             // read all bytes during delayed burst read!
                             source_be   = ~( del_be_in | {4{del_burst_in}} ) ;
                         end
@@ -392,7 +409,7 @@ begin
         current_dword_address <= #`FF_DELAY new_address[31:2] ;
     else
     if (addr_count_en)
-        current_dword_address <= #`FF_DELAY current_dword_address + 1'b1 ;
+        current_dword_address <= #`FF_DELAY current_dword_address + 2'b10 ;
 end
 
 reg [1:0] current_byte_address ;
@@ -677,6 +694,7 @@ wire last_int = posted_write_req && wlast || del_write_req ;
 
 // intermidiate data, byte enable and last registers
 reg [31:0] intermediate_data ;
+reg [31:0] intermediate_data64 ;
 reg  [3:0] intermediate_be ;
 reg        intermediate_last ;
 
@@ -687,6 +705,7 @@ begin
     if ( reset_in )
     begin
         intermediate_data <= #`FF_DELAY 32'h0000_0000 ;
+        intermediate_data64 <= #`FF_DELAY 32'h0000_0000 ;
         intermediate_be   <= #`FF_DELAY 4'h0 ;
         intermediate_last <= #`FF_DELAY 1'b0 ;
     end
@@ -694,6 +713,7 @@ begin
     if ( intermediate_enable )
     begin
         intermediate_data <= #`FF_DELAY source_data ;
+        intermediate_data64 <= #`FF_DELAY source_data64 ;
         intermediate_be   <= #`FF_DELAY source_be ;
         intermediate_last <= #`FF_DELAY last_int ;
     end
@@ -701,6 +721,7 @@ end
 
 // multiplexer for next data
 reg [31:0] next_data_out ;
+reg [31:0] next_data64_out ;
 reg [3:0] next_be_out   ;
 reg write_next_last ;
 reg [3:0] write_next_be ;
@@ -709,23 +730,27 @@ always@
 (
     rtransfer_in            or 
     intermediate_data       or 
+    intermediate_data64     or 
     intermediate_be         or 
     intermediate_last       or 
     wbw_fifo_addr_data_in   or 
     wbw_fifo_cbe_in         or 
     wlast                   or
-    wait_in
+    wait_in                 or
+    wbw_fifo_addr_data64_in
 )
 begin
     if( rtransfer_in & ~wait_in )
     begin
         next_data_out   = wbw_fifo_addr_data_in ;
+        next_data64_out = wbw_fifo_addr_data64_in ;
         write_next_last = wlast ;
         write_next_be   = wbw_fifo_cbe_in ;
     end
     else
     begin
         next_data_out   = intermediate_data ;
+        next_data64_out = intermediate_data64 ;
         write_next_last = intermediate_last ;
         write_next_be   = intermediate_be ;
     end
@@ -817,11 +842,13 @@ wire last_load  = req_out && ( ~rdy_out || ~wait_in && wtransfer_in ) ;
 
 always@(posedge reset_in or posedge clk_in)
 begin
-    if (reset_in)
+    if (reset_in) begin
         data_out <= #`FF_DELAY 32'h0000_0000 ;
-    else
-    if ( data_out_load )
+        data64_out <= #`FF_DELAY 32'h0000_0000 ;
+    end else if ( data_out_load ) begin
         data_out <= #`FF_DELAY intermediate_data ;
+        data64_out <= #`FF_DELAY intermediate_data64 ;
+    end
 end
 
 always@(posedge clk_in or posedge reset_in)

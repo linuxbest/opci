@@ -67,8 +67,10 @@ module pci_delayed_write_reg
 	reset_in,
 	req_clk_in,
 	comp_wdata_out,
+	comp_wdata64_out,
 	req_we_in,
-	req_wdata_in
+	req_wdata_in,
+	req_wdata64_in
 );
 
 // system inputs
@@ -76,20 +78,25 @@ input reset_in,
 	  req_clk_in ; // request clock input
 
 output [31:0] comp_wdata_out ; // data output
+output [31:0] comp_wdata64_out ; // data output
 
 input req_we_in ; // write enable input
 input [31:0] req_wdata_in ; // data input - latched with posedge of req_clk_in when req_we_in is high
+input [31:0] req_wdata64_in ; // data input - latched with posedge of req_clk_in when req_we_in is high
 
 reg [31:0] comp_wdata_out ;
+reg [31:0] comp_wdata64_out ;
 
 // write request operation
 always@(posedge req_clk_in or posedge reset_in)
 begin
-	if (reset_in)
+	if (reset_in) begin
 		comp_wdata_out <= #`FF_DELAY 32'h0000_0000 ;
-	else
-	if (req_we_in)
+		comp_wdata64_out <= #`FF_DELAY 32'h0000_0000 ;
+	end else if (req_we_in) begin
 		comp_wdata_out <= #`FF_DELAY req_wdata_in ;
+		comp_wdata64_out <= #`FF_DELAY req_wdata64_in ;
+        end
 end
 
 endmodule // DELAYED_WRITE_REG

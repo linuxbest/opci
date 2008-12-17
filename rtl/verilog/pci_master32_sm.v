@@ -95,7 +95,9 @@ module pci_master32_sm
 
     // address, data, bus command, byte enable in/outs
     pci_ad_reg_in,
+    pci_ad64_reg_in,
     pci_ad_out,
+    pci_ad64_out,
     pci_ad_en_out,
     pci_cbe_out,
     pci_cbe_en_out,
@@ -104,12 +106,15 @@ module pci_master32_sm
     address_in,
     bc_in,
     data_in,
+    data64_in,
     data_out,
+    data64_out,
     be_in,
     req_in,
     rdy_in,
     last_in,
     next_data_in,
+    next_data64_in,
     next_be_in,
     next_last_in,
     ad_load_out,
@@ -161,9 +166,12 @@ input   pci_trdy_in,
 
 // address, data, bus command, byte enable in/outs
 input   [31:0]  pci_ad_reg_in ;
+input   [31:0]  pci_ad64_reg_in ;
 output  [31:0]  pci_ad_out ;
+output  [31:0]  pci_ad64_out ;
 
 reg     [31:0]  pci_ad_out ;
+reg     [31:0]  pci_ad64_out ;
 
 output          pci_ad_en_out ;
 
@@ -178,10 +186,13 @@ input   [31:0]  address_in ; // current request address input
 input   [3:0]   bc_in ;      // current request bus command input
 
 input   [31:0]  data_in ;    // current dataphase data input
+input   [31:0]  data64_in ;    // current dataphase data input
 
 output  [31:0]  data_out ;    // for read operations - current request data output
+output  [31:0]  data64_out ;    // for read operations - current request data output
 
 reg     [31:0]  data_out ;
+reg     [31:0]  data64_out ;
 
 input   [3:0]   be_in ;      // current dataphase byte enable inputs
 
@@ -207,6 +218,7 @@ input [7:0] latency_tim_val_in ;
 
 // next data, byte enable and last inputs
 input [31:0] next_data_in ;
+input [31:0] next_data64_in ;
 input [3:0]  next_be_in ;
 input        next_last_in ;
 
@@ -584,32 +596,38 @@ begin
         rdata_selector <= #`FF_DELAY wdata_selector ;
 end
 
-always@(rdata_selector or address_in or bc_in or data_in or be_in or next_data_in or next_be_in)
+always@(rdata_selector or address_in or bc_in or data_in or data64_in or be_in or next_data_in or next_data64_in or next_be_in)
 begin
     case ( rdata_selector )
         SEL_ADDR_BC:    begin
                             pci_ad_out  = address_in ;
+                            pci_ad64_out  = 0 ;
                             pci_cbe_out = bc_in ;
                         end
 
         SEL_DATA_BE:    begin
                             pci_ad_out  = data_in ;
+                            pci_ad64_out  = data64_in ;
                             pci_cbe_out = be_in ;
                         end
         SEL_NEXT_DATA_BE,
         2'b10:              begin
                                 pci_ad_out  = next_data_in ;
+                                pci_ad64_out  = next_data64_in ;
                                 pci_cbe_out = next_be_in ;
                             end
     endcase
 end
 
 // data output mux for reads
-always@(mabort_out or pci_ad_reg_in)
+always@(mabort_out or pci_ad_reg_in or pci_ad64_reg_in)
 begin
-    if ( mabort_out )
+    if ( mabort_out ) begin
         data_out = 32'hFFFF_FFFF ;
-    else
+        data64_out = 32'hFFFF_FFFF ;
+    end else begin
         data_out = pci_ad_reg_in ;
+        data64_out = pci_ad64_reg_in ;
+    end
 end
 endmodule

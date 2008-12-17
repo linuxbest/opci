@@ -438,7 +438,7 @@ input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift cont
 // synopsys translate_off
 initial
 begin
-    if (dw !== 40)
+    if (dw !== 40 && dw != 72)
     begin
         $display("RAM instantiation error! Expected RAM width %d, actual %h!", 40, dw) ;
         $finish ;
