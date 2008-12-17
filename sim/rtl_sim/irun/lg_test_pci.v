@@ -975,7 +975,7 @@ task test_pci_master_error_handling;
    end // block: main
 endtask // test_pci_master_error_handling
 
-task test_pci_image;
+task lg_test_pci_image;
    begin
    end
 endtask // test_pci_image
@@ -1031,7 +1031,7 @@ task lg_test_pci;
 	       configure_bridge_target_base_addresses;
 
 	       /* pci target test */
-	       test_pci_image(1);
+	       lg_test_pci_image(1);
 	       
 	       /*test_pci_image(2);
 	       test_pci_image(3);
@@ -1047,7 +1047,6 @@ task lg_test_pci;
 	       $display(" ") ;
 	       $display("PCI target images' tests finished!") ;
 	       transaction_ordering;*/
-		
 	    end // for ( tb_target_decode_speed = 0 ;...
 	 end // for ( wb_subseq_waits = 0 ;...
       end // for ( wb_init_waits = 0 ;...
