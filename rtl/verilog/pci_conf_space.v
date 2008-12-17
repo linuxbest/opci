@@ -1892,7 +1892,7 @@ begin
 			icr_bit2_0 <= 3'h0 ;
 			icr_bit4_3 <= 2'h0 ;
 		`else
-			icr_bit2_0[2:0] <= 3'h0 ;
+			icr_bit2_0[2:0] <= `PCI_ICR_DEFAULT ;
 		`endif
 		/*isr_bit4_3 ; isr_bit2_0 ;*/
 

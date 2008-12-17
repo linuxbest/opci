@@ -442,7 +442,7 @@ task test_pci_master_error_handling;
 	 end // fork branch
       join
 
-          // read data from second write
+      // read data from second write
       write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
       read_data`READ_ADDRESS = `BEH_TAR1_MEM_START  + ({$random} % 4) ;
       read_data`READ_SEL     = 4'hF ;
@@ -474,7 +474,7 @@ task test_pci_master_error_handling;
       // check for interrupts - there should be no interrupt requests active
       repeat(4)
 	@(posedge pci_clock);
-      if ( INTA !== 1 )
+      if ( INTA != 1 )
 	begin
 	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
 	   
@@ -485,7 +485,8 @@ task test_pci_master_error_handling;
 	end
       else
 	test_ok ;
-
+      $stop;
+      
       test_name = "CHECKING PCI DEVICE STATUS REGISTER VALUE AFTER MASTER ABORT" ;
 
       pci_ctrl_offset = 12'h4;
@@ -590,7 +591,7 @@ task test_pci_master_error_handling;
       // check for interrupts - there should be no interrupt requests active
       repeat(4)
 	@(posedge pci_clock);
-      if ( INTA !== 1 )
+      if ( INTA != 1 )
 	begin
 	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
 	   
@@ -601,7 +602,8 @@ task test_pci_master_error_handling;
 	end
       else
 	test_ok ;
-
+      $stop;
+      
       test_name = "CHECK NORMAL WRITING/READING FROM WISHBONE TO PCI AFTER ERRORS WERE PRESENTED" ;
       ok = 1 ;
       
@@ -970,22 +972,58 @@ task test_pci_master_error_handling;
       $display("***************** DONE testing handling of PCI bus errors **********************") ;
       
 // 	 
-      $stop;
+      //$stop;
 	
    end // block: main
 endtask // test_pci_master_error_handling
 
 task lg_test_pci_image;
+   input [3:0] image;
    begin
+      /* XXXX */
    end
 endtask // test_pci_image
+
+task lg_test_int;
+   begin
+      test_name = "CHECKING INTERRUPT REQUESTS AFTER SETTING FLAGS 0" ;
+      SYSTEM.bridge32_top.master_tb.set_int(0);
+      repeat(4)
+	@(posedge pci_clock);
+      if ( INTA != 0 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("seting int");
+	   test_fail("setting int");
+	end
+	    else
+	test_ok ;
+      
+      test_name = "CHECKING INTERRUPT REQUESTS AFTER SETTING FLAGS 1" ;
+      SYSTEM.bridge32_top.master_tb.set_int(1);
+            repeat(4)
+	@(posedge pci_clock);
+      if ( INTA !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("clearing int");
+	   test_fail("clearing int");
+	end
+	    else
+	test_ok ;
+
+      //$stop;
+   end
+endtask // lg_test_int
 
 task lg_test_pci;
    begin
       do_reset;
 
       lg_test_initial_all_conf_values;
-
+      configure_bridge_target ;
+      lg_test_int;
+      
       next_test_name[79:0] <= "Initing...";
       test_target_response[`TARGET_ENCODED_PARAMATERS_ENABLE] = 1 ;
       for ( wb_init_waits = 0 ; 
@@ -1051,12 +1089,6 @@ task lg_test_pci;
 	 end // for ( wb_subseq_waits = 0 ;...
       end // for ( wb_init_waits = 0 ;...
       
-      /* test the pci target mode */
-      //lg_test_pci_target;
-
-      /* test the pci master mode */
-      //lg_test_pci_master;
-
       wb_init_waits   = 0 ;
       pci_init_waits  = 0 ;
       wb_subseq_waits = 0 ;

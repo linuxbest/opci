@@ -386,6 +386,7 @@ wire            SERR_en ;
    wire			frameq_n;		// From bridge of pci_bridge32.v
    wire			i_idle;			// From bridge of pci_bridge32.v
    wire			idle;			// From bridge of pci_bridge32.v
+   wire			int_n;			// From master_tb of master_behavioral.v
    wire			irdyq_n;		// From bridge of pci_bridge32.v
    wire			m_addr_n;		// From bridge of pci_bridge32.v
    wire [3:0]		m_cbe;			// From master_tb of master_behavioral.v
@@ -779,6 +780,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 				.m_wrdn		(m_wrdn),
 				.request	(request),
 				.requesthold	(requesthold),
+				.int_n		(int_n),
 				// Inputs
 				.CLK		(CLK),
 				.reset		(reset),
@@ -788,7 +790,6 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 				.m_addr_n	(m_addr_n),
 				.m_src_en	(m_src_en),
 				.csr		(csr[39:0]));
-   
 endmodule // TOP
 
 // Local Variables:

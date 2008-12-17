@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 三 12月 17 11:48:06 2008 (+0800)
+// Last-Updated: 三 12月 17 14:28:19 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 460
+//     Update #: 468
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -33,7 +33,7 @@
 module master_behavioral (/*AUTOARG*/
    // Outputs
    adio_in, complete, m_ready, m_cbe, m_wrdn, request,
-   requesthold,
+   requesthold, int_n,
    // Inputs
    CLK, reset, adio_out, m_data, m_data_vld, m_addr_n,
    m_src_en, csr
@@ -55,7 +55,8 @@ module master_behavioral (/*AUTOARG*/
    output 	m_wrdn;
    output 	request;
    output 	requesthold;
-
+   output 	int_n;
+   
    reg 		m_dataq;
    always @(posedge CLK or posedge reset)
      begin
@@ -730,6 +731,14 @@ module master_behavioral (/*AUTOARG*/
 	 in_use = 0;	 
       end
    endtask
+
+   reg int_n = 1;
+   task set_int;
+      input enable;
+      begin
+	 int_n = enable;
+      end
+   endtask // int_enable
    
 endmodule // master_behavioral
 

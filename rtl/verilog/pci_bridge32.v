@@ -667,7 +667,7 @@ wire    pci_resi_pci_rstn_in            = pci_rst_i ;
 wire    pci_resi_conf_soft_res_in       = conf_soft_res_out ;
 wire    pci_inti_pci_intan_in           = pci_inta_i ;
 wire    pci_inti_conf_int_in            = conf_int_out ;
-wire    pci_inti_int_i                  = wb_int_i ;
+wire    pci_inti_int_i                  = ~int_n ;
 wire    pci_into_init_complete_in       = conf_pci_init_complete_out ;
 
 pci_rst_int pci_resets_and_interrupts

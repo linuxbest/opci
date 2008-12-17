@@ -328,3 +328,4 @@ capable device
 //    `define PCI_SPOCI
 `endif
 
+`define PCI_ICR_DEFAULT         3'b111
