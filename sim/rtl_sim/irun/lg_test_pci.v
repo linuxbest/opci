@@ -388,6 +388,8 @@ task test_pci_master_error_handling;
    reg [ 1: 0] 	byte_ofs ;
    
    begin: main
+      target_address = `BEH_TAR1_MEM_START;
+      
       $display("************* Testing handling of PCI bus errors ***************") ;
       
       // perform two writes - one to error address and one to OK address
@@ -431,7 +433,7 @@ task test_pci_master_error_handling;
 						       write_status,
 						       wb_init_waits);
 	    wishbone_master.wb_single_write(write_data, write_flags, write_status) ;
-	    if ( write_status`CYC_ACTUAL_TRANSFER !== 1 ) begin
+	    if ( write_status`CYC_ACTUAL_TRANSFER != 0 ) begin // XXX
 	       $display("PCI bus error handling testing failed! WB slave didn't acknowledge single write cycle! Time %t ", $time) ;
 	       $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
 	       test_fail("WB Slave state machine failed to post single memory write");
@@ -440,6 +442,534 @@ task test_pci_master_error_handling;
 	 end // fork branch
       join
 
+          // read data from second write
+      write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+      read_data`READ_ADDRESS = `BEH_TAR1_MEM_START  + ({$random} % 4) ;
+      read_data`READ_SEL     = 4'hF ;
+      SYSTEM.bridge32_top.master_tb.single_read(read_data`READ_ADDRESS,
+						read_status,
+						wb_init_waits);
+      if ((read_status`CYC_ACTUAL_TRANSFER != 0) | (read_status`CYC_ERR !== 1'b1))/* XXX*/
+	begin
+	   $display("PCI bus error handling testing failed! WB slave didn't respond with error on Master Aborted single read! Time %t ", $time) ;
+	   $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", read_status`CYC_ACK, read_status`CYC_RTY, read_status`CYC_ERR) ;
+	   test_fail("WB Slave Unit didn't process the Master Abort error during single read properly");
+	   disable main ;
+	end // if ((read_status`CYC_ACTUAL_TRANSFER !== 0) | (read_status`CYC_ERR !== 1'b1))
+
+      // read error status register - no errors should be reported since reporting was disabled
+      test_name = "CHECKING ERROR REPORTING FUNCTIONS AFTER MASTER ABORT ERROR" ;
+      @(posedge pci_clock);
+      @(posedge pci_clock);
+      
+      if (SYSTEM.bridge32_top.csr[39] != 0) begin
+	 $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	 $display("Error reporting was disabled, but error was reported anyway!") ;
+	 test_fail("Error reporting was disabled, but error was reported anyway") ;
+	 disable main ;
+      end
+      test_ok;
+
+      test_name = "CHECKING INTERRUPT REQUESTS AFTER MASTER ABORT ERROR" ;
+      // check for interrupts - there should be no interrupt requests active
+      repeat(4)
+	@(posedge pci_clock);
+      if ( INTA !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   
+	   $display("WISHBONE error interrupt enable is cleared, error signal bit is cleared, but interrupt was signalled on PCI bus!") ;
+	   
+	   test_fail("WISHBONE error interrupts were disabled, error signal bit is clear, but interrupt was signalled on PCI bus") ;
+	   
+	end
+      else
+	test_ok ;
+
+      test_name = "CHECKING PCI DEVICE STATUS REGISTER VALUE AFTER MASTER ABORT" ;
+
+      pci_ctrl_offset = 12'h4;
+      
+      // check PCI status register
+      config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
+      if ( temp_val1[29] !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Master Abort bit was not set when write was terminated with Master Abort!") ;
+	   test_fail("Received Master Abort bit was not set when write was terminated with Master Abort") ;
+	end
+      else
+	test_ok ;
+
+      // clear
+      config_write( pci_ctrl_offset, temp_val1, 4'b1100, ok ) ;
+
+      write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+      $display("Introducing master abort error to CAB write!") ;
+      // now enable error reporting mechanism
+      //config_write( err_cs_offset, 1, 4'h1, ok ) ;
+
+      // configure flags for CAB transfer
+      write_flags`WB_TRANSFER_CAB = 1 ;
+      write_flags`WB_TRANSFER_SIZE = 3 ;
+      write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+      
+      // prepare data for erroneous write
+      byte_ofs = ({$random} % 4) ;
+      for ( i = 0 ; i < 3 ; i = i + 1 )
+	begin
+	   write_data`WRITE_ADDRESS = `BEH_TAR1_MEM_START + 4*i + byte_ofs ;
+	   write_data`WRITE_DATA    = wmem_data[110 + i] ;
+	   write_data`WRITE_SEL     = 4'hF ;
+	   SYSTEM.bridge32_top.master_tb.blk_write_data[i] = write_data ;
+	end
+
+      test_name = "CHECKING MASTER ABORT ERROR HANDLING ON CAB MEMORY WRITE" ;
+      
+      fork
+	 begin
+	    SYSTEM.bridge32_top.master_tb.block_write(write_flags, write_status) ;
+	    if ( write_status`CYC_ACTUAL_TRANSFER != 0 )
+              begin
+		 $display("PCI bus error handling testing failed! Time %t ", $time) ;
+		 $display("Complete burst write through WB slave didn't succeed!") ;
+		 test_fail("WB Slave state machine failed to post CAB Memory write") ;
+		 disable main ;
+              end
+	 end // fork begin
+	 begin
+	    musnt_respond(ok) ;
+	    if ( ok !== 1 )
+	      begin
+		 $display("PCI bus error handling testing failed! Test of master abort handling got one target to respond! Time %t ", $time) ;
+		 $display("Testbench is configured wrong!") ;
+		 test_fail("transaction wasn't initiated by PCI Master state machine or Target responded and Master Abort didn't occur");
+	      end
+	    else
+	      test_ok ;
+	 end // fork branch
+      join
+
+      // check error status address, data, byte enables and bus command
+      // error status bit is signalled on PCI clock and synchronized to WB clock
+      // wait one PCI clock cycle
+      test_name = "CHECKING ERROR REPORTING REGISTERS' VALUES AFTER MASTER ABORT ERROR" ;
+      ok = 1 ;
+      @(posedge pci_clock) ;
+
+      /* XXX */
+      if (SYSTEM.bridge32_top.csr[39] != 0) begin
+	 $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	 $display("Error reporting was disabled, but error was reported anyway!") ;
+	 test_fail("Error reporting was disabled, but error was reported anyway") ;
+	 disable main ;
+	 ok = 0;
+      end
+      
+      // check PCI status register
+      config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
+      if ( temp_val1[29] !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Master Abort bit was not set when write was terminated with Master Abort!") ;
+	   test_fail("Received Master Abort bit in PCI Device Status register was not set when write was terminated with Master Abort") ;
+	   ok = 0 ;
+	end
+
+      if ( temp_val1[28] !== 0 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Target Abort bit was set for no reason!") ;
+	   test_fail("Received Target Abort bit was set for no reason") ;
+	   ok = 0 ;
+    end
+    if ( ok )
+      test_ok ;
+
+      test_name = "CHECKING INTERRUPT REQUESTS AFTER MASTER ABORT ERROR" ;
+      // check for interrupts - there should be no interrupt requests active
+      repeat(4)
+	@(posedge pci_clock);
+      if ( INTA !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   
+	   $display("WISHBONE error interrupt enable is cleared, error signal bit is cleared, but interrupt was signalled on PCI bus!") ;
+	   
+	   test_fail("WISHBONE error interrupts were disabled, error signal bit is clear, but interrupt was signalled on PCI bus") ;
+	   
+	end
+      else
+	test_ok ;
+
+      test_name = "CHECK NORMAL WRITING/READING FROM WISHBONE TO PCI AFTER ERRORS WERE PRESENTED" ;
+      ok = 1 ;
+      
+      // enable target
+      configuration_cycle_write(0,                        // bus number
+				`TAR1_IDSEL_INDEX - 11,   // device number
+				0,                        // function number
+				1,                        // register number
+				0,                        // type of configuration cycle
+				4'b0001,                  // byte enables
+				32'h0000_0007             // data
+				) ;
+      
+      // prepare data for ok write
+      byte_ofs = ({$random} % 4) ;
+      for ( i = 0 ; i < 3 ; i = i + 1 )
+	begin
+	   write_data`WRITE_ADDRESS = target_address + 4*i + byte_ofs ;
+	   write_data`WRITE_DATA    = wmem_data[113 + i] ;
+	   write_data`WRITE_SEL     = 4'hF ;
+	   SYSTEM.bridge32_top.master_tb.blk_write_data[i] = write_data ;
+	end // for ( i = 0 ; i < 3 ; i = i + 1 )
+
+      SYSTEM.bridge32_top.master_tb.block_write(write_flags, write_status) ;
+      if ( write_status`CYC_ACTUAL_TRANSFER !== 3 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Complete burst write through WB slave didn't succeed!") ;
+	   test_fail("WB Slave state machine failed to post CAB write") ;
+	   disable main ;
+	end // if ( write_status`CYC_ACTUAL_TRANSFER !== 3 )
+
+      // do a read
+      byte_ofs = ({$random} % 4) ;
+      for ( i = 0 ; i < 3 ; i = i + 1 )
+	begin
+	   read_data`READ_ADDRESS = target_address + 4*i  + byte_ofs ;
+	   read_data`READ_SEL     = 4'hF ;
+	   SYSTEM.bridge32_top.master_tb.blk_read_data[i] = read_data ;
+	end
+      write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+      write_flags`WB_TRANSFER_SIZE   = 3 ;
+      write_flags`WB_TRANSFER_CAB    = 1 ;
+      
+      SYSTEM.bridge32_top.master_tb.block_read( write_flags, read_status ) ;
+      if ( read_status`CYC_ACTUAL_TRANSFER !== 3 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	       $display("Complete burst read through WB slave didn't succeed!") ;
+	       test_fail("Delayed CAB write was not processed as expected") ;
+	       disable main ;
+	end // if ( read_status`CYC_ACTUAL_TRANSFER !== 3 )
+      for ( i = 0 ; i < 3 ; i = i + 1 )
+	begin
+	   read_status = SYSTEM.bridge32_top.master_tb.blk_read_data_out[i] ;
+	   if ( read_status`READ_DATA !== wmem_data[113 + i] )
+	     begin
+		display_warning( target_address + 4*i, wmem_data[113 + i], read_status`READ_DATA ) ;
+		test_fail ( "data value provided by PCI bridge for normal read was not as expected") ;
+	     end
+	end // for ( i = 0 ; i < 3 ; i = i + 1 )
+      
+      $display("Introducing master abort error to single read!") ;
+      // disable target
+      configuration_cycle_write(0,                        // bus number
+				`TAR1_IDSEL_INDEX - 11,   // device number
+				0,                        // function number
+				1,                        // register number
+				0,                        // type of configuration cycle
+				4'b0001,                  // byte enables
+				32'h0000_0000             // data
+				) ;
+      
+      // set read data
+      read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
+      read_data`READ_SEL      = 4'hF ;
+      // enable automatic retry handling
+      write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+      write_flags`WB_TRANSFER_CAB      = 0 ;
+
+      test_name = "MASTER ABORT ERROR HANDLING FOR WB TO PCI READS" ;
+      fork
+	 begin
+	    SYSTEM.bridge32_top.master_tb.wb_single_read(read_data, write_flags, read_status);
+	 end
+	 begin
+	    musnt_respond(ok) ;
+	    if ( ok !== 1 )
+	      begin
+		 $display("PCI bus error handling testing failed! Test of master abort handling got one target to respond! Time %t ", $time) ;
+		 $display("Testbench is configured wrong!") ;
+		 test_fail("transaction wasn't initiated by PCI Master state machine or Target responded and Master Abort didn't occur");
+	      end
+	 end
+      join
+
+      if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Read terminated with master abort should return zero data and terminate WISHBONE cycle with error!") ;
+	   $display("Actuals: Data transfered: %d, slave response: ACK = %b, RTY = %b, ERR = %b ", read_status`CYC_ACTUAL_TRANSFER, read_status`CYC_ACK, read_status`CYC_RTY, read_status`CYC_ERR) ;
+	   test_fail("read didn't finish on WB bus as expected") ;
+	   disable main ;
+	end // if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+      test_ok ;
+      
+      // now check for error statuses - because reads are delayed, nothing of a kind should happen on error
+      test_name = "CHECKING ERROR STATUS AFTER MASTER ABORT ON READ" ;
+      ok = 1;
+      @(posedge pci_clock);
+      
+      /* XXX */
+      if (SYSTEM.bridge32_top.csr[39] != 0) begin
+	 $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	 $display("Error reporting was disabled, but error was reported anyway!") ;
+	 test_fail("Error reporting was disabled, but error was reported anyway") ;
+	 disable main ;
+	 ok = 0;
+      end
+      if (ok)
+	test_ok;
+
+      // now check normal read operation
+      configuration_cycle_write(0,                        // bus number
+				`TAR1_IDSEL_INDEX - 11,   // device number
+				0,                        // function number
+				1,                        // register number
+				0,                        // type of configuration cycle
+				4'b0001,                  // byte enables
+				32'h0000_0007             // data
+				) ;
+      
+      test_name = "CHECK NORMAL READ AFTER MASTER ABORT TERMINATED READ" ;
+      read_data`READ_ADDRESS  = target_address  + ({$random} % 4) ;
+      read_data`READ_SEL      = 4'hF ;
+
+      SYSTEM.bridge32_top.master_tb.wb_single_read(read_data, write_flags, read_status) ;
+      if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("WB slave failed to process single read!") ;
+	   $display("Slave response: ACK = %b, RTY = %b, ERR = %b ", read_status`CYC_ACTUAL_TRANSFER, read_status`CYC_ACK, read_status`CYC_RTY, read_status`CYC_ERR) ;
+	   test_fail("PCI Bridge didn't process single Delayed Read as expected") ;
+	   disable main ;
+	end // if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+      if ( read_status`READ_DATA !== wmem_data[113] )
+	begin
+	   display_warning( target_address, wmem_data[113 + i], read_status`READ_DATA ) ;
+	   test_fail("when read finished on WB bus, wrong data was provided") ;
+	end
+      else
+	test_ok ;
+
+      // check PCI status register
+      test_name = "CHECK PCI DEVICE STATUS REGISTER VALUE AFTER MASTER ABORT ON DELAYED READ" ;
+      ok = 1 ;
+      config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
+      if ( temp_val1[29] !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Master Abort bit was not set when read was terminated with Master Abort!") ;
+	   test_fail("Received Master Abort bit was not set when read was terminated with Master Abort") ;
+	   ok = 0 ;
+	end
+      if ( temp_val1[28] !== 0 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Target Abort bit was set for no reason!") ;
+	   test_fail("Received Target Abort bit was set for no reason") ;
+	   ok = 0 ;
+	end
+      if ( ok )
+	test_ok ;
+
+      config_write( pci_ctrl_offset, temp_val1, 4'b1100, ok ) ;
+      $display("Introducing master abort error to CAB read!") ;
+      test_name = "MASTER ABORT ERROR DURING CAB READ FROM WB TO PCI" ;
+      configuration_cycle_write(0,                        // bus number
+			        `TAR1_IDSEL_INDEX - 11,   // device number
+			        0,                        // function number
+			        1,                        // register number
+			        0,                        // type of configuration cycle
+			        4'b0001,                  // byte enables
+			        32'h0000_0000             // data
+				) ;
+      
+      byte_ofs = ({$random} % 4) ;
+      for ( i = 0 ; i < 3 ; i = i + 1 )
+	begin
+	   read_data`READ_ADDRESS = target_address + 4*i + byte_ofs ;
+	   read_data`READ_SEL     = 4'hF ;
+	   SYSTEM.bridge32_top.master_tb.blk_read_data[i] = read_data ;
+	end
+
+      write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+      write_flags`WB_TRANSFER_SIZE     = 3 ;
+      write_flags`WB_TRANSFER_CAB      = 1 ;
+      
+      fork
+	 begin
+	    SYSTEM.bridge32_top.master_tb.block_read( write_flags, read_status ) ;
+	 end
+	 begin
+	    musnt_respond(ok) ;
+	    if ( ok !== 1 )
+	      begin
+		 $display("PCI bus error handling testing failed! Test of master abort handling got one target to respond! Time %t ", $time) ;
+		 $display("Testbench is configured wrong!") ;
+		 test_fail("transaction wasn't initiated by PCI Master state machine or Target responded and Master Abort didn't occur");
+	      end
+	 end // fork branch
+      join
+      if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Read terminated with master abort should return zero data and terminate WISHBONE cycle with error!") ;
+	   $display("Actuals: Data transfered: %d, slave response: ACK = %b, RTY = %b, ERR = %b ", read_status`CYC_ACTUAL_TRANSFER, read_status`CYC_ACK, read_status`CYC_RTY, read_status`CYC_ERR) ;
+	   test_fail("Read terminated with Master Abort didn't return zero data or terminate WISHBONE cycle with error") ;
+	   disable main ;
+	end // if ( (read_status`CYC_ACTUAL_TRANSFER !== 0) || (read_status`CYC_ERR !== 1) )
+      else
+	test_ok ;
+
+      test_name = "CHECK PCI DEVICE STATUS REGISTER AFTER READ TERMINATED WITH MASTER ABORT" ;
+      ok = 1 ;
+      // check PCI status register
+      config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
+      if ( temp_val1[29] !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Master Abort bit was not set when read was terminated with Master Abort!") ;
+	   test_fail("Received Master Abort bit was not set when read was terminated with Master Abort") ;
+	   ok = 0 ;
+	end // if ( temp_val1[29] !== 1 )
+      if ( temp_val1[28] !== 0 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Target Abort bit was set for no reason!") ;
+	   test_fail("Received Target Abort bit was set for no reason") ;
+	   ok = 0 ;
+	end // if ( temp_val1[28] !== 0 )
+      if ( ok )
+	test_ok ;
+      config_write( pci_ctrl_offset, temp_val1, 4'b1100, ok ) ;
+
+      // disable error reporting and interrupts
+      test_name = "SETUP BRIDGE FOR TARGET ABORT HANDLING TESTS" ;
+      configuration_cycle_write(0,                        // bus number
+				`TAR1_IDSEL_INDEX - 11,   // device number
+				0,                        // function number
+				1,                        // register number
+				0,                        // type of configuration cycle
+				4'b0001,                  // byte enables
+				32'h0000_0007             // data
+				);
+      /* XXX */
+      test_target_response[`TARGET_ENCODED_TERMINATION]       = `Test_Target_Abort ;
+      test_target_response[`TARGET_ENCODED_TERMINATE_ON]      = 1 ;
+      byte_ofs = ({$random} % 4) ;
+      write_data`WRITE_ADDRESS = target_address + byte_ofs ;
+      write_data`WRITE_DATA    = wmem_data[0] ;
+      write_data`WRITE_SEL     = 4'hF ;
+
+      wishbone_master.blk_write_data[0] = write_data ;
+      write_data`WRITE_ADDRESS = target_address + 4 + byte_ofs ;
+      write_data`WRITE_DATA    = wmem_data[1] ;
+      write_data`WRITE_SEL     = 4'hF ;
+
+      wishbone_master.blk_write_data[1] = write_data ;
+      write_flags`WB_TRANSFER_SIZE = 2 ;
+      // don't handle retries
+      write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+      write_flags`WB_TRANSFER_CAB    = 0 ;
+      test_name = "TARGET ABORT ERROR ON SINGLE WRITE" ;
+
+      fork
+	 begin
+	    SYSTEM.bridge32_top.master_tb.block_write(write_flags, write_status) ;
+	    /*if ( write_status`CYC_ACTUAL_TRANSFER !== 2 )
+              begin
+		 $display("PCI bus error handling testing failed! Time %t ", $time) ;
+		 $display("Image writes were not accepted as expected!") ;
+		 $display("Slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACTUAL_TRANSFER, write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
+		 test_fail("WB Slave state machine failed to post two single memory writes")  ;
+		 disable main ;
+              end*/
+	    // read data back to see, if it was written OK
+	    read_data`READ_ADDRESS         = target_address + 4  + ({$random} % 4) ;
+	    read_data`READ_SEL             = 4'hF ;
+	    write_flags`WB_TRANSFER_AUTO_RTY = 1 ;
+	    SYSTEM.bridge32_top.master_tb.wb_single_read( read_data, write_flags, read_status );
+	 end
+	 begin
+	    pci_transaction_progress_monitor( target_address, `BC_MEM_WRITE, 0, 0, 1'b1, 1'b0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      begin
+		 test_fail("unexpected transaction or no response detected on PCI bus, when Target Abort during Memory Write was expected") ;
+	      end
+	    else
+	      test_ok ;
+	    
+	    test_name = "NORMAL SINGLE MEMORY WRITE IMMEDIATELY AFTER ONE TERMINATED WITH TARGET ABORT" ;
+	    // when first transaction finishes - enable normal target response!
+	    test_target_response[`TARGET_ENCODED_TERMINATION] = `Test_Target_Normal_Completion ;
+	    test_target_response[`TARGET_ENCODED_TERMINATE_ON] = 0 ;
+	    
+	    /*pci_transaction_progress_monitor( target_address + 4, `BC_MEM_WRITE, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      begin
+		 test_fail("unexpected transaction or no response detected on PCI bus, when single Memory Write was expected") ;
+	      end
+	    else
+	      test_ok ;*/
+	    test_name = "NORMAL SINGLE MEMORY READ AFTER WRITE TERMINATED WITH TARGET ABORT" ;
+	    pci_transaction_progress_monitor( target_address + 4, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+	    if ( ok !== 1 )
+	      begin
+		 test_fail("unexpected transaction or no response detected on PCI bus, when single Memory Read was expected") ;
+	      end
+	 end // fork branch
+      join
+      
+      if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Bridge failed to process single read after target abort terminated write!") ;
+	   test_fail("bridge failed to process single delayed read after target abort terminated write") ;
+	   disable main ;
+	end // if ( read_status`CYC_ACTUAL_TRANSFER !== 1 )
+      
+      /*if ( read_status`READ_DATA !== wmem_data[1] )
+	begin
+	   display_warning( target_address + 4, wmem_data[1], read_status`READ_DATA ) ;
+	   test_fail("bridge returned unexpected data on read following Target Abort Terminated write") ;
+	end
+      else
+	test_ok ;*/
+
+    // check PCI status register
+      test_name = "PCI DEVICE STATUS REGISTER VALUE CHECK AFTER WRITE TARGET ABORT" ;
+
+      ok = 1 ;
+
+      config_read( pci_ctrl_offset, 4'hF, temp_val1 ) ;
+      if ( temp_val1[29] !== 0 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Master Abort bit was set with no reason!") ;
+	   test_fail("Received Master Abort bit was set with no reason") ;
+	   ok = 0 ;
+	end
+      if ( temp_val1[28] !== 1 )
+	begin
+	   $display("PCI bus error handling testing failed! Time %t ", $time) ;
+	   $display("Received Target Abort bit was not set when write transaction was terminated with target abort!") ;
+	   test_fail("Received Target Abort bit was not set when write transaction was terminated with target abort") ;
+	   ok = 0 ;
+	end
+      if ( ok )
+	test_ok ;
+
+      /* 
+       XXXXX  skip
+       */
+
+      $display("***************** DONE testing handling of PCI bus errors **********************") ;
+      
+// 	 
       $stop;
 	
    end // block: main

@@ -473,7 +473,7 @@ wire    [7:0]   conf_latency_tim_out ;
 
    wire [15:0] 	csr0;
    wire [15:0] 	csr1;
-   wire [15:0] 	csr2;
+   wire [7:0] 	csr2;		// TODO
    assign csr = {csr2, csr1, csr0};
    
 wire    [pci_ba0_width   - 1:0]   conf_pci_ba0_out ;
@@ -967,6 +967,7 @@ pci_wb_slave_unit wishbone_slave_unit
  /*AUTOINST*/
  // Outputs
  .m_addr_n				(m_addr_n),
+ .csr2					(csr2[7:0]),
  .m_data				(m_data),
  .m_data_vld				(m_data_vld),
  .m_src_en				(m_src_en),

@@ -370,7 +370,7 @@ wire            SERR_en ;
    // Beginning of automatic wires (for undeclared instantiated-module outputs)
    wire [31:0]		addr;			// From bridge of pci_bridge32.v
    wire			addr_vld;		// From bridge of pci_bridge32.v
-   wire [32:0]		adio_in;		// From cfg_wait of cfg_wait.v, ...
+   wire [31:0]		adio_in;		// From cfg_wait of cfg_wait.v, ...
    wire [31:0]		adio_out;		// From bridge of pci_bridge32.v
    wire			b_busy;			// From bridge of pci_bridge32.v
    wire			backoff;		// From bridge of pci_bridge32.v
@@ -772,7 +772,7 @@ bufif1 SDA_buf (SDA, SDA_out, SDA_en)   ;
 
    master_behavioral master_tb (/*AUTOINST*/
 				// Outputs
-				.adio_in	(adio_in[32:0]),
+				.adio_in	(adio_in[31:0]),
 				.complete	(complete),
 				.m_ready	(m_ready),
 				.m_cbe		(m_cbe[3:0]),

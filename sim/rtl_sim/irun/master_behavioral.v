@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 三 12月 17 09:40:14 2008 (+0800)
+// Last-Updated: 三 12月 17 11:48:06 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 377
+//     Update #: 460
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -42,7 +42,7 @@ module master_behavioral (/*AUTOARG*/
    input reset;
 
    input [31:0] adio_out;
-   output [32:0] adio_in;
+   output [31:0] adio_in;
    input 	m_data;
    input 	m_data_vld;
    input 	m_addr_n;
@@ -100,6 +100,7 @@ module master_behavioral (/*AUTOARG*/
    reg [31:2] address;
    reg [31:0] start_addr;
    wire       back_up;
+   reg 	      clear_dead = 0;
    
    parameter [2:0] 
 		S_IDLE = 3'h0,
@@ -118,8 +119,8 @@ module master_behavioral (/*AUTOARG*/
 	  c_state <= #1 n_state;
      end
 
-   always @(/*AS*/back_up or c_state or dir or done or fatal
-	    or m_data_fell or start)
+   always @(/*AS*/back_up or c_state or clear_dead or dir
+	    or done or fatal or m_data_fell or start)
      begin
 	n_state = S_IDLE;
 	
@@ -148,7 +149,10 @@ module master_behavioral (/*AUTOARG*/
 	  end else
 	    n_state = S_READ;
 	  
-	  S_DEAD: n_state = S_DEAD;
+	  S_DEAD: if (clear_dead)
+	    n_state = S_IDLE;
+	  else
+	    n_state = S_DEAD;
 
 	  S_OOPS: if (back_up)
 	    n_state = S_OOPS;
@@ -288,7 +292,8 @@ module master_behavioral (/*AUTOARG*/
    wire reset_in = reset;
    wire rclock_in = CLK;
    wire wclock_in = CLK;
-   wire clear_in = reset_in;
+   reg 	clear_reg = 1'b0;
+   wire clear_in = reset_in || clear_reg;
    
    fifo_control fifo_control (/*AUTOINST*/
 			      // Outputs
@@ -346,6 +351,31 @@ module master_behavioral (/*AUTOARG*/
    reg `READ_STIM_TYPE  blk_read_data  [0:(`MAX_BLK_SIZE-1)];
    reg `READ_RETURN_TYPE blk_read_data_out [0:(`MAX_BLK_SIZE-1)];
    
+   task clear_fifo;
+      begin
+	 clear_reg = 1'b1;
+	 @(posedge CLK);
+	 clear_reg = 1'b0;
+	 @(posedge CLK);
+      end
+   endtask // clear_fifo
+   
+   task check_dead;
+      output err;
+      begin
+	 if (c_state == S_DEAD) begin
+	    err  = 1'b1;
+	    clear_dead = 1;
+	    @(posedge CLK);
+	    clear_dead = 0;
+	 end else begin
+	    while (c_state != S_IDLE) begin
+	       @(posedge CLK);
+	    end
+	 end
+      end
+   endtask // check_dead
+      
    task block_read;
       input `WB_TRANSFER_FLAGS read_flags;
       inout `READ_RETURN_TYPE  return;
@@ -413,7 +443,7 @@ module master_behavioral (/*AUTOARG*/
 
 	 cyc_count = read_flags`WB_TRANSFER_SIZE;
 	 i = 0;
-	 while (cyc_count > 0) begin
+	 while (cyc_count > 0 && c_state != S_DEAD && c_state != S_IDLE) begin
 	    @(posedge CLK);
 	    if (m_data_vld) begin
 	       cyc_count = cyc_count - 1;
@@ -424,7 +454,7 @@ module master_behavioral (/*AUTOARG*/
 	    end
 	 end
 	 
-	 @(posedge c_state == S_OOPS);
+	 check_dead(return `CYC_ERR);
 	 return `CYC_ACTUAL_TRANSFER = read_flags`WB_TRANSFER_SIZE - cyc_count;
 	 
 	 in_use = 0;	 
@@ -465,6 +495,8 @@ module master_behavioral (/*AUTOARG*/
 	      return`TB_ERROR_BIT = 1'b1 ;
 	      disable main ;
 	   end
+
+	 clear_fifo;
 	 
 	 in_use = 1;
 	 retry  = 1;
@@ -479,6 +511,7 @@ module master_behavioral (/*AUTOARG*/
 	    src_di = current_write`WRITE_DATA;
 	    cyc_count = cyc_count - 1;
 	    i = i + 1;
+	    //$display("data %h\n", src_di);
 	    @(posedge CLK);
 	    wenable_in = 1'b0;
 	    src_di = 32'hz;
@@ -494,7 +527,6 @@ module master_behavioral (/*AUTOARG*/
 	 start   = 1;
 	 dir     = 1;
 	 start_addr = current_write`WRITE_ADDRESS;
-	 
 	 @(posedge CLK);
 	 start = 0;
 	 
@@ -508,13 +540,13 @@ module master_behavioral (/*AUTOARG*/
 	 end
 
 	 cyc_count = write_flags`WB_TRANSFER_SIZE;
-	 while (cyc_count > 0) begin
+	 while (cyc_count > 0 && c_state != S_DEAD && c_state != S_IDLE) begin
 	    @(posedge CLK);
 	    if (m_data_vld)
 	      cyc_count = cyc_count - 1;
 	 end
-	 
-	 @(posedge c_state == S_OOPS);
+
+	 check_dead(return `CYC_ERR);	 
 	 return `CYC_ACTUAL_TRANSFER = write_flags`WB_TRANSFER_SIZE - cyc_count;
 	 
 	 in_use = 0;	 
@@ -561,11 +593,17 @@ module master_behavioral (/*AUTOARG*/
 		     $time) ;
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
+
+	 return`CYC_ACTUAL_TRANSFER = 0;
+	 while (c_state != S_IDLE && c_state != S_DEAD) begin
+	    @(posedge CLK);
+	    if (m_data_vld) begin
+	       return `CYC_ACTUAL_TRANSFER = 1;
+	       return `READ_DATA = adio_out;
+	    end
+	 end
 	 
-	 @(posedge m_data_vld);
-	 return `READ_DATA = adio_out;
-	 @(posedge c_state == S_OOPS);
-	 return `CYC_ACTUAL_TRANSFER = 1;
+	 check_dead(return `CYC_ERR);
 	 
 	 in_use = 0;
       end
@@ -621,20 +659,77 @@ module master_behavioral (/*AUTOARG*/
 		     $time) ;
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
-	 
-	 while (c_state != S_IDLE) begin
+
+	 return`CYC_ACTUAL_TRANSFER = 0;
+	 while (c_state != S_IDLE && c_state != S_DEAD) begin
 	    @(posedge CLK);
 	    if (m_data_vld) begin
 	       return `CYC_ACTUAL_TRANSFER = 1;
-	       $display ("xfer\n");
 	    end
 	 end
-	 $display("return %h", return `CYC_ACTUAL_TRANSFER);
+
+	 check_dead(return `CYC_ERR);	 
 	 
 	 in_use = 0;
       end
       
    endtask // single_write
+
+   task wb_single_read;
+      input `READ_STIM_TYPE read_data;
+      input `WB_TRANSFER_FLAGS write_flags;
+      inout `READ_RETURN_TYPE return;
+
+      reg   in_use;
+      reg   ok;
+      reg   retry;
+      
+      begin: main
+	 if (in_use === 1) begin
+	    $display("*E: master: single_write routine re-entered! Time %t ", $time);
+	    return `TB_ERROR_BIT = 1'b1;
+	    disable main;
+	 end
+
+	 burst_length = 1;
+	 in_use = 1;
+	 retry  = 1;
+	 return `CYC_ACTUAL_TRANSFER = 0;
+	 while (retry === 1) begin
+	    @(posedge CLK)
+	      if (c_state == S_IDLE)
+		retry = 0;
+	 end
+	 
+	 start   = 1;
+	 dir     = 0;
+	 start_addr = read_data`READ_ADDRESS;
+	 @(posedge CLK);
+	 start = 0;
+	 
+	 @(posedge CLK);
+	 if (c_state == S_REQ) begin
+	    retry = 0;
+	 end else begin
+	    $display("*E: Failed to initialize cycle! Routine master single read, Time %t ", 
+		     $time) ;
+	    return `TB_ERROR_BIT = 1'b1;
+	 end
+
+	 return`CYC_ACTUAL_TRANSFER = 0;
+	 while (c_state != S_IDLE && c_state != S_DEAD) begin
+	    @(posedge CLK);
+	    if (m_data_vld) begin
+	       return `CYC_ACTUAL_TRANSFER = 1;
+	       return `READ_DATA = adio_out;
+	    end
+	 end
+	 
+	 check_dead(return `CYC_ERR);
+	 
+	 in_use = 0;	 
+      end
+   endtask
    
 endmodule // master_behavioral
 

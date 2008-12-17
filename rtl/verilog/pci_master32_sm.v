@@ -124,7 +124,7 @@ module pci_master32_sm
     latency_tim_val_in,
  /*AUTOARG*/
    // Outputs
-   m_data, m_data_vld, m_addr_n, m_src_en,
+   m_data, m_data_vld, m_addr_n, m_src_en, csr2,
    // Inputs
    adio_in, m_cbe, m_ready, request, complete
    ) ;
@@ -649,5 +649,14 @@ end
      m_data_vld <= #1 ~pci_trdy_in && sm_transfer;
    
    assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE && rdata_cnt < 2'b10;
-   
+
+   output [7:0] csr2;
+   assign csr2 = {mabort_out,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0};
 endmodule
