@@ -485,7 +485,7 @@ task test_pci_master_error_handling;
 	end
       else
 	test_ok ;
-      $stop;
+      //$stop;
       
       test_name = "CHECKING PCI DEVICE STATUS REGISTER VALUE AFTER MASTER ABORT" ;
 
@@ -602,7 +602,7 @@ task test_pci_master_error_handling;
 	end
       else
 	test_ok ;
-      $stop;
+      //$stop;
       
       test_name = "CHECK NORMAL WRITING/READING FROM WISHBONE TO PCI AFTER ERRORS WERE PRESENTED" ;
       ok = 1 ;
