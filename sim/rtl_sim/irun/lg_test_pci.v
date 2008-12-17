@@ -989,14 +989,108 @@ task lg_test_pci_image;
    reg          ok ;
    reg          test_io ;
    reg          test_mem ;
-   
+   reg [31:0]   data;
+   reg [31:0]   expected_value;
+   reg [31:0]   pci_address;
    begin
       pci_ctrl_offset = 12'h4 ;
 
       $display(" ");
       $display("########################################################################") ;
       test_name = "PCI IMAGE SETTINGS" ;
+      expected_value = 32'h0123_4567;
 
+      SYSTEM.bridge32_top.mem_target.q = expected_value;
+      configuration_cycle_read(8'h00,         /* bus number */
+                      `TAR0_IDSEL_INDEX - 11, /* device number */
+                      0,                      /* function */
+                      8'h00,                  /* register */
+                      0,                      /* type */
+                      4'hF,                   /* byte enable */
+                      data);
+      configuration_cycle_write(8'h00,        /* bus number */
+                      `TAR0_IDSEL_INDEX - 11, /* device number */
+                      0,                      /* function */
+                      8'h20,                  /* register */
+                      0,                      /* type */
+                      4'hF,                   /* byte enable */
+                      expected_value);
+      configuration_cycle_read(8'h00,         /* bus number */
+                      `TAR0_IDSEL_INDEX - 11, /* device number */
+                      0,                      /* function */
+                      8'h20,                  /* register */
+                      0,                      /* type */
+                      4'hF,                   /* byte enable */
+                      data);
+      if (data != expected_value) begin
+	   $display("Image testing failed! failed to readback the q");
+	   test_fail("failed to readback the q");
+      end
+    
+      /* reading bar0 with register 0 */
+      pci_address = Target_Base_Addr_R[0] | { 20'h0, 12'h0} ;
+      fork 
+	 begin
+            DO_REF ("MEM_R_CONF", 
+		    `Test_Master_2, 
+		    pci_address[PCI_BUS_DATA_RANGE:0],
+		    PCI_COMMAND_MEMORY_READ, 
+		    data[PCI_BUS_DATA_RANGE:0],
+		    4'h0,
+		    `Test_One_Word, 
+		    `Test_No_Addr_Perr,
+		    `Test_No_Data_Perr,
+		    8'h0_0, 
+		    `Test_One_Zero_Target_WS,
+		    `Test_Devsel_Medium, 
+		    `Test_No_Fast_B2B,
+		    `Test_Target_Normal_Completion, 
+		    `Test_Expect_No_Master_Abort);
+            do_pause( 1 ) ;
+	 end
+	 begin
+	    pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+	    @(posedge pci_clock) ;
+	 end
+      join
+      /*if (data[15:0] != `HEADER_VENDOR_ID && data[31:16] != `HEADER_DEVICE_ID) begin
+	 $display("Image testing failed! fail to reading device and vendor, %h", data);
+	 test_fail("failed to read device and vendor");
+      end*/
+
+      pci_address = Target_Base_Addr_R[2] | { 20'h0, 12'h0} ;
+      fork 
+	 begin
+            DO_REF ("MEM_R Q", 
+		    `Test_Master_2, 
+		    pci_address[PCI_BUS_DATA_RANGE:0],
+		    PCI_COMMAND_MEMORY_READ, 
+		    data[PCI_BUS_DATA_RANGE:0],
+		    4'h0,
+		    `Test_One_Word, 
+		    `Test_No_Addr_Perr,
+		    `Test_No_Data_Perr,
+		    8'h0_0, 
+		    `Test_One_Zero_Target_WS,
+		    `Test_Devsel_Medium, 
+		    `Test_No_Fast_B2B,
+		    `Test_Target_Normal_Completion, 
+		    `Test_Expect_No_Master_Abort);
+            do_pause( 1 ) ;
+	 end
+	 begin
+	    pci_transaction_progress_monitor( pci_address, `BC_MEM_READ, 1, 0, 1'b1, 1'b0, 0, ok ) ;
+	    @(posedge pci_clock) ;
+	 end
+      join
+      /*
+	 $display("Image testing failed! fail to reading device and vendor");
+	 test_fail("failed to read device and vendor");
+      end*/
+
+      
+      //$stop;
+      
       /* XXX */
       cache_lsize = 8'h4 ;
 
@@ -1004,14 +1098,14 @@ task lg_test_pci_image;
        *      burst
        *      error handling
        */
-      $display(" ");
+      /*$display(" ");
       $display("Setting the Cache Line Size register to %d word(s)", cache_lsize);
       config_write( pci_ctrl_offset + 12'h8, {24'h0000_00, cache_lsize}, 4'h1, ok) ;
       if ( ok !== 1 )
 	begin
 	   $display("Image testing failed! Failed to write Cache Line Size register! Time %t ",$time);
 	   test_fail("PCI Device Control and Status register could not be written") ;
-	end
+	end*/
       test_mem = 0;
 
       if (test_mem) begin
@@ -1066,7 +1160,7 @@ task lg_test_pci_image;
 	 
       end
       
-      $stop;
+      //$stop;
    end
 endtask // test_pci_image
 
