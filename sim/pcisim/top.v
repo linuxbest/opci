@@ -499,8 +499,9 @@ bufif0 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
    bufif0 CBE64_buf3 ( CBE64[3], CBE64_out[3], CBE64_en[3] ) ;
 
    bufif0 ACK64_buf  ( ACK64, ACK64_out, ACK64_en);
-   bufif0 REQ64_buf  ( REQ64, REQ64_out, REQ64_en);
-   bufif0 REQ64_buf  ( PAR64, PAR64_out, PAR64_en);
+   //bufif0 REQ64_buf  ( REQ64, REQ64_out, REQ64_en);
+   bufif0 REQ64_buf  ( REQ64, FRAME_out, FRAME_en);
+   bufif0 PAR64_buf  ( PAR64, PAR64_out, PAR64_en);
    
 endmodule // TOP
 
