@@ -102,28 +102,30 @@
 // in one clock domain, read in other ), otherwise it must be two port RAM ( read and write ports in both clock domains ).
 // If RAM_DONT_SHARE is defined, then all RAM address lengths must be specified accordingly, otherwise there are two relevant lengths - PCI_FIFO_RAM_ADDR_LENGTH and
 // WB_FIFO_RAM_ADDR_LENGTH.
-`define WBW_ADDR_LENGTH  6
-`define WBR_ADDR_LENGTH  6
+
+`define WBW_ADDR_LENGTH 4
+`define WBR_ADDR_LENGTH 4
 `define PCIW_ADDR_LENGTH 3
 `define PCIR_ADDR_LENGTH 3
+
 //`define FPGA
 //`define XILINX
 
-//`define WB_RAM_DONT_SHARE
+`define WB_RAM_DONT_SHARE
 `define PCI_RAM_DONT_SHARE
 
 `ifdef FPGA
     `ifdef XILINX
-        `define WB_FIFO_RAM_ADDR_LENGTH  9       // WB slave unit fifo storage definition
-        `define PCI_FIFO_RAM_ADDR_LENGTH 5      // PCI target unit fifo storage definition
-        //`define PCI_XILINX_RAMB4
-        //`define WB_XILINX_RAMB4
+        `define PCI_FIFO_RAM_ADDR_LENGTH 8      // PCI target unit fifo storage definition
+        `define WB_FIFO_RAM_ADDR_LENGTH 8       // WB slave unit fifo storage definition
+        `define PCI_XILINX_RAMB4
+        `define WB_XILINX_RAMB4
         //`define PCI_XILINX_DIST_RAM
         //`define WB_XILINX_DIST_RAM
     `endif
 `else
-    `define WB_FIFO_RAM_ADDR_LENGTH  9       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
     `define PCI_FIFO_RAM_ADDR_LENGTH 3      // PCI target unit fifo storage definition when RAM sharing is used ( both pcir and pciw fifo use same instance of RAM )
+    `define WB_FIFO_RAM_ADDR_LENGTH 4       // WB slave unit fifo storage definition when RAM sharing is used ( both wbr and wbw fifo use same instance of RAM )
 //    `define WB_ARTISAN_SDP
 //    `define PCI_ARTISAN_SDP
 //    `define PCI_VS_STP
@@ -151,7 +153,7 @@
 // allows for maximum image size ( number = 1, image size = 2GB ). If you intend on using different sizes of PCI images,
 // you have to define a number of minimum sized image and enlarge others by specifying different address mask.
 // smaller the number here, faster the decoder operation
-`define PCI_NUM_OF_DEC_ADDR_LINES 20
+`define PCI_NUM_OF_DEC_ADDR_LINES 24
 
 // no. of PCI Target IMAGES
 // - PCI provides 6 base address registers for image implementation.
@@ -169,10 +171,10 @@
     `endif
 `endif
 
-//`define PCI_IMAGE2
-//`define PCI_IMAGE3
-//`define PCI_IMAGE4
-//`define PCI_IMAGE5
+`define PCI_IMAGE2
+`define PCI_IMAGE3
+`define PCI_IMAGE4
+`define PCI_IMAGE5
 
 // initial value for PCI image address masks. Address masks can be defined in enabled state,
 // to allow device independent software to detect size of image and map base addresses to
@@ -181,7 +183,7 @@
 // address masks as well as base addresses!
 // Don't define PCI_AMx to 24'hffff_ff for memory images! Use that just for I/O images.
 `define PCI_AM0 24'hffff_f0
-`define PCI_AM1 24'hffff_f0
+`define PCI_AM1 24'hffff_ff
 `define PCI_AM2 24'hffff_f0
 `define PCI_AM3 24'hffff_f0
 `define PCI_AM4 24'hffff_f0
@@ -191,7 +193,7 @@
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
 // Device independent software sets the base addresses acording to MEMORY or IO maping!
 `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-`define PCI_BA1_MEM_IO 1'b0
+`define PCI_BA1_MEM_IO 1'b1
 `define PCI_BA2_MEM_IO 1'b0
 `define PCI_BA3_MEM_IO 1'b0
 `define PCI_BA4_MEM_IO 1'b0
@@ -226,15 +228,15 @@
 // ( both GUEST and NO_CNF_IMAGE defined ), then WB image 0 is not implemented. User doesn't need to define image 0.
 // WB Image 1 is always implemented and user doesnt need to specify its definition
 // WB images' 2 through 5 implementation by defining each one.
-//`define WB_IMAGE2
+`define WB_IMAGE2
 //`define WB_IMAGE3
 //`define WB_IMAGE4
 //`define WB_IMAGE5
 
 //Address bar register defines the base address for each image.
 //To asccess bus without Software configuration.
-`define  WB_BA1	20'h8000_0
-`define  WB_BA2	20'h0000_0
+`define  WB_BA1	20'h0000_0
+`define  WB_BA2	20'h8000_0
 `define  WB_BA3	20'h0000_0
 `define  WB_BA4	20'h0000_0
 `define  WB_BA5	20'h0000_0
@@ -249,7 +251,7 @@
 
 // initial value for WB image address masks. 
 `define  WB_AM1 20'h8000_0
-`define  WB_AM2 20'h0000_0
+`define  WB_AM2 20'h8000_0
 `define  WB_AM3 20'h0000_0
 `define  WB_AM4 20'h0000_0
 `define  WB_AM5 20'h0000_0
@@ -293,8 +295,8 @@
 Core speed definition - used for simulation and 66MHz Capable bit value in status register indicating 66MHz
 capable device
 -----------------------------------------------------------------------------------------------------------*/
-//`define PCI33
-`define PCI66
+`define PCI33
+//`define PCI66
 
 /*-----------------------------------------------------------------------------------------------------------
 [000h-00Ch] First 4 DWORDs (32-bit) of PCI configuration header - the same regardless of the HEADER type !
@@ -302,11 +304,11 @@ capable device
 	Xilinx's Vendor_ID is 10EEh and Altera's Vendor_ID is 1172h). Device_ID and Revision_ID should be used
 	together by application.
 -----------------------------------------------------------------------------------------------------------*/
-`define HEADER_VENDOR_ID        16'h0100
-`define HEADER_DEVICE_ID        16'h0003
-`define HEADER_REVISION_ID      8'h10
-`define HEADER_SUBSYS_VENDOR_ID 16'h1979
-`define HEADER_SUBSYS_ID        16'h0708
+`define HEADER_VENDOR_ID        16'h1895
+`define HEADER_DEVICE_ID        16'h0001
+`define HEADER_REVISION_ID      8'h01
+`define HEADER_SUBSYS_VENDOR_ID 16'h1895
+`define HEADER_SUBSYS_ID        16'h0001
 `define HEADER_MAX_LAT          8'h1a
 `define HEADER_MIN_GNT          8'h08
 
@@ -318,10 +320,12 @@ capable device
 // used when wb master accesses extremly slow devices.
 `define PCI_WBM_NO_RESPONSE_CNT_DISABLE
 
-//`define PCI_WB_REV_B3
+`define PCI_WB_REV_B3
 //`define PCI_WBS_B3_RTY_DISABLE
 
 `ifdef GUEST
 //    `define PCI_CPCI_HS_IMPLEMENT
 //    `define PCI_SPOCI
 `endif
+
+`define PCI_ICR_DEFAULT         3'b111

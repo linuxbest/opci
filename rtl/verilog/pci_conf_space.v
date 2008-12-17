@@ -155,6 +155,7 @@ module pci_conf_space
                     ,
                     spoci_scl_oe_o, spoci_sda_i, spoci_sda_oe_o
                 `endif
+			,csr0, csr1
                 ) ;
 
 
@@ -946,6 +947,7 @@ end
         end
     `endif
     	8'hf: r_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
+`ifdef PCI_WB_ENABLE
     `ifdef PCI_CPCI_HS_IMPLEMENT
         (`PCI_CAP_PTR_VAL >> 2):
         begin
@@ -1198,6 +1200,7 @@ end
                                   spoci_cs_adr[7:0],
                                   spoci_cs_dat[7:0]} ;
     `endif
+`endif
     	default	: r_conf_data_out = 32'h0000_0000 ;
     	endcase
     end
@@ -1345,6 +1348,7 @@ begin
 		w_conf_data_out = { r_max_lat, r_min_gnt, r_interrupt_pin, interrupt_line } ;
 		w_reg_select_dec = 57'h000_0000_0000_0004 ;
 	end
+`ifdef PCI_WB_BRIDGE
 `ifdef PCI_CPCI_HS_IMPLEMENT
     (`PCI_CAP_PTR_VAL >> 2):
     begin
@@ -1720,7 +1724,7 @@ begin
         w_reg_select_dec = 57'h000_0000_0000_0000 ;
     end
 `endif
-
+`endif /* PCI_WB_BRIDGE */
 	default:
 	begin
 		w_conf_data_out = 32'h0000_0000 ;
@@ -1888,7 +1892,7 @@ begin
 			icr_bit2_0 <= 3'h0 ;
 			icr_bit4_3 <= 2'h0 ;
 		`else
-			icr_bit2_0[2:0] <= 3'h0 ;
+			icr_bit2_0[2:0] <= `PCI_ICR_DEFAULT ;
 		`endif
 		/*isr_bit4_3 ; isr_bit2_0 ;*/
 
@@ -1980,6 +1984,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
 					if (~w_byte_en[0])
 						interrupt_line <= w_conf_data[7:0] ;
 				end
+/*`ifdef          PCI_WB_BRIDGE*/
 				// PCI target - configuration space
 `ifdef		HOST
   `ifdef	NO_CNF_IMAGE
@@ -2463,6 +2468,7 @@ after this ALWAYS block!!! (for every register bit, there are two D-FF implement
                     end
                 end
 `endif
+/*`endif /* PCI_WB_BRIDGE */
 		end // end of we
 
         // Not register bits; used only internally after reset!
@@ -3928,5 +3934,30 @@ assign		wb_img_ctrl5[2 : 0] = wb_img_ctrl5_bit2_0 ;
 assign		config_addr[23 : 0] = { cnf_addr_bit23_2, 1'b0, cnf_addr_bit0 } ;
 assign		icr_soft_res = icr_bit31 ;
 
+   output [15:0] csr0;
+   output [15:0] csr1;
+
+   assign csr0 = {int_out,        /* interrupt disable */
+                  r_status_bit7,  /* fast back-to-back enable */
+                  serr_enable,   
+                  1'b0,           /* reserved */
+		  
+                  perr_response,
+                  1'b0,           /* vga palette snoop enabled XXX */
+		  1'b0,           /* memory write and invalidate supported XXX */
+		  1'b0,           /* monitor special cycle XXX */
+		  pci_master_enable, 
+		  memory_space_enable,
+                  io_space_enable};
+   assign csr1 = {status_bit15_11,
+                  2'b00,          /* devsel timing XXX */
+                  1'b0,           /* data parity error detected */
+                  1'b0,           /* fast back-to-back capable */
+                  1'b0,
+                  1'b1,           /* 66Mhz */
+                  1'b0,           /* capable list */
+                  int_out,	  /* interrupt status XXX */
+		  3'b000};
+   
 endmodule
 			                    

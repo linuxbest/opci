@@ -200,7 +200,15 @@ module pci_target_unit
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
-);
+    ,
+    /*AUTOARG*/
+   // Outputs
+   s_wrdn, s_data_vld, s_data, pci_cmd, idle, base_hit,
+   backoff, b_busy, addr_vld,
+   // Inputs
+   s_term, s_ready, s_abort, cfg_term, cfg_sel, cfg_ready,
+   adio_in
+   );
 
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
@@ -320,7 +328,28 @@ input   mbist_si_i;       // bist scan serial in
 output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
-
+   
+   /*AUTOINPUT*/
+   // Beginning of automatic inputs (from unused autoinst inputs)
+   input [31:0]		adio_in;		// To pci_target_if of pci_target32_interface.v
+   input		cfg_ready;		// To pci_target_sm of pci_target32_sm.v
+   input		cfg_sel;		// To pci_target_if of pci_target32_interface.v
+   input		cfg_term;		// To pci_target_sm of pci_target32_sm.v
+   input		s_abort;		// To pci_target_sm of pci_target32_sm.v
+   input		s_ready;		// To pci_target_sm of pci_target32_sm.v
+   input		s_term;			// To pci_target_sm of pci_target32_sm.v
+   // End of automatics
+   /*AUTOOUTPUT*/
+   // Beginning of automatic outputs (from unused autoinst outputs)
+   output		b_busy;			// From pci_target_sm of pci_target32_sm.v
+   output		backoff;		// From pci_target_sm of pci_target32_sm.v
+   output [7:0]		base_hit;		// From pci_target_if of pci_target32_interface.v
+   output		idle;			// From pci_target_sm of pci_target32_sm.v
+   output [15:0]	pci_cmd;		// From pci_target_if of pci_target32_interface.v
+   output		s_data;			// From pci_target_sm of pci_target32_sm.v
+   output		s_data_vld;		// From pci_target_sm of pci_target32_sm.v
+   output		s_wrdn;			// From pci_target_sm of pci_target32_sm.v
+   // End of automatics
 
 // pci target state machine and interface outputs
 wire        pcit_sm_trdy_out ;
@@ -565,7 +594,7 @@ wire [3:0]  fifos_pcir_be_in            =   wbm_sm_pcir_fifo_be_out ;
 wire [3:0]  fifos_pcir_control_in       =   wbm_sm_pcir_fifo_control_out ;
 wire        fifos_pcir_renable_in       =   pcit_if_pcir_fifo_renable_out ;
 wire        fifos_pcir_flush_in         =   pcit_if_pcir_fifo_flush_out ;
-
+`ifdef FIFO
 // PCIW_FIFO and PCIR_FIFO instantiation
 pci_pciw_pcir_fifos fifos
 (
@@ -609,7 +638,7 @@ pci_pciw_pcir_fifos fifos
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 ) ;
-
+`endif
 // delayed transaction logic inputs
 wire        del_sync_req_in             =   pcit_if_req_out ;
 wire        del_sync_comp_in            =   wbm_sm_wb_read_done ;
@@ -842,8 +871,14 @@ pci_target32_interface pci_target_if
     .addr_tran_en2_in               (pcit_if_addr_tran_en2_in),
     .addr_tran_en3_in               (pcit_if_addr_tran_en3_in),
     .addr_tran_en4_in               (pcit_if_addr_tran_en4_in),
-    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in)
-) ;
+    .addr_tran_en5_in               (pcit_if_addr_tran_en5_in),
+ /*AUTOINST*/
+ // Outputs
+ .pci_cmd				(pci_cmd[15:0]),
+ .base_hit				(base_hit[7:0]),
+ // Inputs
+ .adio_in				(adio_in[31:0]),
+ .cfg_sel				(cfg_sel)); 
 
 // pci target state machine inputs
 wire        pcit_sm_frame_in                    =   pciu_pciif_frame_in ;
@@ -940,7 +975,23 @@ pci_target32_sm pci_target_sm
     .pcir_fifo_data_err_in              (pcit_sm_pcir_fifo_data_err_in),
     .wbw_fifo_empty_in                  (pcit_sm_wbw_fifo_empty_in),
     .wbu_del_read_comp_pending_in		(pcit_sm_wbu_del_read_comp_pending_in),
-    .wbu_frame_en_in                    (pcit_sm_wbu_frame_en_in)
-) ;
+    .wbu_frame_en_in                    (pcit_sm_wbu_frame_en_in),
+ /*AUTOINST*/
+ // Outputs
+ .s_wrdn				(s_wrdn),
+ .idle					(idle),
+ .b_busy				(b_busy),
+ .s_data				(s_data),
+ .backoff				(backoff),
+ .s_data_vld				(s_data_vld),
+ // Inputs
+ .cfg_ready				(cfg_ready),
+ .cfg_term				(cfg_term),
+ .s_ready				(s_ready),
+ .s_term				(s_term),
+ .s_abort				(s_abort)); 
 
+   output   addr_vld;
+   assign addr_vld = pcit_sm_addr_phase_out;
+   
 endmodule

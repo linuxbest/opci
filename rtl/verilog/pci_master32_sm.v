@@ -126,8 +126,13 @@ module pci_master32_sm
     rerror_out,
     first_out,
     mabort_out,
-    latency_tim_val_in
-) ;
+    latency_tim_val_in,
+ /*AUTOARG*/
+   // Outputs
+   m_data, m_data_vld, m_addr_n, m_src_en, csr2,
+   // Inputs
+   adio_in, m_cbe, m_ready, request, complete
+   ) ;
 
 // system inputs
 input   clk_in,
@@ -170,14 +175,12 @@ input   [31:0]  pci_ad64_reg_in ;
 output  [31:0]  pci_ad_out ;
 output  [31:0]  pci_ad64_out ;
 
-reg     [31:0]  pci_ad_out ;
-reg     [31:0]  pci_ad64_out ;
+wire    [31:0]  pci_ad_out ;
+wire    [31:0]  pci_ad64_out ;
 
 output          pci_ad_en_out ;
 
 output  [3:0]   pci_cbe_out ;
-
-reg     [3:0]   pci_cbe_out ;
 
 output          pci_cbe_en_out ;
 
@@ -226,6 +229,17 @@ input        next_last_in ;
 output       ad_load_out,
              ad_load_on_transfer_out ;
 
+   input [31:0] adio_in;
+   input [3:0] 	m_cbe;
+   input     m_ready;
+   input     request;
+   input     complete;
+   
+   output    m_data;
+   output    m_data_vld;
+   output    m_addr_n;
+   output    m_src_en;
+   
 // parameters - states - one hot
 // idle state
 parameter S_IDLE            = 4'h1 ;
@@ -356,11 +370,15 @@ end
 
 wire timeout_termination = sm_turn_arround && timeout && pci_stop_reg_in ;
 
-// frame control logic
-// frame is forced to 0 (active) when state machine is in idle state, since only possible next state is address state which always drives frame active
-wire force_frame = ~sm_idle ;
-// slow signal for frame calculated from various registers in the core
-wire slow_frame  = last_in || (latency_time_out && pci_gnt_in) || (next_last_in && sm_data_phases) || mabort1 ;
+   // frame control logic
+   // frame is forced to 0 (active) when state machine is in idle state, since only 
+   // possible next state is address state which always drives frame active
+   wire force_frame = ~sm_idle ;
+   // slow signal for frame calculated from various registers in the core
+   wire slow_frame  = complete || 
+	(latency_time_out && pci_gnt_in) || 
+	//(next_last_in && sm_data_phases) || 
+	mabort1 ;
 // critical timing frame logic in separate module - some combinations of target signals force frame to inactive state immediately after sampled asserted
 // (STOP)
 pci_frame_crit frame_iob_feed
@@ -444,8 +462,19 @@ pci_mas_ad_load_crit mas_ad_load_feed
 // next data loading is allowed when state machine is in transfer state and operation is a write
 assign ad_load_on_transfer_out = sm_data_phases && do_write ;
 
+   reg request_reg;
+   always @(posedge clk_in or posedge reset_in)
+     begin
+	if (reset_in)
+	  request_reg <= #1 1'b0;
+	else if (request)
+	  request_reg <= #1 1'b1;
+	else if (u_have_pci_bus)
+	  request_reg <= #1 1'b0;
+     end
+   
 // request for a bus is issued anytime when backend is requesting a transaction and state machine is in idle state
-assign pci_req_out = ~(req_in && sm_idle) ;
+assign pci_req_out = ~(request_reg && sm_idle) ;
 
 // change state signal is actually clock enable for state register
 // Non critical path for state change enable:
@@ -454,10 +483,13 @@ assign pci_req_out = ~(req_in && sm_idle) ;
 // - state machine is in turn arround state
 // - state machine is in transfer state and master abort termination is in progress
 
-wire ch_state_slow = sm_address || sm_turn_arround || sm_data_phases && ( pci_frame_out_in && mabort1 || mabort2 ) ;
-
+   wire ch_state_slow = sm_address ||
+	sm_turn_arround ||
+	sm_data_phases && 
+	( pci_frame_out_in && mabort1 || mabort2 ) ;
+   
 // a bit more critical change state enable is calculated with GNT signal
-wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && req_in && rdy_in ;
+wire ch_state_med  = ch_state_slow || sm_idle && u_have_pci_bus && request_reg && m_ready ;
 
 // most critical change state enable - calculated from target response signals
 pci_mas_ch_state_crit state_machine_ce
@@ -508,7 +540,7 @@ pci_cbe_en_crit cbe_iob_feed
 assign pci_irdy_en_out   = pci_frame_en_in ;
 
 // frame enable driving - sometimes it's calculated from non critical paths
-wire frame_en_slow = (sm_idle && u_have_pci_bus && req_in && rdy_in) || sm_address || (sm_data_phases && ~pci_frame_out_in) ;
+wire frame_en_slow = (sm_idle && u_have_pci_bus && request_reg && m_ready) || sm_address || (sm_data_phases && ~pci_frame_out_in) ;
 wire frame_en_keep = sm_data_phases && pci_frame_out_in && ~mabort1 && ~mabort2 ;
 
 // most critical frame enable - calculated from heavily constrained target inputs in separate module
@@ -551,7 +583,8 @@ begin
                         // indicate the state
                         sm_address  = 1'b1 ;
                         // select appropriate data/be for outputs
-                        wdata_selector = SEL_NEXT_DATA_BE ;
+                        wdata_selector = SEL_NEXT_DATA_BE;
+	   
                         // only possible next state is transfer state
                         next_state = S_TRANSFER ;
                     end
@@ -596,29 +629,26 @@ begin
         rdata_selector <= #`FF_DELAY wdata_selector ;
 end
 
-always@(rdata_selector or address_in or bc_in or data_in or data64_in or be_in or next_data_in or next_data64_in or next_be_in)
-begin
-    case ( rdata_selector )
-        SEL_ADDR_BC:    begin
-                            pci_ad_out  = address_in ;
-                            pci_ad64_out  = 0 ;
-                            pci_cbe_out = bc_in ;
-                        end
-
-        SEL_DATA_BE:    begin
-                            pci_ad_out  = data_in ;
-                            pci_ad64_out  = data64_in ;
-                            pci_cbe_out = be_in ;
-                        end
-        SEL_NEXT_DATA_BE,
-        2'b10:              begin
-                                pci_ad_out  = next_data_in ;
-                                pci_ad64_out  = next_data64_in ;
-                                pci_cbe_out = next_be_in ;
-                            end
-    endcase
-end
-
+   reg [1:0] rdata_cnt;
+   always @(posedge clk_in)
+     begin
+	if (sm_idle)
+	  rdata_cnt <= #1 2'b00;
+	else case ({m_src_en, ~pci_trdy_in && sm_transfer})
+	       2'b00,2'b11: ;
+	       2'b01: rdata_cnt <= #1 rdata_cnt - 1;
+	       2'b10: rdata_cnt <= #1 rdata_cnt + 1;
+	     endcase
+     end
+   reg [31:0] adio_in_reg;
+   always @(posedge clk_in)
+     if (m_src_en)
+       adio_in_reg <= #1 adio_in;
+   
+   assign pci_ad_out  = rdata_cnt == 2'b10 ? adio_in_reg : adio_in;
+   assign pci_cbe_out = m_cbe;
+   /* TODO */
+   
 // data output mux for reads
 always@(mabort_out or pci_ad_reg_in or pci_ad64_reg_in)
 begin
@@ -630,4 +660,22 @@ begin
         data64_out = pci_ad64_reg_in ;
     end
 end
+
+   assign m_addr_n = ~(sm_idle && u_have_pci_bus && request_reg && m_ready);
+   assign m_data     = sm_data_phases || sm_address;
+   reg m_data_vld;
+   always @(posedge clk_in)
+     m_data_vld <= #1 ~pci_trdy_in && sm_transfer;
+   
+   assign m_src_en   = wdata_selector == SEL_NEXT_DATA_BE && rdata_cnt < 2'b10;
+
+   output [7:0] csr2;
+   assign csr2 = {mabort_out,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0,
+		  1'b0};
 endmodule

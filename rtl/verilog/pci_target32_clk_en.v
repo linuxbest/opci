@@ -63,42 +63,45 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module pci_target32_clk_en
-(
-    addr_phase,
-    config_access,
-    addr_claim_in,
-    pci_frame_in,
-    state_wait,
-    state_transfere,
-    state_default,
-    clk_enable
-);
+module pci_target32_clk_en (/*AUTOARG*/
+   // Outputs
+   clk_enable,
+   // Inputs
+   addr_phase, config_access, addr_claim_in, pci_frame_in,
+   state_wait, sm_transfere, state_default, cfg_ready_reg,
+   cfg_term, s_ready, s_term, s_abort
+   );
 
-input           addr_phase ;			// indicates registered address phase on PCI bus
-input           config_access ;			// indicates configuration access
-input           addr_claim_in ;			// indicates claimed input PCI address
-input           pci_frame_in ;			// critical constrained input signal
-input			state_wait ;			// indicates WAIT state of FSM
-input 			state_transfere ;		// indicates TRANSFERE state of FSM
-input			state_default ;			// indicates DEFAULT state of FSM
-
-output			clk_enable ;			// FSM clock enable output
-
-
-// clock enable signal when FSM is in IDLE state
-wire s_idle_clk_en	=	((addr_phase && config_access) ||
-						(addr_phase && ~config_access && addr_claim_in)) ;
-
-// clock enable signal when FSM is in WAIT state or in DEFAULT state
-wire s_wait_clk_en	=	(state_wait || state_default) ;
-
-// clock enable signal when FSM is in TRANSFERE state
-wire s_tran_clk_en	=	(state_transfere && pci_frame_in) ;
+   input           addr_phase ;			// indicates registered address phase on PCI bus
+   input           config_access ;			// indicates configuration access
+   input           addr_claim_in ;			// indicates claimed input PCI address
+   input           pci_frame_in ;			// critical constrained input signal
+   input 	   state_wait ;			// indicates WAIT state of FSM
+   input 	   sm_transfere ;		// indicates TRANSFERE state of FSM
+   input 	   state_default ;			// indicates DEFAULT state of FSM
+   
+   output 	   clk_enable ;			// FSM clock enable output
+   
+   input 	   cfg_ready_reg;
+   input 	   cfg_term;
+   input 	   s_ready;
+   input 	   s_term;
+   input 	   s_abort;
+   
+   // clock enable signal when FSM is in IDLE state
+   wire 		s_idle_clk_en = ((addr_phase && config_access) ||
+					 (addr_phase && ~config_access && addr_claim_in)) ;
 
 
-// Clock enable signal for FSM with preserved hierarchy for minimum delay!
-assign clk_enable	=	(s_idle_clk_en || s_wait_clk_en || s_tran_clk_en) ;
-
+   // clock enable signal when FSM is in WAIT state or in DEFAULT state
+   wire 		s_wait_clk_en = (state_wait && cfg_ready_reg) ;
+   
+   // clock enable signal when FSM is in TRANSFERE state
+   wire 		s_tran_clk_en = (sm_transfere && pci_frame_in ) ;
+   
+   
+   // Clock enable signal for FSM with preserved hierarchy for minimum delay!
+   assign clk_enable = (s_idle_clk_en || s_wait_clk_en || s_tran_clk_en) ;
+   
 
 endmodule

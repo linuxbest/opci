@@ -63,15 +63,13 @@
 `include "timescale.v"
 // synopsys translate_on
 
-module pci_target32_stop_crit
-(
-    stop_w,
-    stop_w_frm,
-    stop_w_frm_irdy,
-    pci_frame_in,
-    pci_irdy_in,
-    pci_stop_out
-);
+module pci_target32_stop_crit (/*AUTOARG*/
+   // Outputs
+   pci_stop_out,
+   // Inputs
+   stop_w, stop_w_frm, stop_w_frm_irdy, pci_frame_in,
+   pci_irdy_in
+   );
 
 input       stop_w ;			// stop signal (composed without critical signals) that do not need critical inputs
 input       stop_w_frm ;		// stop signal (composed without critical signals) that needs AND with critical FRAME input
@@ -83,7 +81,9 @@ input		pci_irdy_in ;		// critical constrained input signal
 output		pci_stop_out ;		// PCI stop output
 
 // PCI stop output with preserved hierarchy for minimum delay!
-assign 	pci_stop_out = ~(stop_w || (stop_w_frm && ~pci_frame_in) || (stop_w_frm_irdy && ~pci_frame_in && ~pci_irdy_in)) ;
+assign 	pci_stop_out = ~(stop_w || 
+			 (stop_w_frm && ~pci_frame_in) || 
+			 (stop_w_frm_irdy && ~pci_frame_in && ~pci_irdy_in)) ;
 
 
 endmodule

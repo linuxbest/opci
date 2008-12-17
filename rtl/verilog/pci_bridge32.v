@@ -122,164 +122,31 @@
 // check polarity of PCI output enables in file out_reg.v and change it according to IO interface specification
 
 module pci_bridge32
-(
-    // WISHBONE system signals
-    wb_clk_i,
-    wb_rst_i,
-    wb_rst_o,
-    wb_int_i,
-    wb_int_o,
-
-    // WISHBONE slave interface
-    wbs_adr_i,
-    wbs_dat_i,
-    wbs_dat64_i,
-    wbs_dat_o,
-    wbs_dat64_o,
-    wbs_sel_i,
-    wbs_cyc_i,
-    wbs_stb_i,
-    wbs_we_i,
-
-`ifdef PCI_WB_REV_B3
-
-    wbs_cti_i,
-    wbs_bte_i,
-
-`else
-
-    wbs_cab_i,
-    wbs_pref_i,
-
-`endif
-
-    wbs_ack_o,
-    wbs_ack64_o,
-    wbs_rty_o,
-    wbs_err_o,
-
-    // WISHBONE master interface
-    wbm_adr_o,
-    wbm_dat_i,
-    wbm_dat_o,
-    wbm_sel_o,
-    wbm_cyc_o,
-    wbm_stb_o,
-    wbm_we_o,
-    wbm_cti_o,
-    wbm_bte_o,
-    wbm_ack_i,
-    wbm_rty_i,
-    wbm_err_i,
-
-    // pci interface - system pins
-    pci_clk_i,
-    pci_rst_i,
-    pci_rst_o,
-    pci_inta_i,
-    pci_inta_o,
-    pci_rst_oe_o,
-    pci_inta_oe_o,
-
-    // arbitration pins
-    pci_req_o,
-    pci_req_oe_o,
-
-    pci_gnt_i,
-
-    // protocol pins
-    pci_frame_i,
-    pci_frame_o,
-    pci_frame_oe_o,
-    
-    pci_req64_i,
-    pci_req64_o,
-    pci_req64_oe_o,
-    
-    pci_ack64_i,
-    pci_ack64_o,
-    pci_ack64_oe_o,
-
-    pci_irdy_oe_o,
-    pci_devsel_oe_o,
-    pci_trdy_oe_o,
-    pci_stop_oe_o,
-    pci_ad_oe_o,
-    pci_ad64_oe_o,
-    pci_cbe_oe_o,
-    pci_cbe64_oe_o,
-
-    pci_irdy_i,
-    pci_irdy_o,
-
-    pci_idsel_i,
-
-    pci_devsel_i,
-    pci_devsel_o,
-
-    pci_trdy_i,
-    pci_trdy_o,
-
-    pci_stop_i,
-    pci_stop_o          ,
-
-    // data transfer pins
-    pci_ad_i,
-    pci_ad_o,
-    pci_ad64_i,
-    pci_ad64_o,
-
-    pci_cbe_i,
-    pci_cbe_o,
-    pci_cbe64_i,
-    pci_cbe64_o,
-
-    // parity generation and checking pins
-    pci_par_i,
-    pci_par_o,
-    pci_par_oe_o,
-    
-    pci_par64_i,
-    pci_par64_o,
-    pci_par64_oe_o,
-
-    pci_perr_i,
-    pci_perr_o,
-    pci_perr_oe_o,
-
-    // system error pin
-    pci_serr_o,
-    pci_serr_oe_o
-
-`ifdef PCI_BIST
-    ,
-    // debug chain signals
-    mbist_si_i,       // bist scan serial in
-    mbist_so_o,       // bist scan serial out
-    mbist_ctrl_i        // bist chain shift control
-`endif
-
-`ifdef PCI_CPCI_HS_IMPLEMENT
-    ,
-    // Compact PCI Hot Swap signals
-    pci_cpci_hs_enum_o      ,   //  ENUM# output with output enable (open drain)
-    pci_cpci_hs_enum_oe_o   ,   //  ENUM# enum output enable
-    pci_cpci_hs_led_o       ,   //  LED output with output enable (open drain)
-    pci_cpci_hs_led_oe_o    ,   //  LED output enable
-    pci_cpci_hs_es_i            //  ejector switch state indicator input
-`endif
-
-`ifdef PCI_SPOCI
-    ,
-    // Serial power on configuration interface
-    spoci_scl_o     ,
-    spoci_scl_oe_o  ,
-    spoci_sda_i     ,
-    spoci_sda_o     ,
-    spoci_sda_oe_o
-`endif
-
-);
+(  /*AUTOARG*/
+   // Outputs
+   pci_rst_o, pci_rst_oe_o, pci_inta_o, pci_inta_oe_o,
+   pci_req_o, pci_req_oe_o, pci_frame_o, pci_frame_oe_o,
+   pci_req64_o, pci_req64_oe_o, pci_ack64_o, pci_ack64_oe_o,
+   pci_irdy_oe_o, pci_devsel_oe_o, pci_trdy_oe_o,
+   pci_stop_oe_o, pci_ad_oe_o, pci_cbe_oe_o, pci_cbe64_oe_o,
+   pci_ad64_oe_o, pci_irdy_o, pci_devsel_o, pci_trdy_o,
+   pci_stop_o, pci_ad_o, pci_ad64_o, pci_cbe_o, pci_cbe64_o,
+   pci_par_o, pci_par_oe_o, pci_par64_o, pci_par64_oe_o,
+   pci_perr_o, pci_perr_oe_o, pci_serr_o, pci_serr_oe_o,
+   addr, adio_out, addr_vld, cfg_vld, s_data_vld, s_src_en,
+   s_wrdn, pci_cmd, s_cbe, base_hit, cfg_hit, m_data_vld,
+   m_src_en, time_out, m_data, dr_bus, m_addr_n, i_idle,
+   idle, b_busy, s_data, backoff, frameq_n, devselq_n,
+   irdyq_n, trdyq_n, stopq_n, perrq_n, serrq_n, csr,
+   // Inputs
+   pci_clk_i, pci_rst_i, pci_inta_i, pci_gnt_i, pci_frame_i,
+   pci_req64_i, pci_ack64_i, pci_irdy_i, pci_idsel_i,
+   pci_devsel_i, pci_trdy_i, pci_stop_i, pci_ad_i,
+   pci_ad64_i, pci_cbe_i, pci_cbe64_i, pci_par_i,
+   pci_par64_i, pci_perr_i, adio_in, c_ready, c_term,
+   s_ready, s_term, s_abort, request, requesthold, m_cbe,
+   m_wrdn, complete, m_ready, cfg_self, int_n
+   );
 
 `ifdef HOST
     `ifdef NO_CNF_IMAGE
@@ -296,53 +163,39 @@ module pci_bridge32
 parameter pci_ba1_5_width = `PCI_NUM_OF_DEC_ADDR_LINES ;
 
 // WISHBONE system signals
-input   wb_clk_i ;
-input   wb_rst_i ;
-output  wb_rst_o ;
-input   wb_int_i ;
-output  wb_int_o ;
+wire    wb_clk_i ;
+wire    wb_rst_i ;
+wire    wb_rst_o ;
+wire    wb_int_i ;
+wire    wb_int_o ;
 
 // WISHBONE slave interface
-input   [31:0]  wbs_adr_i ;
-input   [31:0]  wbs_dat_i ;
-input   [31:0]  wbs_dat64_i ;
-output  [31:0]  wbs_dat_o ;
-output  [31:0]  wbs_dat64_o ;
-input   [3:0]   wbs_sel_i ;
-input           wbs_cyc_i ;
-input           wbs_stb_i ;
-input           wbs_we_i ;
-
-`ifdef PCI_WB_REV_B3
-
-input [2:0] wbs_cti_i ;
-input [1:0] wbs_bte_i ;
-
-`else
-
-input wbs_cab_i ;
-input wbs_pref_i ;
-
-`endif
-
-output          wbs_ack_o ;
-output          wbs_ack64_o ;
-output          wbs_rty_o ;
-output          wbs_err_o ;
+wire    [31:0]  wbs_adr_i ;
+wire    [31:0]  wbs_dat_i ;
+wire    [31:0]  wbs_dat64_i ;
+wire    [31:0]  wbs_dat_o ;
+wire    [31:0]  wbs_dat64_o ;
+wire    [3:0]   wbs_sel_i ;
+wire            wbs_cyc_i ;
+wire            wbs_stb_i ;
+wire            wbs_we_i ;
+wire  wbs_ack_o;
+wire  wbs_rty_o;
+wire  wbs_err_o;
 
 // WISHBONE master interface
-output  [31:0]  wbm_adr_o ;
-input   [31:0]  wbm_dat_i ;
-output  [31:0]  wbm_dat_o ;
-output  [3:0]   wbm_sel_o ;
-output          wbm_cyc_o ;
-output          wbm_stb_o ;
-output          wbm_we_o ;
-output  [2:0]   wbm_cti_o ;
-output  [1:0]   wbm_bte_o ;
-input           wbm_ack_i ;
-input           wbm_rty_i ;
-input           wbm_err_i ;
+wire [31:0]  wbm_adr_o ;
+wire [31:0]  wbm_dat_i ;
+wire [31:0]  wbm_dat_o ;
+wire [3:0]   wbm_sel_o ;
+wire wbm_cyc_o ;
+wire wbm_stb_o ;
+wire wbm_we_o ;
+wire [2:0]   wbm_cti_o ;
+wire [1:0]   wbm_bte_o ;
+wire wbm_ack_i ;
+wire wbm_rty_i ;
+wire  wbm_err_i ;
 
 // pci interface - system pins
 input   pci_clk_i ;
@@ -428,34 +281,92 @@ output  pci_serr_oe_o ;
 /*-----------------------------------------------------
 BIST debug chain port signals
 -----------------------------------------------------*/
-input   mbist_si_i;       // bist scan serial in
-output  mbist_so_o;       // bist scan serial out
-input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
+wire  mbist_si_i;       // bist scan serial in
+wire  mbist_so_o;       // bist scan serial out
+wire [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
 `ifdef PCI_CPCI_HS_IMPLEMENT
     // Compact PCI Hot Swap signals
-output  pci_cpci_hs_enum_o      ;   //  ENUM# output with output enable (open drain)
-output  pci_cpci_hs_enum_oe_o   ;   //  ENUM# enum output enable
-output  pci_cpci_hs_led_o       ;   //  LED output with output enable (open drain)
-output  pci_cpci_hs_led_oe_o    ;   //  LED output enable
-input   pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
+wire pci_cpci_hs_enum_o      ;   //  ENUM# output with output enable (open drain)
+wire pci_cpci_hs_enum_oe_o   ;   //  ENUM# enum output enable
+wire pci_cpci_hs_led_o       ;   //  LED output with output enable (open drain)
+wire pci_cpci_hs_led_oe_o    ;   //  LED output enable
+wire pci_cpci_hs_es_i        ;   //  ejector switch state indicator input
 
 assign  pci_cpci_hs_enum_o = 1'b0   ;
 assign  pci_cpci_hs_led_o  = 1'b0   ;
 `endif
 
 `ifdef PCI_SPOCI
-output  spoci_scl_o     ;
-output  spoci_scl_oe_o  ;
-input   spoci_sda_i     ;
-output  spoci_sda_o     ;
-output  spoci_sda_oe_o  ;
+wire spoci_scl_o     ;
+wire spoci_scl_oe_o  ;
+wire spoci_sda_i     ;
+wire spoci_sda_o     ;
+wire spoci_sda_oe_o  ;
 
 assign  spoci_scl_o = 1'b0  ;
 assign  spoci_sda_o = 1'b0  ;
 `endif
 
+   /* Address and Data Path */   
+   output [31:0] addr;		// C1 
+   input [31:0]  adio_in;	// TODO 
+   output [31:0] adio_out;	// C1 
+   
+   /* target control */
+   output 	 addr_vld;	// C1 
+   output 	 cfg_vld;	// C1 
+   output 	 s_data_vld;	// C1 
+   output 	 s_src_en;	// TODO 
+   output 	 s_wrdn;	// C1 
+   output [15:0] pci_cmd;	// C1 
+   output [3:0]  s_cbe;		// C1 
+   output [7:0]  base_hit;	// S1 XXX 
+   output 	 cfg_hit;	// C1 
+   input 	 c_ready;	// TODO 
+   input 	 c_term;	// TODO
+   input 	 s_ready;	// TODO
+   input 	 s_term;	// TODO
+   input 	 s_abort;	// TODO
+
+   /* initiator control */
+   input 	 request;	// TODO
+   input 	 requesthold;	// TODO
+   input [3:0] 	 m_cbe;		// TODO
+   input 	 m_wrdn;	// TODO
+   input 	 complete;	// TODO
+   input 	 m_ready;	// TODO
+   output 	 m_data_vld;	// TODO
+   output 	 m_src_en;	// TODO
+   input 	 cfg_self;	// TODO
+   output 	 time_out;	// TODO
+   
+   /* initiator state machine */
+   output 	 m_data;	// TODO
+   output 	 dr_bus;	// TODO
+   output 	 m_addr_n;	// TODO
+   output 	 i_idle;	// TODO
+
+   /* target state machine */
+   output 	 idle;		// C0
+   output 	 b_busy;	// C0
+   output 	 s_data;	// C0
+   output 	 backoff;	// C0
+
+   /* misc signals */
+   output 	 frameq_n;	// S1
+   output 	 devselq_n;	// S1
+   output 	 irdyq_n;	// S1
+   output 	 trdyq_n;	// S1
+   output 	 stopq_n;	// S1
+   
+   output 	 perrq_n;	// TODO
+   output 	 serrq_n;	// TODO
+   input 	 int_n;		// TODO
+
+   output [39:0] csr;		// TODO
+   
 // declare clock and reset wires
 wire pci_clk = pci_clk_i ;
 wire wb_clk  = wb_clk_i ;
@@ -577,6 +488,11 @@ wire    [7:0]   conf_cache_line_size_to_wb_out ;
 wire            conf_cache_lsize_not_zero_to_wb_out ;
 wire    [7:0]   conf_latency_tim_out ;
 
+   wire [15:0] 	csr0;
+   wire [15:0] 	csr1;
+   wire [7:0] 	csr2;		// TODO
+   assign csr = {csr2, csr1, csr0};
+   
 wire    [pci_ba0_width   - 1:0]   conf_pci_ba0_out ;
 wire    [pci_ba1_5_width - 1:0]   conf_pci_ba1_out ;
 wire    [pci_ba1_5_width - 1:0]   conf_pci_ba2_out ;
@@ -789,7 +705,7 @@ wire    pci_resi_pci_rstn_in            = pci_rst_i ;
 wire    pci_resi_conf_soft_res_in       = conf_soft_res_out ;
 wire    pci_inti_pci_intan_in           = pci_inta_i ;
 wire    pci_inti_conf_int_in            = conf_int_out ;
-wire    pci_inti_int_i                  = wb_int_i ;
+wire    pci_inti_int_i                  = ~int_n ;
 wire    pci_into_init_complete_in       = conf_pci_init_complete_out ;
 
 pci_rst_int pci_resets_and_interrupts
@@ -1096,7 +1012,20 @@ pci_wb_slave_unit wishbone_slave_unit
     .mbist_so_o       (mbist_so_o_internal),
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
-);
+ ,
+ /*AUTOINST*/
+ // Outputs
+ .m_addr_n				(m_addr_n),
+ .csr2					(csr2[7:0]),
+ .m_data				(m_data),
+ .m_data_vld				(m_data_vld),
+ .m_src_en				(m_src_en),
+ // Inputs
+ .adio_in				(adio_in[31:0]),
+ .complete				(complete),
+ .m_cbe					(m_cbe[3:0]),
+ .m_ready				(m_ready),
+ .request				(request));
 
 // PCI TARGET UNIT INPUTS
 wire    [31:0]  pciu_mdata_in                   =   wbm_dat_i ;
@@ -1186,6 +1115,10 @@ wire            pciu_pciif_bckp_stop_in                 =   out_bckp_stop_out ;
 wire            pciu_pciif_trdy_reg_in                  =   in_reg_trdy_out ;
 wire            pciu_pciif_stop_reg_in                  =   in_reg_stop_out ;
 
+   wire 	cfg_ready;
+   wire 	cfg_term;
+   reg 		cfg_sel;
+   
 pci_target_unit pci_target_unit
 (
     .reset_in                       (reset),
@@ -1280,7 +1213,26 @@ pci_target_unit pci_target_unit
     .mbist_so_o       (mbist_so_o),
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
-);
+    ,
+ /*AUTOINST*/
+ // Outputs
+ .b_busy				(b_busy),
+ .backoff				(backoff),
+ .base_hit				(base_hit[7:0]),
+ .idle					(idle),
+ .pci_cmd				(pci_cmd[15:0]),
+ .s_data				(s_data),
+ .s_data_vld				(s_data_vld),
+ .s_wrdn				(s_wrdn),
+ .addr_vld				(addr_vld),
+ // Inputs
+ .adio_in				(adio_in[31:0]),
+ .cfg_ready				(cfg_ready),
+ .cfg_sel				(cfg_sel),
+ .cfg_term				(cfg_term),
+ .s_abort				(s_abort),
+ .s_ready				(s_ready),
+ .s_term				(s_term));
 
 // 64BIT PCI BUS 
 reg wbs_ack64_o;
@@ -1474,7 +1426,11 @@ pci_conf_space configuration(
                                 .spoci_sda_i    (spoci_sda_i    )  ,
                                 .spoci_sda_oe_o (spoci_sda_oe_o )
                             `endif
-                            ) ;
+			     ,
+			     /*AUTOINST*/
+			     // Outputs
+			     .csr0		(csr0[15:0]),
+			     .csr1		(csr1[15:0])); 
 
 // pci data io multiplexer inputs
 wire            pci_mux_tar_ad_en_in            = pciu_pciif_ad_en_out ;
@@ -1602,7 +1558,7 @@ pci_io_mux pci_io_mux
     .ad_en_unregistered_out     (pci_mux_ad_en_unregistered_out),
 
     .init_complete_in           (pci_mux_init_complete_in)
-);
+ );
 
 pci_cur_out_reg output_backup
 (
@@ -1774,4 +1730,40 @@ pci_in_reg input_register
     .pci_cbe_reg_out    (in_reg_cbe_out)
 );
 
+   assign adio_out = in_reg_ad_out;
+   reg [31:0] 	addr;
+   always @(posedge pci_clk)
+     begin
+	if (addr_vld)
+	  addr <= #1 adio_out;
+     end
+
+   assign cfg_vld = addr_vld && in_reg_idsel_out;
+   assign s_cbe   = in_reg_cbe_out;
+
+   assign frameq_n = in_reg_frame_out;
+   assign devselq_n= in_reg_devsel_out;
+   assign irdyq_n  = in_reg_irdy_out;
+   assign trdyq_n  = in_reg_trdy_out;
+   assign stopq_n  = in_reg_stop_out;
+   
+   reg cfg_hit;
+   always @(posedge pci_clk)
+     begin
+	if (addr_vld)
+	  cfg_hit <= #1 cfg_vld && adio_out[7];
+	else 
+	  cfg_hit <= #1 1'b0;
+     end
+
+   always @(posedge pci_clk or posedge reset)
+     begin
+	if (reset)
+	  cfg_sel <= #1 1'b0;
+	else if (addr_vld)
+	  cfg_sel <= #1 cfg_vld && adio_out[7];
+     end
+   assign cfg_ready = cfg_sel ? c_ready : s_ready;
+   assign cfg_term  = cfg_sel ? c_term  : 1'b0;
+   
 endmodule

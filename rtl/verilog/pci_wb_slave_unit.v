@@ -189,7 +189,13 @@ module pci_wb_slave_unit
     mbist_so_o,       // bist scan serial out
     mbist_ctrl_i        // bist chain shift control
 `endif
-);
+ ,
+ /*AUTOARG*/
+   // Outputs
+   m_src_en, m_data_vld, m_data, csr2, m_addr_n,
+   // Inputs
+   request, m_ready, m_cbe, complete, adio_in
+   );
 
 input reset_in,
       wb_clock_in,
@@ -305,6 +311,25 @@ output  mbist_so_o;       // bist scan serial out
 input [`PCI_MBIST_CTRL_WIDTH - 1:0] mbist_ctrl_i;       // bist chain shift control
 `endif
 
+   output 			    m_addr_n;
+   
+   /*AUTOINPUT*/
+   // Beginning of automatic inputs (from unused autoinst inputs)
+   input [31:0]		adio_in;		// To pci_initiator_sm of pci_master32_sm.v
+   input		complete;		// To pci_initiator_sm of pci_master32_sm.v
+   input [3:0]		m_cbe;			// To pci_initiator_if of pci_master32_sm_if.v, ...
+   input		m_ready;		// To pci_initiator_sm of pci_master32_sm.v
+   input		request;		// To pci_initiator_sm of pci_master32_sm.v
+   // End of automatics
+   /*AUTOOUTPUT*/
+   // Beginning of automatic outputs (from unused autoinst outputs)
+   output [7:0]		csr2;			// From pci_initiator_sm of pci_master32_sm.v
+   output		m_data;			// From pci_initiator_sm of pci_master32_sm.v
+   output		m_data_vld;		// From pci_initiator_sm of pci_master32_sm.v
+   output		m_src_en;		// From pci_initiator_sm of pci_master32_sm.v
+   // End of automatics
+   /*AUTOWIRE*/
+   
 // pci master interface outputs
 wire [31:0] pcim_if_address_out ;
 wire [3:0]  pcim_if_bc_out ;
@@ -601,7 +626,7 @@ wire [3:0]  fifos_wbr_be_in             =       pcim_if_wbr_be_out ;
 wire [3:0]  fifos_wbr_control_in        =       pcim_if_wbr_control_out ;
 wire        fifos_wbr_renable_in        =       wbs_sm_wbr_renable_out ;
 wire        fifos_wbr_flush_in          =       wbs_sm_wbr_flush_out || del_sync_comp_flush_out ;
-
+`ifdef FIFO
 // WBW_FIFO and WBR_FIFO instantiation
 pci_wbw_wbr_fifos fifos
 (
@@ -644,7 +669,7 @@ pci_wbw_wbr_fifos fifos
     .mbist_ctrl_i       (mbist_ctrl_i)
 `endif
 ) ;
-
+`endif
 wire [31:0] amux_addr_in  = ADDR_I ;
 wire        amux_sample_address_in = wbs_sm_sample_address_out ;
 
@@ -854,8 +879,11 @@ pci_master32_sm_if pci_initiator_if
     .rerror_in                     (pcim_if_rerror_in),
     .first_in                      (pcim_if_first_in),
     .mabort_in                     (pcim_if_mabort_in),
-    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out)
-);
+    .posted_write_not_present_out  (pcim_if_posted_write_not_present_out),
+ /*AUTOINST*/
+ // Inputs
+ .m_addr_n				(m_addr_n),
+ .m_cbe					(m_cbe[3:0]));
 
 // pci master state machine inputs
 wire        pcim_sm_gnt_in                  =       wbu_pciif_gnt_in ;
@@ -936,7 +964,19 @@ pci_master32_sm pci_initiator_sm
     .retry_out                  (pcim_sm_retry_out),
     .rerror_out                 (pcim_sm_rerror_out),
     .first_out                  (pcim_sm_first_out),
-    .mabort_out                 (pcim_sm_mabort_out)
-) ;
+    .mabort_out                 (pcim_sm_mabort_out),
+ /*AUTOINST*/
+ // Outputs
+ .m_data				(m_data),
+ .m_data_vld				(m_data_vld),
+ .m_addr_n				(m_addr_n),
+ .m_src_en				(m_src_en),
+ .csr2					(csr2[7:0]),
+ // Inputs
+ .adio_in				(adio_in[31:0]),
+ .m_cbe					(m_cbe[3:0]),
+ .m_ready				(m_ready),
+ .request				(request),
+ .complete				(complete)); 
 
 endmodule
