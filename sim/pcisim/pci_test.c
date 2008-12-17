@@ -78,7 +78,7 @@ dev_scan(int dev)
 		}
 		printf("\n");
 		
-                if (pcisim_config_read(1<<i) == (0x3 << 16 | 0x100))
+                if (pcisim_config_read(1<<i) == (0x1 << 16 | 0x1895))
                         idx = i;
 	}
 	
@@ -149,10 +149,13 @@ main(int argc, char *argv[])
 	int val;
         val = pcisim_config_read((1<<idx) + 4*1);
 	pcisim_config_write((1<<idx) + 4*1, val | 1<<1| 1<<2);
-
+        pcisim_config_write((1<<idx) + 4*6, lzf_mem); /* bar1 */
         /* cache line */ 
 	pcisim_config_write((1<<idx) + 4*3, 0x4004);
-        
+
+        pcisim_writel(lzf_mem, 0xAA55);
+
+        pcisim_wait(400, 0);
  done:
 	return 0;
 }

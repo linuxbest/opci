@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 六 12月 13 15:51:09 2008 (+0800)
 // Version: 
-// Last-Updated: 三 12月 17 18:03:16 2008 (+0800)
+// Last-Updated: 三 12月 17 18:49:30 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 98
+//     Update #: 101
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -96,6 +96,9 @@ module master_tb (/*AUTOARG*/
 	 start = 1;
 	 dir   = cmd_dir;
 	 address = cmd_address;
+	 @(posedge CLK);
+	 @(posedge CLK);
+	 start = 0;
       end
    endtask // start
    
@@ -200,7 +203,7 @@ module master_tb (/*AUTOARG*/
 	  q <= #1 adio_out;
      end
    
-   assign adio_in = ~addr_oe ? 32'hC000_0000 : 
+   assign adio_in = ~addr_oe ? address : 
 		    oe ? q : 32'hz;   
 endmodule // master_tb
 

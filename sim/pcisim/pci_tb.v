@@ -69,15 +69,20 @@ module main;
    assign usb_d = 0;
    assign usb_fwrn = 0;
    assign spi_sel = 0;
+
+   reg 	started = 0;
+   
    initial begin
       $dumpfile("pci.vcd");
       $dumpvars(0, top);
+      started = 1;
    end
-   reg vcd = 0;
-   /*always @(posedge clk) begin
-     if (top.adma.enable && vcd == 0) begin
-      $dumpvars(0, top);
-      vcd = 1;
-     end
-   end*/
+
+   always @(posedge clk) begin
+      if (top.mem_target.q == 32'haa55) begin
+	 top.mem_target.q = 32'haa66;
+	 top.master_tb.start_enable(0, 32'ha000_0000);
+      end
+   end
+   
 endmodule

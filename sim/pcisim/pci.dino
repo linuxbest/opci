@@ -23,5 +23,11 @@ signal_add main.top.SERR
 signal_add main.top.STOP
 signal_highlight main.top.STOP 8
 
+signal_add main.top.mem_target.q
+signal_add main.top.mem_target.load
+signal_add main.top.mem_target.oe
+signal_add main.top.adio_out
+signal_add main.top.adio64_out
+
 grid_signal 0   *
 grid_color  0   4
