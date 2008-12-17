@@ -1,0 +1,27 @@
+signal_delete *.*
+
+signal_add main.top.CLK
+signal_add main.top.RSTn
+signal_add main.top.FRAME
+signal_add main.top.REQ64
+signal_add main.top.AD
+signal_add main.top.AD64
+signal_add main.top.CBE
+signal_add main.top.CBE64
+signal_add main.top.IRDY
+signal_add main.top.TRDY
+signal_add main.top.DEVSEL
+signal_add main.top.ACK64
+signal_add main.top.IDSEL
+signal_add main.top.PAR
+signal_add main.top.PAR64
+signal_add main.top.GNT
+signal_add main.top.LOCK
+signal_add main.top.PERR
+signal_add main.top.REQ
+signal_add main.top.SERR
+signal_add main.top.STOP
+signal_highlight main.top.STOP 8
+
+grid_signal 0   *
+grid_color  0   4
