@@ -366,8 +366,83 @@ task test_pci_master;
 endtask // test_pci_master
 
 task test_pci_master_error_handling;
-   begin
-   end
+   reg   [11:0] ctrl_offset ;
+   reg [11:0] 	ba_offset ;
+   reg [11:0] 	am_offset ;
+   reg [11:0] 	ta_offset ;
+   reg [11:0] 	err_cs_offset ;
+   reg 		`WRITE_STIM_TYPE write_data ;
+   reg 		`READ_STIM_TYPE  read_data ;
+   reg 		`READ_RETURN_TYPE read_status ;
+   reg 		`WRITE_RETURN_TYPE write_status ;
+   reg 		`WB_TRANSFER_FLAGS write_flags ;
+   reg [31:0] 	temp_val1 ;
+   reg [31:0] 	temp_val2 ;
+   reg 		ok   ;
+   reg [11:0] 	pci_ctrl_offset ;
+   reg [31:0] 	image_base ;
+   reg [31:0] 	target_address ;
+   integer 	num_of_trans ;
+   integer 	current ;
+   integer 	i ;
+   reg [ 1: 0] 	byte_ofs ;
+   
+   begin: main
+      $display("************* Testing handling of PCI bus errors ***************") ;
+      
+      // perform two writes - one to error address and one to OK address
+      // prepare write buffer
+      write_data`WRITE_ADDRESS  = `BEH_TAR1_MEM_START  + ({$random} % 4) ;
+      write_data`WRITE_DATA     = wmem_data[100] ;
+      write_data`WRITE_SEL      = 4'hF ;
+      SYSTEM.bridge32_top.master_tb.blk_write_data[0] = write_data ;
+      write_flags`WB_TRANSFER_SIZE = 2 ;
+      // don't handle retries
+      write_flags`WB_TRANSFER_AUTO_RTY = 0 ;
+      write_flags`WB_TRANSFER_CAB    = 0 ;
+      
+      $display("Introducing master abort error on single WB to PCI write!") ;
+      test_name = "MASTER ABORT ERROR HANDLING DURING WB TO PCI WRITES" ;
+      // first disable target 1
+      configuration_cycle_write(0,                        // bus number
+				`TAR1_IDSEL_INDEX - 11,   // device number
+				0,                        // function number
+				1,                        // register number
+				0,                        // type of configuration cycle
+				4'b0001,                  // byte enables
+				32'h0000_0000             // data
+				) ;
+      
+      fork
+	 begin
+	    // start no response monitor in parallel with writes
+	    musnt_respond(ok) ;
+	    if ( ok !== 1 ) begin
+	       $display("PCI bus error handling testing failed! Test of master abort handling got one target to respond! Time %t ", $time) ;
+	       $display("Testbench is configured wrong!") ;
+	       test_fail("transaction wasn't initiated by PCI Master state machine or Target responded and Master Abort didn't occur");
+	    end
+	    else
+	      test_ok ;
+	 end // fork begin
+	 begin
+	    SYSTEM.bridge32_top.master_tb.single_write(write_data`WRITE_ADDRESS,
+						       write_data`WRITE_DATA,
+						       write_status,
+						       wb_init_waits);
+	    wishbone_master.wb_single_write(write_data, write_flags, write_status) ;
+	    if ( write_status`CYC_ACTUAL_TRANSFER !== 1 ) begin
+	       $display("PCI bus error handling testing failed! WB slave didn't acknowledge single write cycle! Time %t ", $time) ;
+	       $display("WISHBONE slave response: ACK = %b, RTY = %b, ERR = %b ", write_status`CYC_ACK, write_status`CYC_RTY, write_status`CYC_ERR) ;
+	       test_fail("WB Slave state machine failed to post single memory write");
+	       disable main ;
+	    end // if ( write_status`CYC_ACTUAL_TRANSFER !== 1 )
+	 end // fork branch
+      join
+
+      $stop;
+	
+   end // block: main
 endtask // test_pci_master_error_handling
 
 task lg_test_pci;
@@ -402,7 +477,7 @@ task lg_test_pci;
 	       configure_bridge_target ;
 	       next_test_name[79:0] <= "WB_SLAVE..";
 
-	       /* wb */
+	       /* pci master test */
 	       test_pci_master;
 	       test_pci_master_error_handling; 
 	       //test_pci_master_transcations;
@@ -411,6 +486,7 @@ task lg_test_pci;
 	       $display("Testing PCI target images' features!") ;
 	       configure_bridge_target_base_addresses;
 
+	       /* pci target test */
 	       /*test_pci_image(1);
 	       test_pci_image(2);
 	       test_pci_image(3);

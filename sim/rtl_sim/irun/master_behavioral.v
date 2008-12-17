@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二 12月 16 09:25:42 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 17:25:32 2008 (+0800)
+// Last-Updated: 三 12月 17 09:40:14 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 368
+//     Update #: 377
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -600,7 +600,7 @@ module master_behavioral (/*AUTOARG*/
 	 in_use = 1;
 	 retry  = 1;
 	 
-	 return `CYC_ACTUAL_TRANSFER = 0;
+	 //return `CYC_ACTUAL_TRANSFER = 0;
 	 while (retry === 1) begin
 	    @(posedge CLK)
 	    if (c_state == S_IDLE)
@@ -622,8 +622,14 @@ module master_behavioral (/*AUTOARG*/
 	    return `TB_ERROR_BIT = 1'b1;
 	 end
 	 
-	 @(posedge c_state == S_OOPS);
-	 return `CYC_ACTUAL_TRANSFER = 1;
+	 while (c_state != S_IDLE) begin
+	    @(posedge CLK);
+	    if (m_data_vld) begin
+	       return `CYC_ACTUAL_TRANSFER = 1;
+	       $display ("xfer\n");
+	    end
+	 end
+	 $display("return %h", return `CYC_ACTUAL_TRANSFER);
 	 
 	 in_use = 0;
       end

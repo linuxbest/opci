@@ -471,6 +471,11 @@ wire    [7:0]   conf_cache_line_size_to_wb_out ;
 wire            conf_cache_lsize_not_zero_to_wb_out ;
 wire    [7:0]   conf_latency_tim_out ;
 
+   wire [15:0] 	csr0;
+   wire [15:0] 	csr1;
+   wire [15:0] 	csr2;
+   assign csr = {csr2, csr1, csr0};
+   
 wire    [pci_ba0_width   - 1:0]   conf_pci_ba0_out ;
 wire    [pci_ba1_5_width - 1:0]   conf_pci_ba1_out ;
 wire    [pci_ba1_5_width - 1:0]   conf_pci_ba2_out ;
@@ -1361,7 +1366,11 @@ pci_conf_space configuration(
                                 .spoci_sda_i    (spoci_sda_i    )  ,
                                 .spoci_sda_oe_o (spoci_sda_oe_o )
                             `endif
-                            ) ;
+			     ,
+			     /*AUTOINST*/
+			     // Outputs
+			     .csr0		(csr0[15:0]),
+			     .csr1		(csr1[15:0])); 
 
 // pci data io multiplexer inputs
 wire            pci_mux_tar_ad_en_in            = pciu_pciif_ad_en_out ;

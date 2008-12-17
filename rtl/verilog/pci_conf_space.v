@@ -155,6 +155,7 @@ module pci_conf_space
                     ,
                     spoci_scl_oe_o, spoci_sda_i, spoci_sda_oe_o
                 `endif
+			,csr0, csr1
                 ) ;
 
 
@@ -3933,5 +3934,30 @@ assign		wb_img_ctrl5[2 : 0] = wb_img_ctrl5_bit2_0 ;
 assign		config_addr[23 : 0] = { cnf_addr_bit23_2, 1'b0, cnf_addr_bit0 } ;
 assign		icr_soft_res = icr_bit31 ;
 
+   output [15:0] csr0;
+   output [15:0] csr1;
+
+   assign csr0 = {int_out,        /* interrupt disable */
+                  r_status_bit7,  /* fast back-to-back enable */
+                  serr_enable,   
+                  1'b0,           /* reserved */
+		  
+                  perr_enable,
+                  1'b0,           /* vga palette snoop enabled XXX */
+		  1'b0,           /* memory write and invalidate supported XXX */
+		  1'b0,           /* monitor special cycle XXX */
+		  pci_master_enable, 
+		  memory_space_enable,
+                  io_space_enable};
+   assign csr1 = {status_bit15_11,
+                  2'b00,          /* devsel timing XXX */
+                  1'b0,           /* data parity error detected */
+                  1'b0,           /* fast back-to-back capable */
+                  1'b0,
+                  1'b1,           /* 66Mhz */
+                  1'b0,           /* capable list */
+                  int_out,	  /* interrupt status XXX */
+		  3'b000};
+   
 endmodule
 			                    
