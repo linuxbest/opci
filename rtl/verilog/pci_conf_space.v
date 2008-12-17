@@ -3942,7 +3942,7 @@ assign		icr_soft_res = icr_bit31 ;
                   serr_enable,   
                   1'b0,           /* reserved */
 		  
-                  perr_enable,
+                  perr_response,
                   1'b0,           /* vga palette snoop enabled XXX */
 		  1'b0,           /* memory write and invalidate supported XXX */
 		  1'b0,           /* monitor special cycle XXX */
