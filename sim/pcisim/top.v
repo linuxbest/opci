@@ -145,7 +145,9 @@ module top (/*AUTOARG*/
    // Beginning of automatic wires (for undeclared instantiated-module outputs)
    wire [31:0]		addr;			// From bridge of pci_bridge32.v
    wire			addr_vld;		// From bridge of pci_bridge32.v
-   wire [32:0]		adio_in;		// From cfg_wait of cfg_wait.v, ...
+   wire [31:0]		adio64_in;		// From master_tb of master_tb.v
+   wire [31:0]		adio64_out;		// From bridge of pci_bridge32.v
+   wire [31:0]		adio_in;		// From cfg_wait of cfg_wait.v, ...
    wire [31:0]		adio_out;		// From bridge of pci_bridge32.v
    wire			b_busy;			// From bridge of pci_bridge32.v
    wire			backoff;		// From bridge of pci_bridge32.v
@@ -164,6 +166,7 @@ module top (/*AUTOARG*/
    wire			irdyq_n;		// From bridge of pci_bridge32.v
    wire			m_addr_n;		// From bridge of pci_bridge32.v
    wire [3:0]		m_cbe;			// From master_tb of master_tb.v
+   wire [3:0]		m_cbe64;		// From master_tb of master_tb.v
    wire			m_data;			// From bridge of pci_bridge32.v
    wire			m_data_vld;		// From bridge of pci_bridge32.v
    wire			m_ready;		// From master_tb of master_tb.v
@@ -172,9 +175,11 @@ module top (/*AUTOARG*/
    wire [15:0]		pci_cmd;		// From bridge of pci_bridge32.v
    wire			perrq_n;		// From bridge of pci_bridge32.v
    wire			request;		// From master_tb of master_tb.v
+   wire			request64;		// From master_tb of master_tb.v
    wire			requesthold;		// From master_tb of master_tb.v
    wire			s_abort;		// From mem_target of mem_target.v
    wire [3:0]		s_cbe;			// From bridge of pci_bridge32.v
+   wire [3:0]		s_cbe64;		// From bridge of pci_bridge32.v
    wire			s_data;			// From bridge of pci_bridge32.v
    wire			s_data_vld;		// From bridge of pci_bridge32.v
    wire			s_ready;		// From mem_target of mem_target.v
@@ -273,6 +278,7 @@ pci_bridge32 bridge
  // Outputs
  .addr					(addr[31:0]),
  .adio_out				(adio_out[31:0]),
+ .adio64_out				(adio64_out[31:0]),
  .addr_vld				(addr_vld),
  .cfg_vld				(cfg_vld),
  .s_data_vld				(s_data_vld),
@@ -280,6 +286,7 @@ pci_bridge32 bridge
  .s_wrdn				(s_wrdn),
  .pci_cmd				(pci_cmd[15:0]),
  .s_cbe					(s_cbe[3:0]),
+ .s_cbe64				(s_cbe64[3:0]),
  .base_hit				(base_hit[7:0]),
  .cfg_hit				(cfg_hit),
  .m_data_vld				(m_data_vld),
@@ -303,14 +310,17 @@ pci_bridge32 bridge
  .csr					(csr[39:0]),
  // Inputs
  .adio_in				(adio_in[31:0]),
+ .adio64_in				(adio64_in[31:0]),
  .c_ready				(c_ready),
  .c_term				(c_term),
  .s_ready				(s_ready),
  .s_term				(s_term),
  .s_abort				(s_abort),
  .request				(request),
+ .request64				(request64),
  .requesthold				(requesthold),
  .m_cbe					(m_cbe[3:0]),
+ .m_cbe64				(m_cbe64[3:0]),
  .m_wrdn				(m_wrdn),
  .complete				(complete),
  .m_ready				(m_ready),
@@ -406,17 +416,21 @@ bufif0 SERR_buf     ( SERR, SERR_out, SERR_en ) ;
 
    master_tb  master_tb  (/*AUTOINST*/
 			  // Outputs
-			  .adio_in		(adio_in[32:0]),
+			  .adio_in		(adio_in[31:0]),
+			  .adio64_in		(adio64_in[31:0]),
 			  .complete		(complete),
 			  .m_ready		(m_ready),
 			  .m_cbe		(m_cbe[3:0]),
+			  .m_cbe64		(m_cbe64[3:0]),
 			  .m_wrdn		(m_wrdn),
 			  .request		(request),
+			  .request64		(request64),
 			  .requesthold		(requesthold),
 			  // Inputs
 			  .CLK			(CLK),
 			  .reset		(reset),
 			  .adio_out		(adio_out[31:0]),
+			  .adio64_out		(adio64_out[31:0]),
 			  .m_data		(m_data),
 			  .m_data_vld		(m_data_vld),
 			  .m_addr_n		(m_addr_n),

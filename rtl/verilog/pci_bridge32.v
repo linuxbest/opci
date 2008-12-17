@@ -181,10 +181,12 @@ wire    [3:0]   wbs_sel_i ;
 wire            wbs_cyc_i ;
 wire            wbs_stb_i ;
 wire            wbs_we_i ;
-wire  wbs_ack_o;
-wire  wbs_rty_o;
-wire  wbs_err_o;
-
+   wire 	wbs_ack_o;
+   wire 	wbs_rty_o;
+   wire 	wbs_err_o;
+   wire 	wbs_cab_i;
+   wire 	wbs_pref_i;
+   
 // WISHBONE master interface
 wire [31:0]  wbm_adr_o ;
 wire [31:0]  wbm_dat_i ;

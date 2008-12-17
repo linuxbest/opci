@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 六 12月 13 15:51:09 2008 (+0800)
 // Version: 
-// Last-Updated: 二 12月 16 09:33:33 2008 (+0800)
+// Last-Updated: 三 12月 17 18:03:16 2008 (+0800)
 //           By: Hu Gang
-//     Update #: 94
+//     Update #: 98
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -32,16 +32,20 @@
 
 module master_tb (/*AUTOARG*/
    // Outputs
-   adio_in, complete, m_ready, m_cbe, m_wrdn, request,
-   requesthold,
+   adio_in, adio64_in, complete, m_ready, m_cbe, m_cbe64,
+   m_wrdn, request, request64, requesthold,
    // Inputs
-   CLK, reset, adio_out, m_data, m_data_vld, m_addr_n, csr
+   CLK, reset, adio_out, adio64_out, m_data, m_data_vld,
+   m_addr_n, csr
    );
    input CLK;
    input reset;
 
    input [31:0] adio_out;
-   output [32:0] adio_in;
+   output [31:0] adio_in;
+   input [31:0]  adio64_out;
+   output [31:0] adio64_in;
+   
    input 	m_data;
    input 	m_data_vld;
    input 	m_addr_n;
@@ -50,10 +54,12 @@ module master_tb (/*AUTOARG*/
    output 	complete;
    output 	m_ready;
    output [3:0] m_cbe;
+   output [3:0] m_cbe64;
    output 	m_wrdn;
    output 	request;
+   output 	request64;
    output 	requesthold;
-
+   
    reg 		m_dataq;
    always @(posedge CLK or posedge reset)
      begin
