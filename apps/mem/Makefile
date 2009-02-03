@@ -1,0 +1,8 @@
+
+CVER_LIB=-y /p/hw/unisims/ -y ../../rtl/verilog/ 
+CVER_LIB+=-y /p/hw/ssce2/usb-mcu/ledblink/rtl/ -y .
+CVER_LIB+=+libext+.v
+CVER_LIB+=+incdir+../../rtl/verilog/
+
+sim:
+	cver ${CVER_LIB} top.v pci_wrapper.v glbl.v

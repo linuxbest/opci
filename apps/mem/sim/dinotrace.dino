@@ -1,0 +1,37 @@
+#print on
+
+signal_delete *.*
+
+signal_add main.lzf.PCI_CLK
+signal_add main.lzf.PCI_FRAMEn
+signal_add main.lzf.PCI_REQ64n
+signal_add main.lzf.PCI_AD
+signal_add main.lzf.PCI_AD64
+signal_add main.lzf.PCI_CBE
+signal_add main.lzf.PCI_CBE64
+signal_add main.lzf.PCI_IRDYn
+signal_add main.lzf.PCI_TRDYn
+signal_add main.lzf.PCI_DEVSELn
+signal_add main.lzf.PCI_ACK64n
+signal_add main.lzf.PCI_IDSEL
+signal_add main.lzf.PCI_PAR
+signal_add main.lzf.PCI_PAR64
+signal_add main.lzf.PCI_GNTn
+#signal_add main.lzf.PCI_LOCKn
+#signal_add main.lzf.PCI_PERRn
+signal_add main.lzf.PCI_REQn
+#signal_add main.lzf.PCI_SERRn
+signal_add main.lzf.PCI_STOPn
+signal_add main.lzf.PCI_PAR
+signal_add main.lzf.PCI_PAR64
+signal_add main.lzf.PCI_INTAn
+signal_add main.lzf.ext_read
+signal_add main.lzf.PCI_RSTn
+signal_highlight main.lzf.PCI_RSTn 8
+
+#signal_add main.lzf.i_bridge.*
+
+# Align grid to clock signal
+# # Aligning to the first signal is the default.  We'll just change the color
+grid_signal 0   *
+grid_color  0   4
