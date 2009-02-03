@@ -1,0 +1,14 @@
+#!/bin/sh
+
+set -e -x
+export XIL_PAR_DESIGN_CHECK_VERBOSE=10
+
+. /p/imgs/ise.env
+
+export TOP_LEVEL=$1
+#xst -ifn ../bin/build_xst.cmd -ofn synth.log
+cd xst && ngdbuild ${TOP_LEVEL} -uc ../${TOP_LEVEL}.ucf && \
+           map -o ${TOP_LEVEL}_map.ncd ${TOP_LEVEL} && \
+           par -w -ol high ${TOP_LEVEL}_map.ncd ${TOP_LEVEL}.ncd && \
+           bitgen -w ${TOP_LEVEL} ${TOP_LEVEL}.bit && \
+           trce ${TOP_LEVEL} ${TOP_LEVEL}_map -ucf ../${TOP_LEVEL}.ucf

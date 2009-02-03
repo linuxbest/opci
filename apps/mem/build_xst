@@ -1,0 +1,44 @@
+#!/bin/sh
+
+D=xc4vlx15-ff668-10
+
+set -e 
+set -x 
+
+if [ -z "$1" ]; then
+        echo useage: $0 module
+fi
+test -d script || mkdir script
+
+M=$1
+
+if [ -f script/$M.lst ]; then
+        true
+else
+        ls *.v > script/$M.lst
+fi
+cat script/$M.lst | awk '{print "verilog work ../"$1}' > script/$M.xst
+
+cat > script/$M.cmd << EOF
+run
+-ifn ../script/$M.xst
+-ofn $M.ngc
+-ifmt MIXED
+-ofmt NGC
+-top $M 
+-opt_mode SPEED
+-opt_level 1
+-p $D
+EOF
+
+cat > script/$M <<EOF
+#!/bin/sh
+set -e 
+set -x 
+export M=$M
+. /p/imgs/ise10.1.env
+mkdir -p xst
+cd xst && xst -ifn ../script/$M.cmd -ofn $M.log
+EOF
+chmod +x script/$M
+./script/$M

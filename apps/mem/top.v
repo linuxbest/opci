@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 四  1月 22 14:34:30 2009 (+0800)
 // Version: 
-// Last-Updated: 二  2月  3 20:21:59 2009 (+0800)
+// Last-Updated: 二  2月  3 20:47:04 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 45
+//     Update #: 64
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -87,48 +87,6 @@ module top (/*AUTOARG*/
 			CTL2 EMPTY */
    inout [15:0] FD;
    
-
-   ledblink i_ledblink(/*AUTOINST*/
-		       // Outputs
-		       .LED		(LED),
-		       // Inouts
-		       .PA2		(PA2),
-		       .PA4		(PA4),
-		       .PA5		(PA5),
-		       .PA6		(PA6),
-		       .PA7		(PA7),
-		       .SLWR		(SLWR),
-		       .SLRD		(SLRD),
-		       .CTL		(CTL[2:0]),
-		       .FD		(FD[15:0]),
-		       .PCI_AD		(PCI_AD[31:0]),
-		       .PCI_AD64	(PCI_AD64[31:0]),
-		       .PCI_CBE		(PCI_CBE[3:0]),
-		       .PCI_CBE64	(PCI_CBE64[3:0]),
-		       .PCI_FRAMEn	(PCI_FRAMEn),
-		       .PCI_IRDYn	(PCI_IRDYn),
-		       .PCI_TRDYn	(PCI_TRDYn),
-		       .PCI_DEVSELn	(PCI_DEVSELn),
-		       .PCI_STOPn	(PCI_STOPn),
-		       .PCI_LOCKn	(PCI_LOCKn),
-		       .PCI_REQn	(PCI_REQn),
-		       .PCI_RSTn	(PCI_RSTn),
-		       .PCI_INTAn	(PCI_INTAn),
-		       .PCI_INTBn	(PCI_INTBn),
-		       .PCI_PERRn	(PCI_PERRn),
-		       .PCI_SERRn	(PCI_SERRn),
-		       .PCI_PAR		(PCI_PAR),
-		       .PCI_REQ64n	(PCI_REQ64n),
-		       .PCI_ACK64n	(PCI_ACK64n),
-		       .PCI_PAR64	(PCI_PAR64),
-		       // Inputs
-		       .CLK		(CLK),
-		       .rstn		(rstn),
-		       .FCLK		(FCLK),
-		       .PCI_CLK		(PCI_CLK),
-		       .PCI_IDSEL	(PCI_IDSEL),
-		       .PCI_GNTn	(PCI_GNTn));
-
    /*AUTOWIRE*/
    // Beginning of automatic wires (for undeclared instantiated-module outputs)
    wire [31:0]		addr;			// From i_bridge of pci_bridge32.v
@@ -454,6 +412,50 @@ module top (/*AUTOARG*/
 			  .s_data_vld		(s_data_vld),
 			  .addr			(addr[31:0]),
 			  .adio_out		(adio_out[31:0]));
+
+
+   ledblink i_log (
+		   .PCI_FRAMEn (pci_frame_i),
+		   .PCI_AD (pci_ad_i),
+		   .PCI_AD64 (pci_ad64_i),
+		   .PCI_CBE (pci_cbe_i),
+		   .PCI_CBE64 (pci_cbe64_i),
+		   .PCI_IRDYn (pci_irdy_i),
+		   .PCI_TRDYn (pci_trdy_i),
+		   .PCI_DEVSELn (pci_devsel_i),
+		   .PCI_STOPn (pci_stop_i),
+		   .PCI_IDSEL (pci_idsel_i),
+		   .PCI_SERRn (pci_serr_i),
+		   .PCI_PERRn (pci_perr_i),
+		   .PCI_PAR (pci_par_i),
+		   .PCI_PAR64 (pci_par64_i),
+		   
+		   /*AUTOINST*/
+		   // Outputs
+		   .LED			(LED),
+		   // Inouts
+		   .PA2			(PA2),
+		   .PA4			(PA4),
+		   .PA5			(PA5),
+		   .PA6			(PA6),
+		   .PA7			(PA7),
+		   .SLWR		(SLWR),
+		   .SLRD		(SLRD),
+		   .CTL			(CTL[2:0]),
+		   .FD			(FD[15:0]),
+		   // Inputs
+		   .CLK			(CLK),
+		   .rstn		(rstn),
+		   .FCLK		(FCLK),
+		   .PCI_CLK		(PCI_CLK),
+		   .PCI_LOCKn		(PCI_LOCKn),
+		   .PCI_GNTn		(PCI_GNTn),
+		   .PCI_REQn		(PCI_REQn),
+		   .PCI_RSTn		(PCI_RSTn),
+		   .PCI_INTAn		(PCI_INTAn),
+		   .PCI_INTBn		(PCI_INTBn),
+		   .PCI_REQ64n		(PCI_REQ64n),
+		   .PCI_ACK64n		(PCI_ACK64n));
    
 endmodule // top
 
