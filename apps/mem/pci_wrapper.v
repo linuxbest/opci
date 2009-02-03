@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二  2月  3 17:27:05 2009 (+0800)
 // Version: 
-// Last-Updated: 二  2月  3 18:25:15 2009 (+0800)
+// Last-Updated: 二  2月  3 20:18:20 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 147
+//     Update #: 161
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -144,7 +144,8 @@ module pci_wrapper (/*AUTOARG*/
    assign pci_rst_i   = PCI_RSTn;
    assign pci_inta_i  = 1'bz;
    assign pci_idsel_i = PCI_IDSEL;
-
+   assign pci_gnt_i   = PCI_GNTn;
+   
    /* IOBUF_PCIX AUTO_TEMPLATE (
     .IO(PCI_AD[@]),
     .O(pci_ad_i[@]),
@@ -786,14 +787,6 @@ module pci_wrapper (/*AUTOARG*/
 		     // Inputs
 		     .I			(pci_frame_o),		 // Templated
 		     .T			(pci_frame_oe_o));	 // Templated
-   IOBUF_PCIX req64 (/*AUTOINST*/
-		     // Outputs
-		     .O			(pci_req64_i),		 // Templated
-		     // Inouts
-		     .IO		(PCI_REQ64n),		 // Templated
-		     // Inputs
-		     .I			(pci_req64_o),		 // Templated
-		     .T			(pci_req64_oe_o));	 // Templated
    IOBUF_PCIX trdy (/*AUTOINST*/
 		    // Outputs
 		    .O			(pci_trdy_i),		 // Templated
@@ -818,14 +811,7 @@ module pci_wrapper (/*AUTOARG*/
 		      // Inputs
 		      .I		(pci_devsel_o),		 // Templated
 		      .T		(pci_devsel_oe_o));	 // Templated
-   IOBUF_PCIX ack64 (/*AUTOINST*/
-		     // Outputs
-		     .O			(pci_ack64_i),		 // Templated
-		     // Inouts
-		     .IO		(PCI_ACK64n),		 // Templated
-		     // Inputs
-		     .I			(pci_ack64_o),		 // Templated
-		     .T			(pci_ack64_oe_o));	 // Templated
+   
    IOBUF_PCIX perr (/*AUTOINST*/
 		    // Outputs
 		    .O			(pci_perr_i),		 // Templated
@@ -842,7 +828,7 @@ module pci_wrapper (/*AUTOARG*/
 		    // Inputs
 		    .I			(pci_serr_o),		 // Templated
 		    .T			(pci_serr_oe_o));	 // Templated
-   
+   /* REQ64, ACK64 */
 endmodule // pci_wrapper
 
 // Local Variables:
