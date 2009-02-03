@@ -7,8 +7,8 @@
 //#include "pcisim.h"
 //#include "../drv/pci_dma.h"
 //#include "../drv/liblzs.c"
-#define OC_PCI_VENDOR 0x0100
-#define OC_PCI_DEVICE 0x0003
+#define OC_PCI_VENDOR 0x1895
+#define OC_PCI_DEVICE 0x0001
 
 #define IfPrint(c) (c >= 32 && c < 127 ? c : '.')
 
