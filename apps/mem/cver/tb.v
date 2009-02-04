@@ -240,7 +240,8 @@ module tb;
       end
       
       cpu.op[0] = 32'h0002_0000;
-      cpu.do_memory32_read32;
+      cpu.op[1] = 32'hAA55;
+      cpu.do_memory32_write32;
 
       repeat (100) @(posedge clk);
       

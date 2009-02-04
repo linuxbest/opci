@@ -34,7 +34,12 @@ signal_add tb.top.i_user.i_ddr.data_path0.mask_data_rise
 signal_add tb.top.i_user.i_ddr.data_path0.RESET90
 signal_add tb.top.i_user.i_ddr.ddr_controller0.init_done
 signal_add tb.top.i_user.i_ddr.ddr_controller0.fsm_monitor
+signal_add tb.top.i_user.i_ddr.ddr_controller0.WR
+signal_add tb.top.i_user.i_ddr.ddr_controller0.RD
+signal_add tb.top.i_user.i_ddr.ddr_controller0.burst_half
+signal_add tb.top.i_user.i_ddr.ddr_controller0.vld_cmd_hand
 signal_radix *monitor* ascii
+signal_add tb.top.i_user.i_ddr.user_interface0.backend_fifos0.Wdf_Empty
 
 signal_add tb.top.PCI_CLK
 signal_add tb.top.PCI_RSTn
@@ -50,6 +55,7 @@ signal_add tb.top.PCI_STOPn
 signal_add tb.top.PCI_IDSEL
 
 signal_add tb.top.i_user.adio_out
+signal_add tb.top.i_user.adio64_out
 signal_add tb.top.i_user.s_cbe
 signal_add tb.top.i_user.s_cbe64
 signal_add tb.top.i_user.s_ready
