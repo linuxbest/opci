@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 四  1月 22 14:34:30 2009 (+0800)
 // Version: 
-// Last-Updated: 二  2月  3 20:47:04 2009 (+0800)
+// Last-Updated: 三  2月  4 12:03:07 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 64
+//     Update #: 108
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -32,15 +32,22 @@
 
 module top (/*AUTOARG*/
    // Outputs
-   PCI_SERRn, LED,
+   DDR_DIMM_RAS_L, DDR_DIMM_CAS_L, DDR_DIMM_WE_L,
+   DDR_DIMM_CKE0, DDR_DIMM_CKE1, DDR_DIMM_CS_N0_7,
+   DDR_DIMM_CS_N8_15, DDR_DIMM_DM, DDR_DIMM_CLK0_P,
+   DDR_DIMM_CLK0_N, DDR_DIMM_CLK1_P, DDR_DIMM_CLK1_N,
+   DDR_DIMM_CLK2_P, DDR_DIMM_CLK2_N, DDR_DIMM_BA,
+   DDR_DIMM_ADDRESS, DDR_DIMM_SA, DDR_DIMM_SCL, PCI_SERRn,
+   LED,
    // Inouts
-   PCI_AD, PCI_AD64, PCI_CBE, PCI_CBE64, PCI_FRAMEn,
-   PCI_IRDYn, PCI_TRDYn, PCI_DEVSELn, PCI_STOPn, PCI_LOCKn,
-   PCI_REQn, PCI_RSTn, PCI_INTAn, PCI_INTBn, PCI_PERRn,
-   PCI_PAR, PCI_REQ64n, PCI_ACK64n, PCI_PAR64, PA2, PA4,
-   PA5, PA6, PA7, SLWR, SLRD, CTL, FD,
+   DDR_DIMM_DQ, DDR_DIMM_DQS, DDR_DIMM_SDA, PCI_AD,
+   PCI_AD64, PCI_CBE, PCI_CBE64, PCI_FRAMEn, PCI_IRDYn,
+   PCI_TRDYn, PCI_DEVSELn, PCI_STOPn, PCI_LOCKn, PCI_REQn,
+   PCI_RSTn, PCI_INTAn, PCI_INTBn, PCI_PERRn, PCI_PAR,
+   PCI_REQ64n, PCI_ACK64n, PCI_PAR64, PA2, PA4, PA5, PA6,
+   PA7, SLWR, SLRD, CTL, FD,
    // Inputs
-   PCI_CLK, PCI_IDSEL, PCI_GNTn, CLK, rstn, FCLK
+   PCI_CLK, PCI_IDSEL, PCI_GNTn, CLK, rstn, FCLK, dcm_rst
    );
    
    /* PCI */
@@ -86,39 +93,66 @@ module top (/*AUTOARG*/
 			CTL1 FULL
 			CTL2 EMPTY */
    inout [15:0] FD;
-   
+
+   /*AUTOINOUTMODULE("user_app", "^DDR")*/
+   // Beginning of automatic in/out/inouts (from specific module)
+   output		DDR_DIMM_RAS_L;
+   output		DDR_DIMM_CAS_L;
+   output		DDR_DIMM_WE_L;
+   output		DDR_DIMM_CKE0;
+   output		DDR_DIMM_CKE1;
+   output		DDR_DIMM_CS_N0_7;
+   output		DDR_DIMM_CS_N8_15;
+   output [7:0]		DDR_DIMM_DM;
+   output		DDR_DIMM_CLK0_P;
+   output		DDR_DIMM_CLK0_N;
+   output		DDR_DIMM_CLK1_P;
+   output		DDR_DIMM_CLK1_N;
+   output		DDR_DIMM_CLK2_P;
+   output		DDR_DIMM_CLK2_N;
+   output [1:0]		DDR_DIMM_BA;
+   output [11:0]	DDR_DIMM_ADDRESS;
+   output [2:0]		DDR_DIMM_SA;
+   output		DDR_DIMM_SCL;
+   inout [63:0]		DDR_DIMM_DQ;
+   inout [7:0]		DDR_DIMM_DQS;
+   inout		DDR_DIMM_SDA;
+   // End of automatics
+
    /*AUTOWIRE*/
    // Beginning of automatic wires (for undeclared instantiated-module outputs)
    wire [31:0]		addr;			// From i_bridge of pci_bridge32.v
    wire			addr_vld;		// From i_bridge of pci_bridge32.v
-   wire [31:0]		adio64_in;		// From i_user of user_interface.v
+   wire [31:0]		adio64_in;		// From i_user of user_app.v
    wire [31:0]		adio64_out;		// From i_bridge of pci_bridge32.v
-   wire [31:0]		adio_in;		// From i_user of user_interface.v
+   wire [31:0]		adio_in;		// From i_user of user_app.v
    wire [31:0]		adio_out;		// From i_bridge of pci_bridge32.v
    wire			b_busy;			// From i_bridge of pci_bridge32.v
    wire			backoff;		// From i_bridge of pci_bridge32.v
    wire [7:0]		base_hit;		// From i_bridge of pci_bridge32.v
-   wire			c_ready;		// From i_user of user_interface.v
-   wire			c_term;			// From i_user of user_interface.v
+   wire			c_ready;		// From i_user of user_app.v
+   wire			c_term;			// From i_user of user_app.v
    wire			cfg_hit;		// From i_bridge of pci_bridge32.v
    wire			cfg_vld;		// From i_bridge of pci_bridge32.v
-   wire			complete;		// From i_user of user_interface.v
+   wire			clk133;			// From i_clk of user_clk.v
+   wire			complete;		// From i_user of user_app.v
    wire [39:0]		csr;			// From i_bridge of pci_bridge32.v
+   wire			dcm_lock;		// From i_clk of user_clk.v
    wire			devselq_n;		// From i_bridge of pci_bridge32.v
    wire			dr_bus;			// From i_bridge of pci_bridge32.v
    wire			frameq_n;		// From i_bridge of pci_bridge32.v
    wire			i_idle;			// From i_bridge of pci_bridge32.v
    wire			idle;			// From i_bridge of pci_bridge32.v
-   wire			int_n;			// From i_user of user_interface.v
+   wire			int_n;			// From i_user of user_app.v
    wire			irdyq_n;		// From i_bridge of pci_bridge32.v
    wire			m_addr_n;		// From i_bridge of pci_bridge32.v
-   wire [3:0]		m_cbe;			// From i_user of user_interface.v
-   wire [3:0]		m_cbe64;		// From i_user of user_interface.v
+   wire [3:0]		m_cbe;			// From i_user of user_app.v
+   wire [3:0]		m_cbe64;		// From i_user of user_app.v
    wire			m_data;			// From i_bridge of pci_bridge32.v
    wire			m_data_vld;		// From i_bridge of pci_bridge32.v
-   wire			m_ready;		// From i_user of user_interface.v
+   wire			m_ready;		// From i_user of user_app.v
    wire			m_src_en;		// From i_bridge of pci_bridge32.v
-   wire			m_wrdn;			// From i_user of user_interface.v
+   wire			m_wrdn;			// From i_user of user_app.v
    wire			pci_ack64_i;		// From i_wrapper of pci_wrapper.v
    wire			pci_ack64_o;		// From i_bridge of pci_bridge32.v
    wire			pci_ack64_oe_o;		// From i_bridge of pci_bridge32.v
@@ -176,17 +210,17 @@ module top (/*AUTOARG*/
    wire			pci_trdy_o;		// From i_bridge of pci_bridge32.v
    wire			pci_trdy_oe_o;		// From i_bridge of pci_bridge32.v
    wire			perrq_n;		// From i_bridge of pci_bridge32.v
-   wire			request;		// From i_user of user_interface.v
-   wire			request64;		// From i_user of user_interface.v
-   wire			requesthold;		// From i_user of user_interface.v
-   wire			s_abort;		// From i_user of user_interface.v
+   wire			request;		// From i_user of user_app.v
+   wire			request64;		// From i_user of user_app.v
+   wire			requesthold;		// From i_user of user_app.v
+   wire			s_abort;		// From i_user of user_app.v
    wire [3:0]		s_cbe;			// From i_bridge of pci_bridge32.v
    wire [3:0]		s_cbe64;		// From i_bridge of pci_bridge32.v
    wire			s_data;			// From i_bridge of pci_bridge32.v
    wire			s_data_vld;		// From i_bridge of pci_bridge32.v
-   wire			s_ready;		// From i_user of user_interface.v
+   wire			s_ready;		// From i_user of user_app.v
    wire			s_src_en;		// From i_bridge of pci_bridge32.v
-   wire			s_term;			// From i_user of user_interface.v
+   wire			s_term;			// From i_user of user_app.v
    wire			s_wrdn;			// From i_bridge of pci_bridge32.v
    wire			serrq_n;		// From i_bridge of pci_bridge32.v
    wire			stopq_n;		// From i_bridge of pci_bridge32.v
@@ -386,33 +420,82 @@ module top (/*AUTOARG*/
 			  .cfg_self		(cfg_self),
 			  .int_n		(int_n));
 
-   user_interface i_user (/*AUTOINST*/
-			  // Outputs
-			  .adio_in		(adio_in[31:0]),
-			  .c_term		(c_term),
-			  .c_ready		(c_ready),
-			  .adio64_in		(adio64_in[31:0]),
-			  .s_ready		(s_ready),
-			  .s_term		(s_term),
-			  .s_abort		(s_abort),
-			  .complete		(complete),
-			  .m_ready		(m_ready),
-			  .m_cbe		(m_cbe[3:0]),
-			  .m_cbe64		(m_cbe64[3:0]),
-			  .m_wrdn		(m_wrdn),
-			  .request		(request),
-			  .request64		(request64),
-			  .requesthold		(requesthold),
-			  .int_n		(int_n),
-			  // Inputs
-			  .cfg_hit		(cfg_hit),
-			  .cfg_vld		(cfg_vld),
-			  .s_wrdn		(s_wrdn),
-			  .s_data		(s_data),
-			  .s_data_vld		(s_data_vld),
-			  .addr			(addr[31:0]),
-			  .adio_out		(adio_out[31:0]));
-
+   wire 		clk = PCI_CLK;  // 66Mhz
+   wire 		rst = ~PCI_RSTn;	// reset
+   wire 		clk48 = FCLK;
+   wire 		clk200_p, clk200_n;
+   wire 		clk133_p, clk133_n, clk133_90, clk133_div;
+   input 		dcm_rst;
+   
+   user_clk i_clk (.rst (dcm_rst),
+		   /*AUTOINST*/
+		   // Outputs
+		   .clk200_p		(clk200_p),
+		   .clk200_n		(clk200_n),
+		   .clk133_p		(clk133_p),
+		   .clk133_n		(clk133_n),
+		   .clk133		(clk133),
+		   .clk133_90		(clk133_90),
+		   .clk133_div		(clk133_div),
+		   .dcm_lock		(dcm_lock),
+		   // Inputs
+		   .clk48		(clk48));
+   user_app i_user (/*AUTOINST*/
+		    // Outputs
+		    .adio_in		(adio_in[31:0]),
+		    .c_term		(c_term),
+		    .c_ready		(c_ready),
+		    .adio64_in		(adio64_in[31:0]),
+		    .s_ready		(s_ready),
+		    .s_term		(s_term),
+		    .s_abort		(s_abort),
+		    .complete		(complete),
+		    .m_ready		(m_ready),
+		    .m_cbe		(m_cbe[3:0]),
+		    .m_cbe64		(m_cbe64[3:0]),
+		    .m_wrdn		(m_wrdn),
+		    .request		(request),
+		    .request64		(request64),
+		    .requesthold	(requesthold),
+		    .int_n		(int_n),
+		    .DDR_DIMM_RAS_L	(DDR_DIMM_RAS_L),
+		    .DDR_DIMM_CAS_L	(DDR_DIMM_CAS_L),
+		    .DDR_DIMM_WE_L	(DDR_DIMM_WE_L),
+		    .DDR_DIMM_CKE0	(DDR_DIMM_CKE0),
+		    .DDR_DIMM_CKE1	(DDR_DIMM_CKE1),
+		    .DDR_DIMM_CS_N0_7	(DDR_DIMM_CS_N0_7),
+		    .DDR_DIMM_CS_N8_15	(DDR_DIMM_CS_N8_15),
+		    .DDR_DIMM_DM	(DDR_DIMM_DM[7:0]),
+		    .DDR_DIMM_CLK0_P	(DDR_DIMM_CLK0_P),
+		    .DDR_DIMM_CLK0_N	(DDR_DIMM_CLK0_N),
+		    .DDR_DIMM_CLK1_P	(DDR_DIMM_CLK1_P),
+		    .DDR_DIMM_CLK1_N	(DDR_DIMM_CLK1_N),
+		    .DDR_DIMM_CLK2_P	(DDR_DIMM_CLK2_P),
+		    .DDR_DIMM_CLK2_N	(DDR_DIMM_CLK2_N),
+		    .DDR_DIMM_BA	(DDR_DIMM_BA[1:0]),
+		    .DDR_DIMM_ADDRESS	(DDR_DIMM_ADDRESS[11:0]),
+		    .DDR_DIMM_SA	(DDR_DIMM_SA[2:0]),
+		    .DDR_DIMM_SCL	(DDR_DIMM_SCL),
+		    // Inouts
+		    .DDR_DIMM_DQ	(DDR_DIMM_DQ[63:0]),
+		    .DDR_DIMM_DQS	(DDR_DIMM_DQS[7:0]),
+		    .DDR_DIMM_SDA	(DDR_DIMM_SDA),
+		    // Inputs
+		    .clk		(clk),
+		    .rst		(rst),
+		    .addr		(addr[31:0]),
+		    .adio_out		(adio_out[31:0]),
+		    .cfg_hit		(cfg_hit),
+		    .cfg_vld		(cfg_vld),
+		    .s_wrdn		(s_wrdn),
+		    .s_data		(s_data),
+		    .s_data_vld		(s_data_vld),
+		    .clk200_p		(clk200_p),
+		    .clk200_n		(clk200_n),
+		    .clk133		(clk133),
+		    .clk133_90		(clk133_90),
+		    .clk133_div		(clk133_div),
+		    .dcm_lock		(dcm_lock));
 
    ledblink i_log (
 		   .PCI_FRAMEn (pci_frame_i),

@@ -1,0 +1,36 @@
+#print on
+
+signal_delete *.*
+
+#signal_add tb.top.clk200_p
+#signal_add tb.top.clk200_n
+#signal_add tb.top.clk133_p
+#signal_add tb.top.clk133_n
+#signal_add tb.top.clk133
+#signal_add tb.top.clk133_div
+
+#signal_add tb.top.i_user.clk
+#signal_add tb.top.i_user.rst
+
+signal_add tb.top.i_user.DDR_DIMM_CLK0_P
+signal_add tb.top.i_user.DDR_DIMM_CLK0_N
+signal_add tb.top.i_user.DDR_DIMM_CKE0
+#signal_add tb.top.i_user.DDR_DIMM_CKE1
+signal_add tb.top.i_user.DDR_DIMM_RAS_L
+signal_add tb.top.i_user.DDR_DIMM_CAS_L
+signal_add tb.top.i_user.DDR_DIMM_WE_L
+signal_add tb.top.i_user.DDR_DIMM_BA
+signal_add tb.top.i_user.DDR_DIMM_ADDRESS
+signal_add tb.top.i_user.DDR_DIMM_DQ
+signal_add tb.top.i_user.DDR_DIMM_DQS
+
+signal_add tb.top.dcm_rst
+
+#signal_highlight main.lzf.PCI_RSTn 8
+
+#signal_add main.lzf.i_bridge.*
+
+# Align grid to clock signal
+# # Aligning to the first signal is the default.  We'll just change the color
+grid_signal 0   *
+grid_color  0   4

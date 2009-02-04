@@ -10,7 +10,7 @@ FILES += pci_tb.v
 all: opci ctest
 
 opci: FORCE
-	iverilog -DDEBUG  -o opci.vpp /p/hw/pcisim/ver/pci_memory.v /p/hw/pcisim/ver/pci_master.v /p/hw/pcisim/ver/pci_arbiter.v pci_tb.v -y ../ -y /p/hw/unisims/ -y /p/hw/ssce2/usb-mcu/ledblink/rtl/ -y ../../../rtl/verilog/ -v -I ../../../rtl/verilog/ ../glbl.v
+	iverilog -DDEBUG  -o opci.vpp /p/hw/pcisim/ver/pci_memory.v /p/hw/pcisim/ver/pci_master.v /p/hw/pcisim/ver/pci_arbiter.v pci_tb.v -y ../ -y /p/hw/unisims/ -y /p/hw/ssce2/usb-mcu/ledblink/rtl/ -y ../../../rtl/verilog/ -v -I ../../../rtl/verilog/ ../glbl.v -y /p/hw/XAPP708/verilog/ -I /p/hw/XAPP708/verilog/
 
 run: opci ctest 
 	vvp -M/p/hw/pcisim/vpi/ -mpci opci.vpp
