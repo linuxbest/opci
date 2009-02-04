@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 三  2月  4 10:51:19 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 15:12:58 2009 (+0800)
+// Last-Updated: 三  2月  4 19:45:56 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 116
+//     Update #: 146
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -55,37 +55,40 @@ module tb;
    always #7.5 clk = !clk;
 
    reg 	       clk48 = 1;
-   always #10.3 clk48 = !clk48;
+   always #10.4 clk48 = !clk48;
 
-   parameter dimm_delay = 2.5;	// 2.5
+   //reg 	       DDR_CLK_N = 0;
+   //always #(2.5) DDR_CLK_N = ~DDR_CLK_N;
+   
+   parameter dimm_delay = 2.3;	// 2.5
    // Outputs
-   wire        #dimm_delay DDR_CS0_L;
-   wire        #dimm_delay DDR_CS1_L;
-   wire        #dimm_delay DDR_CS2_L;
-   wire        #dimm_delay DDR_CS3_L;
-   wire        #dimm_delay DDR_CKE;
-   wire        #dimm_delay DDR_DIMM_RAS_L;
-   wire        #dimm_delay DDR_DIMM_CAS_L;
-   wire        #dimm_delay DDR_DIMM_WE_L;
-   wire        #dimm_delay DDR_DIMM_CKE0, DDR_DIMM_CKE1;
-   wire        #dimm_delay DDR_DIMM_CS_N0_7;
-   wire        #dimm_delay DDR_DIMM_CS_N8_15;
-   wire        #dimm_delay DDR_DIMM_CLK0_P;
-   wire        #dimm_delay DDR_DIMM_CLK0_N;
-   wire        #dimm_delay DDR_DIMM_CLK1_P;
-   wire        #dimm_delay DDR_DIMM_CLK1_N;   
-   wire        #dimm_delay DDR_DIMM_CLK2_P;
-   wire        #dimm_delay DDR_DIMM_CLK2_N;
-   wire [1:0]  #dimm_delay DDR_DIMM_BA;
-   wire [11:0] #dimm_delay DDR_DIMM_ADDRESS;
-   wire [2:0]  #dimm_delay DDR_DIMM_SA;
-   wire        #dimm_delay DDR_DIMM_SCL;
+   wire         DDR_CS0_L;
+   wire         DDR_CS1_L;
+   wire         DDR_CS2_L;
+   wire         DDR_CS3_L;
+   wire         DDR_CKE;
+   wire         DDR_DIMM_RAS_L;
+   wire         DDR_DIMM_CAS_L;
+   wire         DDR_DIMM_WE_L;
+   wire         DDR_DIMM_CKE0, DDR_DIMM_CKE1;
+   wire         DDR_DIMM_CS_N0_7;
+   wire         DDR_DIMM_CS_N8_15;
+   wire         DDR_DIMM_CLK0_P;
+   wire         DDR_DIMM_CLK0_N;
+   wire         DDR_DIMM_CLK1_P;
+   wire         DDR_DIMM_CLK1_N;   
+   wire         DDR_DIMM_CLK2_P;
+   wire         DDR_DIMM_CLK2_N;
+   wire [1:0]   DDR_DIMM_BA;
+   wire [11:0]  DDR_DIMM_ADDRESS;
+   wire [2:0]   DDR_DIMM_SA;
+   wire         DDR_DIMM_SCL;
    //Bidirs
-   wire [63:0] #dimm_delay DDR_DIMM_DQ;
-   wire [7:0]  #dimm_delay DDR_DIMM_DQS;
-   wire [7:0]  #dimm_delay DDR_DIMM_DM;
-   wire        #dimm_delay DDR_DIMM_SDA;
-   //wire [1:0]  #dimm_delay DDR_DIMM_READ_EN_IN;
+   wire [63:0]  DDR_DIMM_DQ;
+   wire [7:0]   DDR_DIMM_DQS;
+   wire [7:0]   DDR_DIMM_DM;
+   wire         DDR_DIMM_SDA;
+   //wire [1:0]   DDR_DIMM_READ_EN_IN;
 
    pci_arbiter arb(clk, reset_w, frame, irdy, req, gnt);
    pci_master cpu(.CLK(clk), 
@@ -170,7 +173,7 @@ module tb;
 		  );
    
    assign reset_w = reset;
-   
+
    initial begin
       #10;
       glbl.GSR_int = 1'b1;
@@ -185,13 +188,13 @@ module tb;
 
       cpu.do_reset;
       
+      reset = 1;      
       dcm_rst = 0;
       repeat (10) @(posedge clk);
       dcm_rst = 1;
       repeat (10) @(posedge clk);
       dcm_rst = 0;
       
-      reset = 1;
       repeat (10) @(posedge clk);
       reset = 0;
       repeat (10) @(posedge clk);
@@ -232,6 +235,15 @@ module tb;
 	 $display("PCI: reading device id failed\n");
 	 $stop;
       end
+      
+      wait (tb.top.i_user.i_ddr.ddr_controller0.init_done);
+      @(posedge clk);
+      @(posedge clk);
+
+      cpu.op[0] = 32'h0002_0000;
+      cpu.do_memory32_read32;
+
+      repeat (10) @(posedge clk);
       
       $finish;
    end

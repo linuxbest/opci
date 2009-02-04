@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 三  2月  4 10:38:38 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 12:03:00 2009 (+0800)
+// Last-Updated: 三  2月  4 19:23:15 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 32
+//     Update #: 54
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -32,8 +32,8 @@
 
 module user_clk (/*AUTOARG*/
    // Outputs
-   clk200_p, clk200_n, clk133_p, clk133_n, clk133,
-   clk133_90, clk133_div, dcm_lock,
+   clk200_p, clk200_n, clk133, clk133_90, clk133_div,
+   dcm_lock,
    // Inputs
    clk48, rst
    );
@@ -42,13 +42,14 @@ module user_clk (/*AUTOARG*/
    /* 48 * 25 / 6 = 200 
     * 48 * 11 / 4 = 132 */
    output clk200_p, clk200_n;
-   output clk133_p, clk133_n, clk133, clk133_90, clk133_div;
+   output clk133, clk133_90, clk133_div;
    output dcm_lock;
    
+   wire   clk133_w;
    dcm132 i_dcm132 (.CLKIN_IN(clk48),
 		    .RST_IN(rst),
-		    .CLKFX_OUT(clk133_p),
-		    .CLKFX180_OUT(clk133_n),
+		    .CLKFX_OUT(clk133_w),
+		    .CLKFX180_OUT(),
 		    // Outputs
 		    .CLKIN_IBUFG_OUT	(),
 		    .CLK0_OUT		(),
@@ -69,7 +70,7 @@ module user_clk (/*AUTOARG*/
    //synthesis attribute DLL_FREQUENCY_MODE of XPCI_DLL is "LOW"
    //synthesis attribute DUTY_CYCLE_CORRECTION of XPCI_DLL is "TRUE"
    //synthesis attribute CLKDV_DIVIDE of XPCI_DLL is "16.0"
-   DCM_BASE XPCI_DLL (.CLKIN(clk133_p), 
+   DCM_BASE XPCI_DLL (.CLKIN(clk133_w), 
 		      .CLKFB(clk133), 
 		      .RST(rst), 
 		      .CLK0(clk133),

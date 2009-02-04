@@ -12,21 +12,29 @@ signal_delete *.*
 #signal_add tb.top.i_user.clk
 #signal_add tb.top.i_user.rst
 
-#signal_add tb.top.i_user.DDR_DIMM_CLK0_P
-#signal_add tb.top.i_user.DDR_DIMM_CLK0_N
-#signal_add tb.top.i_user.DDR_DIMM_CKE0
-#signal_add tb.top.i_user.DDR_DIMM_CKE1
-#signal_add tb.top.i_user.DDR_DIMM_RAS_L
-#signal_add tb.top.i_user.DDR_DIMM_CAS_L
-#signal_add tb.top.i_user.DDR_DIMM_WE_L
-#signal_add tb.top.i_user.DDR_DIMM_BA
-#signal_add tb.top.i_user.DDR_DIMM_ADDRESS
-#signal_add tb.top.i_user.DDR_DIMM_DQ
-#signal_add tb.top.i_user.DDR_DIMM_DQS
+signal_add tb.DDR_CLK_N
+signal_add tb.top.i_user.DDR_DIMM_CLK0_P
+signal_add tb.top.i_user.DDR_DIMM_CLK0_N
+signal_add tb.top.i_user.DDR_DIMM_CKE0
+signal_add tb.top.i_user.DDR_DIMM_CKE1
+signal_add tb.top.i_user.DDR_DIMM_RAS_L
+signal_add tb.top.i_user.DDR_DIMM_CAS_L
+signal_add tb.top.i_user.DDR_DIMM_WE_L
+signal_add tb.top.i_user.DDR_DIMM_BA
+signal_add tb.top.i_user.DDR_DIMM_ADDRESS
+signal_add tb.top.i_user.DDR_DIMM_DQ
+signal_add tb.top.i_user.DDR_DIMM_DQS
+signal_add tb.top.i_user.DDR_DIMM_DM
+signal_add tb.top.i_user.DDR_DIMM_CS_N0_7
+signal_add tb.top.i_user.DDR_DIMM_CS_N8_15
 
-#signal_add tb.top.i_user.i_ddr.ddr_controller0.init_done
-#signal_add tb.top.i_user.i_ddr.ddr_controller0.fsm_monitor
-#signal_radix *monitor* ascii
+signal_add tb.top.i_user.i_ddr.DCM_LOCK
+signal_add tb.top.i_user.i_ddr.system_rst_90
+signal_add tb.top.i_user.i_ddr.data_path0.mask_data_rise
+signal_add tb.top.i_user.i_ddr.data_path0.RESET90
+signal_add tb.top.i_user.i_ddr.ddr_controller0.init_done
+signal_add tb.top.i_user.i_ddr.ddr_controller0.fsm_monitor
+signal_radix *monitor* ascii
 
 signal_add tb.top.PCI_CLK
 signal_add tb.top.PCI_RSTn
@@ -40,6 +48,20 @@ signal_add tb.top.PCI_IRDYn
 signal_add tb.top.PCI_TRDYn
 signal_add tb.top.PCI_STOPn
 signal_add tb.top.PCI_IDSEL
+
+signal_add tb.top.i_user.adio_out
+signal_add tb.top.i_user.s_cbe
+signal_add tb.top.i_user.s_cbe64
+signal_add tb.top.i_user.s_ready
+
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.c_state
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.cfg_ready_reg
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.cfg_ready
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.state_wait_reg
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.cnf_progress
+#signal_add tb.top.i_bridge.pci_target_unit.pci_target_sm.norm_access_to_conf_reg
+#signal_add tb.top.i_bridge.cfg_sel
+#signal_add tb.top.i_bridge.cfg_vld
 
 signal_highlight *monitor* 8
 

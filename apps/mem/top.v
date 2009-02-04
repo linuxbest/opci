@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 四  1月 22 14:34:30 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 12:03:07 2009 (+0800)
+// Last-Updated: 三  2月  4 19:07:24 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 108
+//     Update #: 116
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -135,6 +135,10 @@ module top (/*AUTOARG*/
    wire			cfg_hit;		// From i_bridge of pci_bridge32.v
    wire			cfg_vld;		// From i_bridge of pci_bridge32.v
    wire			clk133;			// From i_clk of user_clk.v
+   wire			clk133_90;		// From i_clk of user_clk.v
+   wire			clk133_div;		// From i_clk of user_clk.v
+   wire			clk200_n;		// From i_clk of user_clk.v
+   wire			clk200_p;		// From i_clk of user_clk.v
    wire			complete;		// From i_user of user_app.v
    wire [39:0]		csr;			// From i_bridge of pci_bridge32.v
    wire			dcm_lock;		// From i_clk of user_clk.v
@@ -423,8 +427,6 @@ module top (/*AUTOARG*/
    wire 		clk = PCI_CLK;  // 66Mhz
    wire 		rst = ~PCI_RSTn;	// reset
    wire 		clk48 = FCLK;
-   wire 		clk200_p, clk200_n;
-   wire 		clk133_p, clk133_n, clk133_90, clk133_div;
    input 		dcm_rst;
    
    user_clk i_clk (.rst (dcm_rst),
@@ -432,8 +434,6 @@ module top (/*AUTOARG*/
 		   // Outputs
 		   .clk200_p		(clk200_p),
 		   .clk200_n		(clk200_n),
-		   .clk133_p		(clk133_p),
-		   .clk133_n		(clk133_n),
 		   .clk133		(clk133),
 		   .clk133_90		(clk133_90),
 		   .clk133_div		(clk133_div),
@@ -490,6 +490,8 @@ module top (/*AUTOARG*/
 		    .s_wrdn		(s_wrdn),
 		    .s_data		(s_data),
 		    .s_data_vld		(s_data_vld),
+		    .s_cbe		(s_cbe[3:0]),
+		    .s_cbe64		(s_cbe64[3:0]),
 		    .clk200_p		(clk200_p),
 		    .clk200_n		(clk200_n),
 		    .clk133		(clk133),

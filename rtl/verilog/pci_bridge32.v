@@ -1703,7 +1703,7 @@ pci_in_reg input_register
 	else if (addr_vld)
 	  cfg_sel <= #1 cfg_vld && adio_out[7];
      end
-   assign cfg_ready = cfg_sel ? c_ready : s_ready;
+   assign cfg_ready = cfg_sel ? c_ready : /*s_ready*/1'b1;
    assign cfg_term  = cfg_sel ? c_term  : 1'b0;
    
 endmodule

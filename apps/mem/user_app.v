@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 二  2月  3 18:27:52 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 12:05:04 2009 (+0800)
+// Last-Updated: 三  2月  4 18:57:21 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 104
+//     Update #: 122
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -46,8 +46,8 @@ module user_app (/*AUTOARG*/
    DDR_DIMM_DQ, DDR_DIMM_DQS, DDR_DIMM_SDA,
    // Inputs
    clk, rst, addr, adio_out, cfg_hit, cfg_vld, s_wrdn,
-   s_data, s_data_vld, clk200_p, clk200_n, clk133,
-   clk133_90, clk133_div, dcm_lock
+   s_data, s_data_vld, s_cbe, s_cbe64, clk200_p, clk200_n,
+   clk133, clk133_90, clk133_div, dcm_lock
    );
    // clock and reset
    input clk;
@@ -68,12 +68,15 @@ module user_app (/*AUTOARG*/
    output [31:0] adio64_in;
    assign c_ready = 1;
    assign c_term  = 1;
-
+   assign adio_in = 0;
+   
+   input [3:0] 	 s_cbe;
+   input [3:0] 	 s_cbe64;
    output 	 s_ready;
    output 	 s_term;
    output 	 s_abort;
-   assign s_ready = 1;
-   assign s_term  = 1;
+   //assign s_ready = 1;
+   //assign s_term  = 1;
    assign s_abort = 0;
    
    output 	 complete;
@@ -130,21 +133,23 @@ module user_app (/*AUTOARG*/
 		 
 		 .DDR_CLK90(clk133_90),
 		 .DDR_CLKDIV(clk133_div),
-
+		 .DCM_LOCK(dcm_lock),
+		 
 		 //output
 		 .READ_DATA_OUT(),
 		 .DDR_NOT_READY(),
 		 .S_WAIT(),
 		 .READ_DATA_VALID(),
+		 .S_READY(s_ready),
+		 .S_TERM(s_term),
 		 // input
-		 .PCI_ADDR(0),
-		 .PCI_DATA_IN(0),
+		 .PCI_ADDR(/*adio_out[26:0]*/0),
+		 .PCI_DATA_IN(/*{adio64_out, adio_out}*/0),
 		 .PCI_WRITE_VALID(0),
-		 .PCI_CBEA(0),
+		 .PCI_CBEA(/*{s_cbe64, s_cbe}*/0),
 		 .PCI_WRITE(0),
 		 .PCI_HIT(0),
 		 .PCI_HIT_EARLY(0),
-		 .DCM_LOCK(dcm_lock),
 		 .S_DONE(0),
 		 
 		 /*AUTOINST*/

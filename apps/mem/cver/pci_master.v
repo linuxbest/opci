@@ -472,7 +472,6 @@ module pci_master(CLK, RESET, AD, C_BE, PAR,
 	    if ($test$plusargs("pci-parity-x-ok") && calculated_parity===1'bx)
 	      $display("PCI: Ignoring bogus parity calculation.");
 	    else begin
-               $dumpflush(".");
 	       $stop;
             end
 	 end
@@ -483,7 +482,6 @@ module pci_master(CLK, RESET, AD, C_BE, PAR,
 	    if ($test$plusargs("pci-parity-x-ok") && calculated_parity===1'bx)
 	      $display("PCI: Ignoring bogus parity calculation.");
 	    else begin
-              $dumpflush(".");
 	       $stop;
             end
 	 end
