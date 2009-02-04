@@ -143,7 +143,7 @@ module user_app (/*AUTOARG*/
 		 .S_READY(s_ready),
 		 .S_TERM(s_term),
 		 // input
-		 .PCI_ADDR(/*adio_out[26:0]*/),
+		 .PCI_ADDR(/*adio_out[26:0]*/0),
 		 .PCI_DATA_IN(/*{adio64_out, adio_out}*/0),
 		 .PCI_WRITE_VALID(0),
 		 .PCI_CBEA(/*{s_cbe64, s_cbe}*/0),
