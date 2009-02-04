@@ -38,7 +38,7 @@ module tb;
    reg dcm_rst;
    
    tri1 frame, irdy, trdy, stop, devsel, par;
-   tri1 [31:0] ad;
+   tri0 [31:0] ad;
    tri1 [3:0]  c_be;
    tri1 [3:0]  req;
    wire [3:0]  gnt;
@@ -201,6 +201,8 @@ module tb;
       repeat (10) @(posedge clk);
       reset = 1;
       repeat (100) @(posedge clk);
+      
+      wait (tb.top.i_user.i_ddr.ddr_controller0.init_done);
 
       /* reading the device id */
       cpu.op[0] = {1'b1, 18'h0};
@@ -237,14 +239,10 @@ module tb;
 	 $stop;
       end
       
-      wait (tb.top.i_user.i_ddr.ddr_controller0.init_done);
-      @(posedge clk);
-      @(posedge clk);
-
       cpu.op[0] = 32'h0002_0000;
       cpu.do_memory32_read32;
 
-      repeat (10) @(posedge clk);
+      repeat (100) @(posedge clk);
       
       $finish;
    end
