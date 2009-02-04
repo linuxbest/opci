@@ -12,21 +12,36 @@ signal_delete *.*
 #signal_add tb.top.i_user.clk
 #signal_add tb.top.i_user.rst
 
-signal_add tb.top.i_user.DDR_DIMM_CLK0_P
-signal_add tb.top.i_user.DDR_DIMM_CLK0_N
-signal_add tb.top.i_user.DDR_DIMM_CKE0
+#signal_add tb.top.i_user.DDR_DIMM_CLK0_P
+#signal_add tb.top.i_user.DDR_DIMM_CLK0_N
+#signal_add tb.top.i_user.DDR_DIMM_CKE0
 #signal_add tb.top.i_user.DDR_DIMM_CKE1
-signal_add tb.top.i_user.DDR_DIMM_RAS_L
-signal_add tb.top.i_user.DDR_DIMM_CAS_L
-signal_add tb.top.i_user.DDR_DIMM_WE_L
-signal_add tb.top.i_user.DDR_DIMM_BA
-signal_add tb.top.i_user.DDR_DIMM_ADDRESS
-signal_add tb.top.i_user.DDR_DIMM_DQ
-signal_add tb.top.i_user.DDR_DIMM_DQS
+#signal_add tb.top.i_user.DDR_DIMM_RAS_L
+#signal_add tb.top.i_user.DDR_DIMM_CAS_L
+#signal_add tb.top.i_user.DDR_DIMM_WE_L
+#signal_add tb.top.i_user.DDR_DIMM_BA
+#signal_add tb.top.i_user.DDR_DIMM_ADDRESS
+#signal_add tb.top.i_user.DDR_DIMM_DQ
+#signal_add tb.top.i_user.DDR_DIMM_DQS
 
-signal_add tb.top.dcm_rst
+#signal_add tb.top.i_user.i_ddr.ddr_controller0.init_done
+#signal_add tb.top.i_user.i_ddr.ddr_controller0.fsm_monitor
+#signal_radix *monitor* ascii
 
-#signal_highlight main.lzf.PCI_RSTn 8
+signal_add tb.top.PCI_CLK
+signal_add tb.top.PCI_RSTn
+signal_add tb.top.PCI_FRAMEn
+signal_add tb.top.PCI_AD
+signal_add tb.top.PCI_AD64
+signal_add tb.top.PCI_CBE
+signal_add tb.top.PCI_CBE64
+signal_add tb.top.PCI_DEVSELn
+signal_add tb.top.PCI_IRDYn
+signal_add tb.top.PCI_TRDYn
+signal_add tb.top.PCI_STOPn
+signal_add tb.top.PCI_IDSEL
+
+signal_highlight *monitor* 8
 
 #signal_add main.lzf.i_bridge.*
 

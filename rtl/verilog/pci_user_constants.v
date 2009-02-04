@@ -183,7 +183,7 @@
 // address masks as well as base addresses!
 // Don't define PCI_AMx to 24'hffff_ff for memory images! Use that just for I/O images.
 `define PCI_AM0 24'hffff_f0
-`define PCI_AM1 24'hffff_ff
+`define PCI_AM1 24'hffff_f0
 `define PCI_AM2 24'hffff_f0
 `define PCI_AM3 24'hffff_f0
 `define PCI_AM4 24'hffff_f0
@@ -193,7 +193,7 @@
 // then IMAGE with that base address points to MEMORY space, othervise it points ti IO space. D
 // Device independent software sets the base addresses acording to MEMORY or IO maping!
 `define PCI_BA0_MEM_IO 1'b0 // considered only when PCI_IMAGE0 is used as general PCI-WB image!
-`define PCI_BA1_MEM_IO 1'b1
+`define PCI_BA1_MEM_IO 1'b0
 `define PCI_BA2_MEM_IO 1'b0
 `define PCI_BA3_MEM_IO 1'b0
 `define PCI_BA4_MEM_IO 1'b0

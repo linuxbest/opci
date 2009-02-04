@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 三  2月  4 10:51:19 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 12:05:57 2009 (+0800)
+// Last-Updated: 三  2月  4 15:12:58 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 56
+//     Update #: 116
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -57,7 +57,7 @@ module tb;
    reg 	       clk48 = 1;
    always #10.3 clk48 = !clk48;
 
-   parameter dimm_delay = 2.3;	// 2.5
+   parameter dimm_delay = 2.5;	// 2.5
    // Outputs
    wire        #dimm_delay DDR_CS0_L;
    wire        #dimm_delay DDR_CS1_L;
@@ -86,6 +86,25 @@ module tb;
    wire [7:0]  #dimm_delay DDR_DIMM_DM;
    wire        #dimm_delay DDR_DIMM_SDA;
    //wire [1:0]  #dimm_delay DDR_DIMM_READ_EN_IN;
+
+   pci_arbiter arb(clk, reset_w, frame, irdy, req, gnt);
+   pci_master cpu(.CLK(clk), 
+		  .RESET(reset_w),
+		  .FRAME(frame),
+		  .IRDY(irdy), 
+		  .TRDY(trdy),
+		  .STOP(stop), 
+		  .DEVSEL(devsel),
+		  .AD(ad), 
+		  .C_BE(c_be),
+		  .PAR(par),
+		  .REQ(req[0]),
+		  .GNT(gnt[0]),
+		  .nIRQ(irq),
+		  .PAR64(par64),
+		  .AD64(ad64),
+		  .C_BE64(c_be64),
+		  .ACK64(ack64));
    
    top top ( .PCI_CLK(clk), 
 	     .PCI_RSTn(reset_w),
@@ -164,12 +183,14 @@ module tb;
       $dumpfile("tb.vcd");
       $dumpvars(0, tb);
 
+      cpu.do_reset;
+      
       dcm_rst = 0;
       repeat (10) @(posedge clk);
       dcm_rst = 1;
       repeat (10) @(posedge clk);
       dcm_rst = 0;
-
+      
       reset = 1;
       repeat (10) @(posedge clk);
       reset = 0;
@@ -177,7 +198,40 @@ module tb;
       reset = 1;
       repeat (100) @(posedge clk);
 
-      repeat (1000) @(posedge clk);
+      /* reading the device id */
+      cpu.op[0] = {1'b1, 18'h0};
+      cpu.do_config_read;
+      if (cpu.res[0] != 32'h0001_1895) begin
+	 $write("PCI: device id %x\n", cpu.res[0]);
+	 $display("PCI: reading device id failed\n");
+	 $stop;
+      end
+
+      cpu.op[2] = 32'h0;
+      
+      cpu.op[0] = {1'b1, 18'h4};// command and status
+      cpu.do_config_read;
+      cpu.op[1] = 2'b10;
+      cpu.do_config_write;	// enable memory space
+      
+      cpu.op[0] = {1'b1, 18'h10};// command and status
+      cpu.do_config_read;
+      cpu.op[1] = 32'h0001_0000;
+      cpu.do_config_write;
+      
+      cpu.op[0] = {1'b1, 18'h14};// command and status
+      cpu.do_config_read;
+      cpu.op[1] = 32'h0002_0000;
+      cpu.do_config_write;
+
+      // testing the bar0 
+      cpu.op[0] = 32'h0001_0000;
+      cpu.do_memory32_read32;
+      if (cpu.res[0] != 32'h0001_1895) begin
+	 $write("PCI: device id %x\n", cpu.res[0]);
+	 $display("PCI: reading device id failed\n");
+	 $stop;
+      end
       
       $finish;
    end
