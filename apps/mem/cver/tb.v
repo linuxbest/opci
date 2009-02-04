@@ -6,9 +6,9 @@
 // Maintainer: 
 // Created: 三  2月  4 10:51:19 2009 (+0800)
 // Version: 
-// Last-Updated: 三  2月  4 19:45:56 2009 (+0800)
+// Last-Updated: 三  2月  4 20:07:34 2009 (+0800)
 //           By: Hu Gang
-//     Update #: 146
+//     Update #: 147
 // URL: 
 // Keywords: 
 // Compatibility: 
@@ -188,13 +188,14 @@ module tb;
 
       cpu.do_reset;
       
-      reset = 1;      
+
       dcm_rst = 0;
       repeat (10) @(posedge clk);
       dcm_rst = 1;
       repeat (10) @(posedge clk);
       dcm_rst = 0;
-      
+
+      reset = 1;            
       repeat (10) @(posedge clk);
       reset = 0;
       repeat (10) @(posedge clk);
